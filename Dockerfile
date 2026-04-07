@@ -9,7 +9,7 @@
 FROM pytorch/pytorch:2.2.0-cuda12.1-cudnn8-runtime
 
 # ── Metadatos ──────────────────────────────────────────────────────────────────
-LABEL maintainer="your-name"
+LABEL maintainer="rdiaper"
 LABEL description="MEG Transfer Learning — LibriBrain"
 LABEL version="1.0"
 
