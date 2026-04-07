@@ -422,11 +422,24 @@ def train_ddp(args):
     if is_main:
         print(f"\n[PASO 1] Cargando LibriBrain — tarea: {args.task}")
 
-    train_pnpl, n_classes, n_channels = load_libribrain(
-        LibriBrainConfig(args.data_path, args.task, "train")
-    )
-    val_pnpl,   _, _ = load_libribrain(LibriBrainConfig(args.data_path, args.task, "val"))
-    test_pnpl,  _, _ = load_libribrain(LibriBrainConfig(args.data_path, args.task, "test"))
+    # Rank 0 primero: calcula y escribe las stats en los H5 (modo "r+")
+    if rank == 0:
+        train_pnpl, n_classes, n_channels = load_libribrain(
+            LibriBrainConfig(args.data_path, args.task, "train")
+        )
+        val_pnpl,  _, _ = load_libribrain(LibriBrainConfig(args.data_path, args.task, "val"))
+        test_pnpl, _, _ = load_libribrain(LibriBrainConfig(args.data_path, args.task, "test"))
+
+    # Esperar a que rank 0 termine de escribir antes de que los demás abran los mismos archivos
+    dist.barrier()
+
+    # El resto de ranks cargan ya con las stats cacheadas (solo lectura)
+    if rank != 0:
+        train_pnpl, n_classes, n_channels = load_libribrain(
+            LibriBrainConfig(args.data_path, args.task, "train")
+        )
+        val_pnpl,  _, _ = load_libribrain(LibriBrainConfig(args.data_path, args.task, "val"))
+        test_pnpl, _, _ = load_libribrain(LibriBrainConfig(args.data_path, args.task, "test"))
 
     # ── Preprocesado y conversión imagen ─────────────────────────────────────
     preprocessor  = MEGPreprocessor(use_instance_norm=True, clip_std=5.0)
