@@ -107,8 +107,8 @@ services:
       # Número de GPUs (usado por torchrun)
       - CUDA_VISIBLE_DEVICES=0,1
       - HF_TOKEN=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
-      - UID=$(id -u)
-      - GID=$(id -g)
+      - UID=${UID:-1000}
+      - GID=${GID:-1000}
 
     # ── Red: aislada, sin exposición innecesaria ───────────────────────────────
     network_mode: host
