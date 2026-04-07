@@ -396,6 +396,18 @@ def train_ddp(args):
       - Resume desde último checkpoint
       - Logging en TensorBoard (solo rank 0)
     """
+    # Al inicio de train_ddp(), ANTES de setup_ddp()
+    if int(os.environ.get("RANK", 0)) == 0:
+        print("[PRE] Precalculando stats H5 (rank 0 solo)...")
+        load_libribrain(LibriBrainConfig(args.data_path, args.task, "train"))
+        load_libribrain(LibriBrainConfig(args.data_path, args.task, "validation"))
+        load_libribrain(LibriBrainConfig(args.data_path, args.task, "test"))
+        print("[PRE] Stats calculadas. Iniciando DDP...")
+
+    # AHORA iniciar DDP (todos los procesos llegan aquí)
+    rank, local_rank, world_size, device = setup_ddp()
+    dist.barrier()  # Asegurar que rank 0 terminó antes de continuar
+
     # ── Setup DDP ─────────────────────────────────────────────────────────────
     rank, local_rank, world_size, device = setup_ddp()
     is_main = (rank == 0)  # Solo el proceso 0 imprime y guarda
