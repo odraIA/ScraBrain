@@ -20,20 +20,20 @@ timm==0.9.16                  # ViT-Tiny, ViT-Base y otros backbones
 pnpl==0.0.8
 
 # ── Señal / Neuroimagen ────────────────────────────────────────────────────────
-PyWavelets==1.6.0             # CWT Morlet
-scipy==1.12.0                 # Filtros adicionales, estadísticas
-numpy==1.26.4                 # Arrays (pinado por compatibilidad con pywt)
-h5py==3.10.0                  # Lectura de archivos HDF5 de LibriBrain
+PyWavelets>=1.4.0             # CWT Morlet
+scipy>=1.10.0                 # Filtros adicionales, estadísticas
+numpy>=1.24.4,<2.0            # Arrays (pinado por compatibilidad con pywt)
+h5py>=3.8.0                  # Lectura de archivos HDF5 de LibriBrain
 
 # ── Machine Learning / Métricas ───────────────────────────────────────────────
-scikit-learn==1.4.1           # F1-macro, balanced_accuracy, class_weight
+scikit-learn==1.3.0    # F1-macro, balanced_accuracy, class_weight
 
 # ── Utilidades de entrenamiento ───────────────────────────────────────────────
-tqdm==4.66.2                  # Barras de progreso
-tensorboard==2.16.2           # Logging de métricas (alternativa a wandb)
+tqdm>=4.64.0                  # Barras de progreso
+tensorboard>=2.13.0           # Logging de métricas (alternativa a wandb)
 
 # ── Visualización ─────────────────────────────────────────────────────────────
-matplotlib==3.8.3
+matplotlib>=3.7.0
 
 # ── Logging experimentos (opcional, recomendado para servidores compartidos) ───
 # wandb==0.16.4               # Descomenta si tienes cuenta W&B
