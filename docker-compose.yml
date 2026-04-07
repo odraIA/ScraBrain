@@ -108,6 +108,7 @@ services:
       - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
       # Número de GPUs (usado por torchrun)
       - CUDA_VISIBLE_DEVICES=0,1
+      - HF_TOKEN=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
 
     # ── Red: aislada, sin exposición innecesaria ───────────────────────────────
     network_mode: host

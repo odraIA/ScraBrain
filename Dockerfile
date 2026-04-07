@@ -43,8 +43,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # ── Crear usuario no-root (SEGURIDAD: nunca ejecutar como root en producción) ──
 # UID/GID 1000 para coincidir con usuario típico del host (evita problemas de permisos)
-RUN groupadd -g 1000 meguser && \
-    useradd -u 1000 -g meguser -m -s /bin/bash meguser
 
 # ── Directorio de trabajo ──────────────────────────────────────────────────────
 WORKDIR ${WORKDIR_PATH}
