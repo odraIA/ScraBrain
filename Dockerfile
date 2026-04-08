@@ -6,7 +6,7 @@
 # Para Quadro RTX 6000 (Turing, CUDA 11.x) cambiar a:
 #   pytorch/pytorch:2.1.0-cuda11.8-cudnn8-runtime
 #
-FROM pytorch/pytorch:2.2.0-cuda12.1-cudnn8-runtime
+FROM pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime
 
 # ── Metadatos ──────────────────────────────────────────────────────────────────
 LABEL maintainer="rdiaper"
@@ -20,7 +20,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     # Optimizaciones CUDA
     CUDA_LAUNCH_BLOCKING=0 \
-    TORCH_CUDA_ARCH_LIST="8.9" \
+    TORCH_CUDA_ARCH_LIST="12.0" \
     # Para RTX 6000 Ada: sm_89. Para Quadro RTX 6000 (Turing): "7.5"
     # Desactivar tokenizers paralelos (evita deadlocks con DataLoader)
     TOKENIZERS_PARALLELISM=false \
