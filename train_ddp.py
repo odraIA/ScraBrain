@@ -302,10 +302,12 @@ def setup_ddp():
 
     # Backend NCCL: óptimo para GPU-GPU communication (NVLink o PCIe)
     # Gloo: alternativa para CPU o cuando NCCL falla
-    dist.init_process_group(
-        backend="nccl",
-        init_method="env://",
-    )
+    if not dist.is_initialized():
+        dist.init_process_group(
+            backend="nccl",
+            init_method="env://",
+            device_id=torch.device(f"cuda:{local_rank}"),  # ← además quita el warning
+        )
 
     # Cada proceso usa su GPU asignada
     torch.cuda.set_device(local_rank)
