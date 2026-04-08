@@ -59,6 +59,7 @@ RUN pip install --upgrade pip && \
 # Se copia al final para no invalidar la caché de pip en cada cambio de código
 COPY . .
 
+RUN useradd -m -u 1000 meguser
 # ── Permisos correctos ─────────────────────────────────────────────────────────
 RUN chown -R meguser:meguser ${WORKDIR_PATH}
 
