@@ -105,7 +105,7 @@ services:
 
     # Ejecuta precompute_stats.py para train+validation+test
     command: >
-      python /workspace/precompute_stats.py
+      /workspace/precompute_stats.py
         --data_path /workspace/libribrain_data
         --task phoneme
 
