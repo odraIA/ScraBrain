@@ -93,6 +93,7 @@ services:
   precompute_stats:
     <<: *meg-base
     container_name: meg_precompute_stats
+    entrypoint: ["python"]
 
     deploy:
       resources:
