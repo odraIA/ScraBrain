@@ -355,17 +355,6 @@ def build_distributed_dataloaders(
     IMPORTANTE: En DDP, el sampler maneja el shuffle (no el DataLoader).
     """
 
-    def worker_init_fn(worker_id):
-        """
-        Los workers de DataLoader ignoran SIGTERM y SIGINT.
-        El proceso principal (torchrun) es quien gestiona esas señales
-        a través de GracefulKiller. Sin esto, Docker stop mata los workers
-        antes de que el handler de emergencia pueda guardar el checkpoint.
-        """
-        import signal
-        signal.signal(signal.SIGTERM, signal.SIG_IGN)
-        signal.signal(signal.SIGINT,  signal.SIG_IGN)
-
     train_ds = MEGImageDataset(train_pnpl, preprocessor, img_converter, augment=True)
     val_ds   = MEGImageDataset(val_pnpl,   preprocessor, img_converter, augment=False)
     test_ds  = MEGImageDataset(test_pnpl,  preprocessor, img_converter, augment=False)
@@ -387,19 +376,19 @@ def build_distributed_dataloaders(
         train_ds, batch_size=batch_size, sampler=train_sampler,
         num_workers=num_workers, pin_memory=True, drop_last=True,
         persistent_workers=(num_workers > 0),
-        worker_init_fn=worker_init_fn,   # <-- añadir esto
+        prefetch_factor=3,      # <-- añadir
     )
     val_loader = DataLoader(
         val_ds, batch_size=batch_size * 2, sampler=val_sampler,
         num_workers=num_workers, pin_memory=True,
         persistent_workers=(num_workers > 0),
-        worker_init_fn=worker_init_fn,   # <-- y aquí
+        prefetch_factor=3,      # <-- añadir
     )
     test_loader = DataLoader(
         test_ds, batch_size=batch_size * 2, sampler=test_sampler,
         num_workers=num_workers, pin_memory=True,
         persistent_workers=(num_workers > 0),
-        worker_init_fn=worker_init_fn,   # <-- y aquí
+        prefetch_factor=3,      # <-- añadir
     )
 
     

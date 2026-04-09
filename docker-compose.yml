@@ -157,7 +157,8 @@ services:
       - GID=${GID:-1000}
       - MASTER_ADDR=localhost
       - MASTER_PORT=29500
-      - NCCL_DEBUG=WARN                              # Cambiar a INFO para debug
+      - NCCL_DEBUG=INFO
+      - NCCL_DEBUG_SUBSYS=ALL
       - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
       - CUDA_VISIBLE_DEVICES=0,1
 
@@ -168,8 +169,8 @@ services:
       --backbone resnet18
       --strategy partial_ft
       --n_epochs 30
-      --batch_size 32
-      --num_workers 2
+      --batch_size 256
+      --num_workers 12
       --data_path /workspace/libribrain_data
       --output_dir /workspace/results
       --checkpoint_dir /workspace/checkpoints

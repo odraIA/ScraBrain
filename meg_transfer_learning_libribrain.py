@@ -71,6 +71,7 @@ REFERENCIA RÁPIDA
 
 import os
 import argparse
+from unittest import loader
 import warnings
 from pathlib import Path
 from dataclasses import dataclass, field
@@ -361,28 +362,22 @@ class MEGToImage:
         return scalogram
 
     def compute_all_scalograms(self, epoch: np.ndarray) -> np.ndarray:
-        """
-        Calcula escalogramas para todos los canales MEG.
-
-        Args:
-            epoch: (n_channels, T)
-
-        Returns:
-            scalograms: (n_channels, n_freqs, T)
-        """
+        from concurrent.futures import ThreadPoolExecutor
         n_channels, T = epoch.shape
         scalograms = np.zeros((n_channels, self.n_freqs, T), dtype=np.float32)
 
-        for ch in range(n_channels):
+        def _cwt_ch(ch):
             scalograms[ch] = self.compute_cwt_channel(epoch[ch])
 
-        # Z-score por frecuencia (normalización de potencia baseline)
-        # Siguiendo el paper ISBI: z-score relativo al promedio del escalograma
-        mean_per_freq = scalograms.mean(axis=(0, 2), keepdims=True)  # (1, n_freqs, 1)
+        # pywt.cwt libera el GIL → threads reales en paralelo
+        with ThreadPoolExecutor(max_workers=min(n_channels, 32)) as pool:
+            list(pool.map(_cwt_ch, range(n_channels)))
+
+        mean_per_freq = scalograms.mean(axis=(0, 2), keepdims=True)
         std_per_freq  = scalograms.std(axis=(0, 2), keepdims=True) + 1e-8
         scalograms = (scalograms - mean_per_freq) / std_per_freq
 
-        return scalograms  # (n_channels, n_freqs, T)
+        return scalograms   
 
     def project_channels_pca(self, scalograms: np.ndarray) -> np.ndarray:
         """
@@ -1071,7 +1066,8 @@ def train_one_epoch(
 
     import torch.distributed as dist
 
-    for batch_idx, (batch_x, batch_y) in enumerate(tqdm(loader, desc="Train", leave=False)):
+    is_main = (not dist.is_initialized()) or dist.get_rank() == 0
+    for batch_idx, (batch_x, batch_y) in enumerate(tqdm(loader, desc="Train", leave=False, disable=not is_main)):
         batch_x = batch_x.to(device, non_blocking=True)
         batch_y = batch_y.to(device, non_blocking=True)
         
