@@ -206,7 +206,7 @@ class CheckpointManager:
             return {}
 
         print(f"[Checkpoint] Cargando desde: {ckpt_path}")
-        checkpoint = torch.load(ckpt_path, map_location=device)
+        checkpoint = torch.load(ckpt_path, map_location=device, weights_only=False)
 
         # Cargar pesos del modelo
         model_to_load = model.module if isinstance(model, DDP) else model

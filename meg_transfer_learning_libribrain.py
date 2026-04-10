@@ -1400,6 +1400,18 @@ def parse_args():
                         help="Precomputar imágenes TF (más rápido en GPU, requiere RAM)")
     return parser.parse_args()
 
+def get_labels_fast(dataset) -> np.ndarray:
+    """Extrae labels sin leer señales MEG."""
+    if hasattr(dataset, 'phoneme_to_id'):
+        return np.array([
+            dataset.phoneme_to_id[s[-1].rsplit('_', 1)[0]]
+            for s in dataset.samples
+        ])
+    else:
+        raise NotImplementedError(
+            f"get_labels_fast no implementado para {type(dataset).__name__}. "
+            "Inspeccionar dataset.samples[0] y añadir el caso correspondiente."
+        )
 
 def main():
     args = parse_args()
@@ -1458,10 +1470,7 @@ def main():
     # ── PASO 5: Pesos de clase para loss ponderada ────────────────────────────
     print("\n[PASO 5] Calculando pesos de clase (ISNS: 1/sqrt(n_c))...")
     # Extraer etiquetas del conjunto de entrenamiento para calcular pesos
-    train_labels = np.array([
-        train_pnpl.phoneme_to_id[s[-1].rsplit('_', 1)[0]]
-        for s in train_pnpl.samples
-    ])    
+    train_labels = get_labels_fast(train_pnpl)  
     class_weights = compute_class_weights_isns(train_labels, n_classes)
     print(f"  Pesos calculados para {n_classes} clases")
 
