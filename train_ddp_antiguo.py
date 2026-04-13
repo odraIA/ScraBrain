@@ -57,144 +57,18 @@ from meg_transfer_learning_libribrain import (
     MEGToImage,
     MEGImageDataset,
     MEGImageModel,
-    MEGImageModelEndToEnd,
     TrainingConfig,
     build_optimizer_and_scheduler,
     compute_class_weights_isns,
     load_libribrain,
+    evaluate,
+    train_one_epoch,
     EarlyStopping,
     DEVICE,
 )
 
 from meg_gpu_cwt import CWTLayer, MEGRawDataset, build_raw_dataloaders, zscore_scalogram
 
-
-# ==============================================================================
-# FUNCIONES DE ENTRENAMIENTO CON CWT EN GPU
-# ==============================================================================
-# Equivalentes a train_one_epoch / evaluate del fichero original, pero con el
-# paso CWT insertado entre el DataLoader y el modelo. El DataLoader entrega
-# señales raw (B, 306, T); cwt_layer las convierte a escalogramas en GPU antes
-# del forward del modelo.
-#
-# También aplican normalización ImageNet tras el min-max, necesaria porque
-# ResNet18 fue preentrenado con esas estadísticas. MEGImageModelEndToEnd no la
-# aplica internamente, así que la hacemos aquí.
-
-_IMAGENET_MEAN = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
-_IMAGENET_STD  = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
-
-
-def _apply_cwt_and_normalize(cwt_layer, batch_x: torch.Tensor) -> torch.Tensor:
-    """
-    Aplica CWT + z-score en GPU. Sin gradientes (el CWT no es diferenciable
-    en nuestro pipeline; los gradientes fluyen desde el SensorMixer en adelante).
-
-    Args:
-        cwt_layer : CWTLayer en el mismo device que batch_x
-        batch_x   : (B, 306, T) señales MEG preprocesadas
-
-    Returns:
-        scalogram : (B, 306, n_freqs, T) float32, z-score normalizado
-    """
-    with torch.no_grad():
-        scalogram = cwt_layer(batch_x)           # (B, 306, n_freqs, T)
-        scalogram = zscore_scalogram(scalogram)  # normalización por banda
-    return scalogram
-
-
-def train_one_epoch_raw(
-    model,
-    cwt_layer,
-    loader,
-    optimizer,
-    criterion,
-    device: torch.device,
-    grad_clip: float = 1.0,
-):
-    """
-    Versión de train_one_epoch que acepta señales MEG raw (B, 306, T) y aplica
-    CWT en GPU antes del forward del modelo.
-    """
-    from sklearn.metrics import f1_score, balanced_accuracy_score
-    import torch.distributed as dist
-    from tqdm import tqdm
-
-    model.train()
-    total_loss = 0.0
-    all_preds  = []
-    all_labels = []
-
-    is_main = (not dist.is_initialized()) or dist.get_rank() == 0
-
-    for batch_idx, (batch_x, batch_y) in enumerate(
-        tqdm(loader, desc="Train", leave=False, disable=not is_main)
-    ):
-        batch_x = batch_x.to(device, non_blocking=True)  # (B, 306, T)
-        batch_y = batch_y.to(device, non_blocking=True)
-
-        if batch_idx % 50 == 0 and is_main:
-            print(f"  [batch {batch_idx}/{len(loader)}]", flush=True)
-
-        # ── CWT en GPU (sin gradientes) ────────────────────────────────────────
-        scalogram = _apply_cwt_and_normalize(cwt_layer, batch_x)  # (B, 306, F, T)
-
-        # ── Forward ───────────────────────────────────────────────────────────
-        optimizer.zero_grad()
-        logits = model(scalogram)
-        loss   = criterion(logits, batch_y)
-
-        # ── Backward ──────────────────────────────────────────────────────────
-        loss.backward()
-        if grad_clip > 0:
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip)
-        optimizer.step()
-
-        total_loss += loss.item()
-        all_preds.extend(logits.argmax(dim=1).cpu().numpy())
-        all_labels.extend(batch_y.cpu().numpy())
-
-    avg_loss = total_loss / len(loader)
-    f1       = f1_score(all_labels, all_preds, average="macro", zero_division=0)
-    bal_acc  = balanced_accuracy_score(all_labels, all_preds)
-    return {"loss": avg_loss, "f1_macro": f1, "balanced_acc": bal_acc}
-
-
-@torch.no_grad()
-def evaluate_raw(
-    model,
-    cwt_layer,
-    loader,
-    criterion,
-    device: torch.device,
-):
-    """
-    Versión de evaluate que acepta señales MEG raw (B, 306, T).
-    """
-    from sklearn.metrics import f1_score, balanced_accuracy_score
-    from tqdm import tqdm
-
-    model.eval()
-    total_loss = 0.0
-    all_preds  = []
-    all_labels = []
-
-    for batch_x, batch_y in tqdm(loader, desc="Eval", leave=False):
-        batch_x = batch_x.to(device, non_blocking=True)
-        batch_y = batch_y.to(device, non_blocking=True)
-
-        scalogram = _apply_cwt_and_normalize(cwt_layer, batch_x)
-        logits    = model(scalogram)
-        loss      = criterion(logits, batch_y)
-
-        total_loss += loss.item()
-        all_preds.extend(logits.argmax(dim=1).cpu().numpy())
-        all_labels.extend(batch_y.cpu().numpy())
-
-    avg_loss = total_loss / len(loader)
-    f1       = f1_score(all_labels, all_preds, average="macro", zero_division=0)
-    bal_acc  = balanced_accuracy_score(all_labels, all_preds)
-    return {"loss": avg_loss, "f1_macro": f1, "balanced_acc": bal_acc}
 
 
 # ==============================================================================
@@ -710,6 +584,7 @@ def train_ddp(args):
     cwt_layer = CWTLayer(
         sfreq=250.0, n_freqs=96, f_min=1.0, f_max=125.0, B=1.5, C=1.0).to(device)
 
+    from meg_transfer_learning_libribrain import MEGImageModelEndToEnd
     model = MEGImageModelEndToEnd(
         backbone_name=args.backbone,
         n_classes=n_classes,
@@ -800,14 +675,14 @@ def train_ddp(args):
 
         # ── Train ─────────────────────────────────────────────────────────────
         t0 = time.time()
-        train_metrics = train_one_epoch_raw(
-            model, cwt_layer, train_loader, optimizer, criterion, device,
+        train_metrics = train_one_epoch(
+            model, train_loader, optimizer, criterion, device,
             grad_clip=config.grad_clip,
         )
         train_time = time.time() - t0
 
         # ── Val (todos los ranks evalúan, rank 0 reporta) ─────────────────────
-        val_metrics = evaluate_raw(model, cwt_layer, val_loader, criterion, device)
+        val_metrics = evaluate(model, val_loader, criterion, device)
 
         # ── Agregar métricas de validación entre ranks ────────────────────────
         # DDP necesita agregar métricas de todos los ranks
@@ -884,7 +759,7 @@ def train_ddp(args):
     # Sincronizar antes del test eval
     dist.barrier()
 
-    test_metrics = evaluate_raw(model, cwt_layer, test_loader, criterion, device)
+    test_metrics = evaluate(model, test_loader, criterion, device)
 
     # Agregar métricas de test entre GPUs
     for key in ["f1_macro", "balanced_acc"]:
