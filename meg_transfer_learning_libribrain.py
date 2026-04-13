@@ -884,6 +884,17 @@ class MEGImageModelEndToEnd(nn.Module):
         self.classifier = _dummy.classifier
         self.backbone_name = backbone_name
 
+    def get_param_groups(self, lr_head: float = 1e-3, lr_backbone: float = 1e-4):
+        backbone_params = [p for p in self.backbone.parameters() if p.requires_grad]
+        head_params = (
+            list(self.sensor_mixer.parameters())
+            + list(self.classifier.parameters())
+        )
+        return [
+            {"params": head_params,     "lr": lr_head,     "name": "head"},
+            {"params": backbone_params, "lr": lr_backbone, "name": "backbone"},
+        ]
+
     def forward(self, scalograms: torch.Tensor) -> torch.Tensor:
         """
         Args:
