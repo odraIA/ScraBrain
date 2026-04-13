@@ -149,7 +149,7 @@ class CWTLayer(nn.Module):
 
         self.register_buffer(
             'scales',
-            torch.tensor(scales, dtype=torch.float64),
+            torch.tensor(scales, dtype=torch.float32),
         )
 
         # Cache del banco de filtros (se construye la primera vez por longitud T)
@@ -169,7 +169,7 @@ class CWTLayer(nn.Module):
         # Eje de frecuencias físicas (Hz) para cada bin DFT
         # fftfreq: [0, 1, ..., T/2-1, -T/2, ..., -1] / T * sfreq
         freqs_hz = torch.fft.fftfreq(T, d=1.0 / self.sfreq).to(
-            device=device, dtype=torch.float64
+            device=device, dtype=torch.float32
         )  # (T,)
 
         s = self.scales.to(device).view(-1, 1)  # (n_freqs, 1)
@@ -188,7 +188,7 @@ class CWTLayer(nn.Module):
         psi[:, T // 2 + 1 :] = 0.0
         psi[:, 0] = 0.0  # Componente DC
 
-        filter_bank = psi.to(torch.complex128)  # (n_freqs, T)
+        filter_bank = psi.to(torch.complex64)  # (n_freqs, T)
 
         # Guardar en caché (máximo 8 tamaños distintos)
         if len(self._filter_cache) < 8:
@@ -211,7 +211,7 @@ class CWTLayer(nn.Module):
         filter_bank = self._build_filter_bank(T, device)  # (n_freqs, T) complex128
 
         # Aplanar batch y canales para FFT en paralelo: (B*C_meg, T)
-        x_flat = x.view(B_sz * C_meg, T).to(torch.float64)
+        x_flat = x.view(B_sz * C_meg, T).to(torch.float32)
 
         # FFT de todas las señales: (B*C_meg, T) complex
         X = torch.fft.fft(x_flat)  # (B*C_meg, T)

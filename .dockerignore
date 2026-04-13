@@ -1,0 +1,32 @@
+# Datos — NUNCA meter en la imagen, van por volume mount
+libribrain_data/
+hf_cache/
+checkpoints/
+results/
+logs/
+tensorboard/
+
+# Git / IDE
+.git/
+.gitignore
+.vscode/
+.idea/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+.env
+
+# Misc
+*.md
+*.log
+*.tar
+*.tar.gz
