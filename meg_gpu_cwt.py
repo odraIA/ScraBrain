@@ -322,7 +322,7 @@ def build_raw_dataloaders(
         print(f"  Validation: {len(val_ds):,} samples → {len(val_loader):,} batches")
         print(f"  Test:       {len(test_ds):,} samples → {len(test_loader):,} batches")
 
-    return train_loader, val_loader, test_loader
+    return train_loader, val_loader, test_loader, train_sampler
 
 
 # ==============================================================================

@@ -603,7 +603,7 @@ def train_ddp(args):
         print(f"\n[PASO 2] Construyendo DataLoaders distribuidos")
         print(f"  Batch por GPU: {args.batch_size} | Batch global: {args.batch_size * world_size}")
 
-    train_loader, val_loader, test_loader = build_raw_dataloaders(
+    train_loader, val_loader, test_loader, train_sampler = build_raw_dataloaders(
         train_pnpl, val_pnpl, test_pnpl,
         preprocessor=preprocessor,
         batch_size=args.batch_size,
