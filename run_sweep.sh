@@ -222,18 +222,25 @@ for TASK in "${TASKS[@]}"; do
     continue
   fi
 
-  # Lanzar precompute con la tarea correcta (override del command del compose)
-  docker compose run -d --rm \
+  # Lanzar precompute desacoplado de la sesión SSH y esperar a que termine
+  PRECOMPUTE_CID=$(docker compose run -d \
     --no-deps \
     -e "TASK_OVERRIDE=${TASK}" \
     precompute_stats \
     /workspace/precompute_stats.py \
       --data_path "${DATA_PATH}" \
-      --task "${TASK}" \
-    2>&1 | tee "${PROJECT_DIR}/logs/precompute_${TASK}.log"
+      --task "${TASK}")
 
-  EXIT_CODE=${PIPESTATUS[0]}
-  if [[ $EXIT_CODE -eq 0 ]]; then
+  # Volcar logs en tiempo real mientras esperamos
+  docker logs -f "$PRECOMPUTE_CID" 2>&1 | tee "${PROJECT_DIR}/logs/precompute_${TASK}.log" &
+  LOGS_PID=$!
+
+  # Esperar a que el contenedor termine y recoger su exit code
+  EXIT_CODE=$(docker wait "$PRECOMPUTE_CID")
+  kill $LOGS_PID 2>/dev/null || true
+  docker rm "$PRECOMPUTE_CID" 2>/dev/null || true
+
+  if [[ "$EXIT_CODE" -eq 0 ]]; then
     touch "$STATS_SENTINEL"
     log_ok "Precompute '${TASK}' completado."
   else
@@ -306,8 +313,8 @@ for STRATEGY in "${STRATEGIES[@]}"; do
 
   START_TS=$(date +%s)
 
-  # ── Lanzar job de entrenamiento ─────────────────────────────────────────────
-  docker compose run -d --rm \
+  # ── Lanzar job desacoplado de la sesión SSH ────────────────────────────────
+  CONTAINER_ID=$(docker compose run -d \
     --no-deps \
     meg_training_job \
     train_ddp.py \
@@ -321,10 +328,18 @@ for STRATEGY in "${STRATEGIES[@]}"; do
       --output_dir    "${OUTPUT_DIR}" \
       --checkpoint_dir "${CKPT_DIR}" \
       --checkpoint_every "${CHECKPOINT_EVERY}" \
-      --resume_from   "${RESUME_FROM}" \
-    2>&1 | tee "$JOB_LOG"
+      --resume_from   "${RESUME_FROM}")
 
-  EXIT_CODE=${PIPESTATUS[0]}
+  log "  Contenedor: ${CONTAINER_ID:0:12}"
+
+  # Volcar logs en tiempo real al archivo (proceso en background)
+  docker logs -f "$CONTAINER_ID" 2>&1 | tee "$JOB_LOG" &
+  LOGS_PID=$!
+
+  # Esperar a que el contenedor termine y recoger su exit code real
+  EXIT_CODE=$(docker wait "$CONTAINER_ID")
+  kill $LOGS_PID 2>/dev/null || true
+  docker rm "$CONTAINER_ID" 2>/dev/null || true
   ELAPSED=$(( $(date +%s) - START_TS ))
   ELAPSED_MIN=$(( ELAPSED / 60 ))
 
