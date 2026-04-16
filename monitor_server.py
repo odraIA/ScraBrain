@@ -820,12 +820,12 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    global BASE_DIR, LOGS_DIR, RESULTS_DIR, CKPT_DIR
     parser = argparse.ArgumentParser(description="MEG Sweep Monitor")
     parser.add_argument("--port",     type=int, default=8080)
     parser.add_argument("--base-dir", default=str(BASE_DIR))
     args = parser.parse_args()
 
-    global BASE_DIR, LOGS_DIR, RESULTS_DIR, CKPT_DIR
     BASE_DIR    = Path(args.base_dir)
     LOGS_DIR    = BASE_DIR / "logs"
     RESULTS_DIR = BASE_DIR / "results"
