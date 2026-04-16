@@ -626,55 +626,35 @@ def train_ddp(args):
         ))
         print(f"[INFO] Encontrados {len(tsv_files)} archivos TSV de eventos", flush=True)
         
-        # Contar distribución de clases según la tarea (phoneme vs speech)
-        counts = np.zeros(n_classes, dtype=np.float64)
-
-        if args.task == "phoneme":
-            # Fonemas: labels son strings (e.g. "AE", "T"...) → mapear a índice
-            all_labels_str = []
-            for tsv in tsv_files:
-                try:
-                    df = pd.read_csv(tsv, sep='\t')
-                    rows = df[df['type'] == 'phoneme'] if 'type' in df.columns else df
-                    if 'value' in rows.columns:
-                        all_labels_str.extend(rows['value'].tolist())
-                except Exception as e:
-                    print(f"  [WARN] Error leyendo {tsv}: {e}", flush=True)
-
-            print(f"[INFO] Total fonemas en TSVs: {len(all_labels_str)}", flush=True)
-
-            if hasattr(train_pnpl, 'phoneme_to_id'):
-                label_map = train_pnpl.phoneme_to_id
-            elif hasattr(train_pnpl, 'label_map'):
-                label_map = train_pnpl.label_map
-            else:
-                unique = sorted(set(all_labels_str))
-                label_map = {p: i for i, p in enumerate(unique)}
-
-            for lbl in all_labels_str:
-                if lbl in label_map and label_map[lbl] < n_classes:
-                    counts[label_map[lbl]] += 1
-
-        elif args.task == "speech":
-            # Speech: binario (0=no-speech, 1=speech). Labels son enteros.
-            all_labels_int = []
-            for tsv in tsv_files:
-                try:
-                    df = pd.read_csv(tsv, sep='\t')
-                    rows = df[df['type'] == 'speech'] if 'type' in df.columns else df
-                    if 'value' in rows.columns:
-                        all_labels_int.extend(rows['value'].astype(int).tolist())
-                except Exception as e:
-                    print(f"  [WARN] Error leyendo {tsv}: {e}", flush=True)
-
-            print(f"[INFO] Total eventos speech en TSVs: {len(all_labels_int)}", flush=True)
-            for lbl in all_labels_int:
-                if 0 <= lbl < n_classes:
-                    counts[lbl] += 1
-            print(f"[INFO] Speech counts: no-speech={counts[0]:.0f}, speech={counts[1]:.0f}", flush=True)
-
+        # Cargar solo las filas de phonemes
+        all_phonemes = []
+        for tsv in tsv_files:
+            try:
+                df = pd.read_csv(tsv, sep='\t')
+                # Filtrar solo eventos de tipo 'phoneme' (no 'word', 'silence', etc.)
+                phoneme_rows = df[df['type'] == 'phoneme'] if 'type' in df.columns else df
+                if 'value' in phoneme_rows.columns:
+                    all_phonemes.extend(phoneme_rows['value'].tolist())
+            except Exception as e:
+                print(f"  [WARN] Error leyendo {tsv}: {e}", flush=True)
+        
+        print(f"[INFO] Total fonemas en TSVs: {len(all_phonemes)}", flush=True)
+        
+        # Mapear strings a índices usando el mapping del propio dataset
+        if hasattr(train_pnpl, 'phoneme_to_id'):
+            ph_map = train_pnpl.phoneme_to_id
+        elif hasattr(train_pnpl, 'label_map'):
+            ph_map = train_pnpl.label_map
         else:
-            print(f"[WARN] Tarea desconocida '{args.task}' para pesos de clase. Usando uniformes.", flush=True)
+            # Fallback: contar strings únicos
+            unique = sorted(set(all_phonemes))
+            ph_map = {p: i for i, p in enumerate(unique)}
+        
+        # Contar ocurrencias por clase
+        counts = np.zeros(n_classes, dtype=np.float64)
+        for ph in all_phonemes:
+            if ph in ph_map and ph_map[ph] < n_classes:
+                counts[ph_map[ph]] += 1
         
         # Si la lectura de TSVs falló o dio cero, usar pesos uniformes
         if counts.sum() == 0:

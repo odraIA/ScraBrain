@@ -157,7 +157,7 @@ services:
       - GID=${GID:-1000}
       - MASTER_ADDR=localhost
       - MASTER_PORT=29500
-      - NCCL_DEBUG=INFO
+      - NCCL_DEBUG=WARNING
       - NCCL_DEBUG_SUBSYS=ALL
       - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
       - CUDA_VISIBLE_DEVICES=0,1
