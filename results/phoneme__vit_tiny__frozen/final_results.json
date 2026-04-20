@@ -1,0 +1,9 @@
+{
+  "backbone": "vit_tiny",
+  "strategy": "frozen",
+  "task": "phoneme",
+  "test_f1_macro": 0.004791417113691994,
+  "test_balanced_acc": 0.02564102564102564,
+  "best_val_f1": 0.004823253679685747,
+  "timestamp": "2026-04-16T21:38:08.901002"
+}
