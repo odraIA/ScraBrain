@@ -183,15 +183,10 @@ services:
     container_name: meg_monitor
     restart: unless-stopped      # Se reinicia solo si se cae; parar con 'docker compose stop monitor'
 
-    # ── Montar solo los directorios necesarios (read-only, sin datos MEG) ──────
+    # ── Montar proyecto completo en read-only para que el monitor vea:
+    #    logs/results/checkpoints y sentinels (.precompute_*, .exp_done_*) ─────
     volumes:
-      - ./logs:/workspace/logs:ro
-      - ./results:/workspace/results:ro
-      - ./checkpoints:/workspace/checkpoints:ro
-      - ./monitor_server.py:/workspace/monitor_server.py:ro
-      # Montar los sentinels (.exp_done_*, .precompute_done_*) para ver estado
-      - ./.precompute_done_phoneme:/workspace/.precompute_done_phoneme:ro
-      - ./.precompute_done_speech:/workspace/.precompute_done_speech:ro
+      - ./:/workspace:ro
 
     # ── Acceder a nvidia-smi del host para stats de GPU ───────────────────────
     # Nota: solo necesita acceso de lectura a /dev/nvidiactl para nvidia-smi
