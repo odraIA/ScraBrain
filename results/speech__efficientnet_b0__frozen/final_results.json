@@ -1,0 +1,9 @@
+{
+  "backbone": "efficientnet_b0",
+  "strategy": "frozen",
+  "task": "speech",
+  "test_f1_macro": 0.5706976935246708,
+  "test_balanced_acc": 0.5718465163813942,
+  "best_val_f1": 0.5435986639205183,
+  "timestamp": "2026-04-21T01:27:53.923774"
+}

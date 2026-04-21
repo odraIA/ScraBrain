@@ -1,0 +1,9 @@
+{
+  "backbone": "efficientnet_b0",
+  "strategy": "partial_ft",
+  "task": "speech",
+  "test_f1_macro": 0.6210762954071831,
+  "test_balanced_acc": 0.6122079092342665,
+  "best_val_f1": 0.6225250746497205,
+  "timestamp": "2026-04-21T02:16:18.762469"
+}

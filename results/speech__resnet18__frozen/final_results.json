@@ -1,0 +1,9 @@
+{
+  "backbone": "resnet18",
+  "strategy": "frozen",
+  "task": "speech",
+  "test_f1_macro": 0.42811050615043356,
+  "test_balanced_acc": 0.5,
+  "best_val_f1": 0.43067092651757194,
+  "timestamp": "2026-04-21T00:19:25.198617"
+}

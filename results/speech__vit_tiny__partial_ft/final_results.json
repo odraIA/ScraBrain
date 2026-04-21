@@ -1,0 +1,9 @@
+{
+  "backbone": "vit_tiny",
+  "strategy": "partial_ft",
+  "task": "speech",
+  "test_f1_macro": 0.6356047281837993,
+  "test_balanced_acc": 0.6262278696094798,
+  "best_val_f1": 0.6164772727272727,
+  "timestamp": "2026-04-21T03:36:19.782556"
+}
