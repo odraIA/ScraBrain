@@ -213,4 +213,4 @@ __pycache__/
 *.pyc
 .codex
 
-results/precomputed_images
+results/precomputed_images/
