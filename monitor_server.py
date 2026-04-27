@@ -25,6 +25,7 @@ import argparse
 import glob
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -66,6 +67,11 @@ def load_sweep_plan() -> dict:
 
 
 def get_sweep_mode() -> str:
+    plan = load_sweep_plan()
+    mode = plan.get("mode") if isinstance(plan, dict) else None
+    if isinstance(mode, str) and mode.strip():
+        return mode.strip().lower()
+
     mode_file = BASE_DIR / ".sweep_mode"
     if not mode_file.exists():
         return "classic"
@@ -76,6 +82,168 @@ def get_sweep_mode() -> str:
         return "classic"
 
 
+def _parse_iso_ts(value: str | None) -> float | None:
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        return datetime.fromisoformat(value).timestamp()
+    except Exception:
+        return None
+
+
+def _resolve_plan_path(raw_path: str | None) -> Path | None:
+    if not raw_path or not isinstance(raw_path, str):
+        return None
+    path = Path(raw_path)
+    return path if path.is_absolute() else BASE_DIR / path
+
+
+def _normalize_plan_experiment_entries(plan: dict) -> dict[str, dict]:
+    experiments = plan.get("experiments", []) if isinstance(plan, dict) else []
+    normalized: dict[str, dict] = {}
+    if not isinstance(experiments, list):
+        return normalized
+
+    for item in experiments:
+        if isinstance(item, str):
+            normalized[item] = {"name": item}
+        elif isinstance(item, dict):
+            name = item.get("name")
+            if isinstance(name, str) and name:
+                normalized[name] = item
+    return normalized
+
+
+def _normalize_plan_precompute_entries(plan: dict, stage_key: str) -> dict[str, dict]:
+    precompute = plan.get("precompute", {}) if isinstance(plan, dict) else {}
+    stage_items = precompute.get(stage_key, []) if isinstance(precompute, dict) else []
+    normalized: dict[str, dict] = {}
+    if not isinstance(stage_items, list):
+        return normalized
+
+    for item in stage_items:
+        if not isinstance(item, dict):
+            continue
+        task = item.get("task")
+        if isinstance(task, str) and task:
+            normalized[task] = item
+    return normalized
+
+
+def _strip_ansi(text: str) -> str:
+    return re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", text)
+
+
+EXP_HEADER_RE = re.compile(r"━━━ \[\d+/\d+\] (.+?) ━━━")
+PRECOMPUTE_LAUNCH_RE = re.compile(r"Lanzando precompute_stats para task='([^']+)'")
+PRECOMPUTE_SKIP_RE = re.compile(r"Stats para '([^']+)' ya calculadas")
+PRECOMPUTE_DONE_RE = re.compile(r"Precompute '([^']+)' completado")
+PRECOMPUTE_FAIL_RE = re.compile(r"Precompute '([^']+)' falló")
+
+
+def _parse_sweep_log_statuses(sweep_log_path: Path | None) -> dict:
+    statuses = {
+        "experiments": {},
+        "precompute": {"stats": {}, "images": {}},
+    }
+    if sweep_log_path is None or not sweep_log_path.exists():
+        return statuses
+
+    current_exp = None
+    try:
+        with sweep_log_path.open(encoding="utf-8", errors="replace") as f:
+            for raw_line in f:
+                line = _strip_ansi(raw_line).strip()
+                if not line:
+                    continue
+
+                m = EXP_HEADER_RE.search(line)
+                if m:
+                    current_exp = m.group(1).strip()
+                    statuses["experiments"].setdefault(current_exp, {"status": "pending"})
+                    continue
+
+                m = PRECOMPUTE_LAUNCH_RE.search(line)
+                if m:
+                    statuses["precompute"]["stats"][m.group(1)] = {"status": "running"}
+                    continue
+
+                m = PRECOMPUTE_SKIP_RE.search(line)
+                if m:
+                    statuses["precompute"]["stats"][m.group(1)] = {"status": "skipped"}
+                    continue
+
+                m = PRECOMPUTE_DONE_RE.search(line)
+                if m:
+                    statuses["precompute"]["stats"][m.group(1)] = {"status": "done"}
+                    continue
+
+                m = PRECOMPUTE_FAIL_RE.search(line)
+                if m:
+                    statuses["precompute"]["stats"][m.group(1)] = {"status": "failed"}
+                    continue
+
+                if current_exp is None:
+                    continue
+
+                if "Ya completado (sentinel existente). Saltando." in line:
+                    statuses["experiments"][current_exp] = {"status": "skipped"}
+                elif "Contenedor:" in line:
+                    statuses["experiments"][current_exp] = {"status": "running"}
+                elif "Completado en" in line:
+                    statuses["experiments"][current_exp] = {"status": "done"}
+                elif "FALLIDO" in line:
+                    statuses["experiments"][current_exp] = {"status": "failed"}
+    except Exception:
+        return statuses
+
+    return statuses
+
+
+def _get_active_sweep_log_path(plan: dict | None = None) -> Path | None:
+    if isinstance(plan, dict):
+        planned_path = _resolve_plan_path(plan.get("sweep_log"))
+        if planned_path and planned_path.exists():
+            return planned_path
+
+    sweep_logs = sorted(
+        (
+            p for p in LOGS_DIR.glob("sweep_*.log")
+            if p.name.startswith("sweep_") and not p.name.startswith("sweep_coordinator_")
+        ),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    return sweep_logs[0] if sweep_logs else None
+
+
+def get_sweep_context() -> dict:
+    plan = load_sweep_plan()
+    sweep_log_path = _get_active_sweep_log_path(plan)
+    return {
+        "plan": plan,
+        "plan_started_at": _parse_iso_ts(plan.get("generated_at")) if isinstance(plan, dict) else None,
+        "experiments": _normalize_plan_experiment_entries(plan),
+        "precompute_stats": _normalize_plan_precompute_entries(plan, "stats"),
+        "precompute_images": _normalize_plan_precompute_entries(plan, "images"),
+        "log_statuses": _parse_sweep_log_statuses(sweep_log_path),
+        "sweep_log_path": sweep_log_path,
+    }
+
+
+def _artifact_belongs_to_current_run(path: Path, started_at: float | None, slack_secs: float = 1.0) -> bool:
+    if not path.exists():
+        return False
+    if started_at is None:
+        return True
+    try:
+        stat = path.stat()
+        freshest = max(stat.st_mtime, stat.st_ctime)
+        return freshest >= started_at - slack_secs
+    except Exception:
+        return False
+
+
 def discover_experiments() -> list[str]:
     """
     Descubre experimentos automáticamente para soportar:
@@ -83,9 +251,9 @@ def discover_experiments() -> list[str]:
       - modo speech-image: speech_image__<exp_id>
     """
     plan = load_sweep_plan()
-    planned = plan.get("experiments", [])
-    if isinstance(planned, list) and planned:
-        return [str(exp) for exp in planned]
+    planned_entries = _normalize_plan_experiment_entries(plan)
+    if planned_entries:
+        return list(planned_entries.keys())
 
     mode = get_sweep_mode()
     if mode == "classic":
@@ -129,10 +297,14 @@ def _get_stage_status_for_task(
     task: str,
     sentinel_name: str,
     log_name: str,
+    *,
+    plan_status: str | None = None,
+    started_at: float | None = None,
+    log_override: str | None = None,
 ) -> dict:
     """
     Estado por tarea para etapas de precompute.
-    status: pending | running | done | failed
+    status: pending | running | done | failed | skipped
     """
     sentinel = BASE_DIR / sentinel_name.format(task=task)
     log_path = LOGS_DIR / log_name.format(task=task)
@@ -146,14 +318,20 @@ def _get_stage_status_for_task(
         "completado",
         "done",
     )
-    if sentinel.exists():
+
+    if log_override in {"pending", "running", "done", "failed", "skipped"}:
+        status = log_override
+    elif plan_status in {"pending", "running", "done", "failed", "skipped"}:
+        status = plan_status
+
+    if status == "pending" and _artifact_belongs_to_current_run(sentinel, started_at):
         status = "done"
         if log_path.exists():
             try:
                 elapsed_min = int((time.time() - log_path.stat().st_ctime) / 60)
             except Exception:
                 elapsed_min = None
-    elif log_path.exists():
+    elif status == "pending" and log_path.exists() and _artifact_belongs_to_current_run(log_path, started_at):
         try:
             age_min = (time.time() - log_path.stat().st_mtime) / 60
             if any(marker in tail_lower for marker in done_markers):
@@ -173,14 +351,24 @@ def _get_stage_status_for_task(
     }
 
 
-def get_precompute_status() -> dict:
+def get_precompute_status(ctx: dict | None = None) -> dict:
     """
     Estado agregado de precompute de stats e imágenes por tarea.
     """
-    plan = load_sweep_plan()
+    ctx = ctx or get_sweep_context()
+    plan = ctx["plan"]
     precompute_plan = plan.get("precompute", {}) if isinstance(plan, dict) else {}
+    rich_stats = ctx["precompute_stats"]
+    rich_images = ctx["precompute_images"]
+    log_precompute = ctx["log_statuses"].get("precompute", {})
+    log_stats = log_precompute.get("stats", {}) if isinstance(log_precompute, dict) else {}
+    log_images = log_precompute.get("images", {}) if isinstance(log_precompute, dict) else {}
+    started_at = ctx["plan_started_at"]
 
-    if isinstance(precompute_plan, dict):
+    if rich_stats or rich_images:
+        stats_tasks = list(rich_stats.keys())
+        images_tasks = list(rich_images.keys())
+    elif isinstance(precompute_plan, dict):
         stats_tasks = [str(t) for t in precompute_plan.get("stats_tasks", [])]
         images_tasks = [str(t) for t in precompute_plan.get("images_tasks", [])]
     elif get_sweep_mode() == "classic":
@@ -195,6 +383,9 @@ def get_precompute_status() -> dict:
             t,
             sentinel_name=".precompute_done_{task}",
             log_name="precompute_{task}.log",
+            plan_status=rich_stats.get(t, {}).get("status"),
+            started_at=started_at,
+            log_override=log_stats.get(t, {}).get("status"),
         )
         for t in stats_tasks
     ]
@@ -203,12 +394,15 @@ def get_precompute_status() -> dict:
             t,
             sentinel_name=".precompute_images_done_{task}",
             log_name="precompute_images_{task}.log",
+            plan_status=rich_images.get(t, {}).get("status"),
+            started_at=started_at,
+            log_override=log_images.get(t, {}).get("status"),
         )
         for t in images_tasks
     ]
 
     def _counts(items):
-        c = {"done": 0, "running": 0, "failed": 0, "pending": 0}
+        c = {"done": 0, "running": 0, "failed": 0, "pending": 0, "skipped": 0}
         for it in items:
             c[it["status"]] += 1
         return c
@@ -277,11 +471,16 @@ def get_gpu_info() -> list[dict]:
     return gpu_info
 
 
-def get_exp_status(exp: str) -> dict:
+def get_exp_status(exp: str, ctx: dict | None = None) -> dict:
     """
     Determina el estado de un experimento a partir de los archivos en disco.
     Returns: dict con status, epoch_current, epoch_total, f1, bal_acc, elapsed_min
     """
+    ctx = ctx or get_sweep_context()
+    plan_entry = ctx["experiments"].get(exp, {})
+    log_override = ctx["log_statuses"].get("experiments", {}).get(exp, {})
+    started_at = ctx["plan_started_at"]
+
     done_sentinel  = BASE_DIR / f".exp_done_{exp}"
     job_log        = LOGS_DIR / f"{exp}.log"
     training_state = CKPT_DIR / exp / "training_state.json"
@@ -289,7 +488,7 @@ def get_exp_status(exp: str) -> dict:
 
     result = {
         "exp": exp,
-        "status": "pending",       # pending | running | done | failed
+        "status": "pending",       # pending | running | done | failed | skipped
         "epoch_current": None,
         "epoch_total": None,
         "f1_macro": None,
@@ -300,9 +499,19 @@ def get_exp_status(exp: str) -> dict:
         "log_mtime": None,
     }
 
+    if plan_entry.get("status") in {"pending", "running", "done", "failed", "skipped"}:
+        result["status"] = plan_entry["status"]
+    if log_override.get("status") in {"pending", "running", "done", "failed", "skipped"}:
+        result["status"] = log_override["status"]
+
+    current_results = _artifact_belongs_to_current_run(final_results, started_at)
+    current_done_sentinel = _artifact_belongs_to_current_run(done_sentinel, started_at)
+    current_job_log = _artifact_belongs_to_current_run(job_log, started_at)
+    current_training_state = _artifact_belongs_to_current_run(training_state, started_at)
+
     # ── Completado ────────────────────────────────────────────────────────────
     # `final_results.json` es la evidencia más fiable de finalización.
-    if final_results.exists() or done_sentinel.exists():
+    if result["status"] == "done" or current_results or current_done_sentinel:
         result["status"] = "done"
         try:
             with open(final_results) as f:
@@ -314,21 +523,23 @@ def get_exp_status(exp: str) -> dict:
             pass
         return result
 
+    if result["status"] == "skipped":
+        return result
+
     # ── En curso: el log existe y tiene actividad reciente ────────────────────
-    if job_log.exists():
+    if current_job_log:
         try:
             mtime = job_log.stat().st_mtime
             result["log_mtime"] = mtime
             age_min = (time.time() - mtime) / 60
             # Si el log se modificó hace menos de 10 min, está corriendo
-            if age_min < 10:
-                result["status"] = "running"
-            else:
-                # Log existe pero inactivo → probablemente falló
+            if result["status"] != "running":
+                result["status"] = "running" if age_min < 10 else "failed"
+            elif age_min >= 10:
                 result["status"] = "failed"
 
             # Leer training_state.json para epoch actual
-            if training_state.exists():
+            if current_training_state:
                 with open(training_state) as f:
                     ts = json.load(f)
                 result["epoch_current"] = ts.get("epoch")
@@ -354,22 +565,23 @@ def get_exp_status(exp: str) -> dict:
 
 def get_sweep_status() -> dict:
     """Estado global del sweep."""
+    ctx = get_sweep_context()
     all_exps = discover_experiments()
-    exps = [get_exp_status(e) for e in all_exps]
-    precompute = get_precompute_status()
-    counts = {"done": 0, "running": 0, "failed": 0, "pending": 0}
+    exps = [get_exp_status(e, ctx=ctx) for e in all_exps]
+    precompute = get_precompute_status(ctx=ctx)
+    counts = {"done": 0, "running": 0, "failed": 0, "pending": 0, "skipped": 0}
     for e in exps:
         counts[e["status"]] += 1
 
     completed = [e for e in exps if e["status"] == "done" and e["f1_macro"] is not None]
     completed.sort(key=lambda x: x["f1_macro"] or 0, reverse=True)
 
-    # Leer sweep log global
-    sweep_logs = sorted(LOGS_DIR.glob("sweep_*.log"), key=lambda p: p.stat().st_mtime, reverse=True)
+    # Leer el log del sweep activo, no el último global indiscriminadamente.
     sweep_tail = ""
-    if sweep_logs:
+    sweep_log_path = ctx["sweep_log_path"]
+    if sweep_log_path and sweep_log_path.exists():
         try:
-            with open(sweep_logs[0], "rb") as f:
+            with open(sweep_log_path, "rb") as f:
                 f.seek(0, 2)
                 f.seek(max(0, f.tell() - 2000))
                 sweep_tail = f.read().decode("utf-8", errors="replace")
@@ -389,11 +601,12 @@ def get_sweep_status() -> dict:
     }
 
 
-def get_exp_log(exp: str, lines: int = 80) -> str:
-    """Últimas N líneas del log de un experimento."""
+def get_exp_log(exp: str, lines: int = 80, ctx: dict | None = None) -> str:
+    """Últimas N líneas del log de un experimento del sweep activo."""
+    ctx = ctx or get_sweep_context()
     log_path = LOGS_DIR / f"{exp}.log"
-    if not log_path.exists():
-        return f"[Sin log todavía para {exp}]"
+    if not log_path.exists() or not _artifact_belongs_to_current_run(log_path, ctx["plan_started_at"]):
+        return f"[Sin log del sweep actual para {exp}]"
     try:
         with open(log_path, "rb") as f:
             f.seek(0, 2)
@@ -431,6 +644,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     --done:      #00d4a8;
     --running:   #7c6bff;
     --failed:    #ef4444;
+    --skipped:   #f59e0b;
     --pending:   #334155;
     --mono:      'JetBrains Mono', monospace;
     --sans:      'Syne', sans-serif;
@@ -555,6 +769,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   .pill-done    { background: rgba(0,212,168,0.15); color: var(--done); }
   .pill-running { background: rgba(124,107,255,0.15); color: var(--running); }
   .pill-failed  { background: rgba(239,68,68,0.15); color: var(--failed); }
+  .pill-skipped { background: rgba(245,158,11,0.18); color: var(--skipped); }
   .pill-pending { background: rgba(51,65,85,0.35); color: var(--muted); }
 
   /* ── Stat boxes ── */
@@ -578,6 +793,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   .stat-done    .stat-num { color: var(--done); }
   .stat-running .stat-num { color: var(--running); }
   .stat-failed  .stat-num { color: var(--failed); }
+  .stat-skipped .stat-num { color: var(--skipped); }
   .stat-pending .stat-num { color: var(--muted); }
 
   /* ── Progress bar ── */
@@ -630,6 +846,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   .exp-card.done    ::before { background: var(--done); }
   .exp-card.running ::before { background: var(--running); animation: pulse 1.5s infinite; }
   .exp-card.failed  ::before { background: var(--failed); }
+  .exp-card.skipped ::before { background: var(--skipped); }
   .exp-card.pending ::before { background: var(--pending); }
 
   .exp-name { font-size: 11px; font-weight: 600; margin-bottom: 6px; color: var(--text); }
@@ -646,6 +863,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   .badge-done    { background: rgba(0,212,168,0.15);   color: var(--done);    }
   .badge-running { background: rgba(124,107,255,0.15); color: var(--running); }
   .badge-failed  { background: rgba(239,68,68,0.15);   color: var(--failed);  }
+  .badge-skipped { background: rgba(245,158,11,0.18);  color: var(--skipped); }
   .badge-pending { background: rgba(51,65,85,0.3);     color: var(--muted);   }
 
   .exp-metric { font-size: 11px; color: var(--muted); }
@@ -812,6 +1030,10 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       <div class="stat-num" id="cnt-failed">—</div>
       <div class="stat-label">FALLIDOS</div>
     </div>
+    <div class="stat-box stat-skipped">
+      <div class="stat-num" id="cnt-skipped">—</div>
+      <div class="stat-label">SALTADOS</div>
+    </div>
     <div class="stat-box stat-pending">
       <div class="stat-num" id="cnt-pending">—</div>
       <div class="stat-label">PENDIENTES</div>
@@ -954,12 +1176,14 @@ function render(d) {
   document.getElementById('cnt-done').textContent    = d.counts.done;
   document.getElementById('cnt-running').textContent = d.counts.running;
   document.getElementById('cnt-failed').textContent  = d.counts.failed;
+  document.getElementById('cnt-skipped').textContent = d.counts.skipped;
   document.getElementById('cnt-pending').textContent = d.counts.pending;
 
   // Progress
-  const pct = d.total > 0 ? Math.round(d.counts.done / d.total * 100) : 0;
+  const finished = d.counts.done + d.counts.failed + d.counts.skipped;
+  const pct = d.total > 0 ? Math.round(finished / d.total * 100) : 0;
   document.getElementById('progress-fill').style.width = pct + '%';
-  document.getElementById('progress-text').textContent = `${d.counts.done} / ${d.total}`;
+  document.getElementById('progress-text').textContent = `${finished} / ${d.total}`;
 
   // GPU strip
   const gpuStrip = document.getElementById('gpu-strip');
@@ -1011,7 +1235,7 @@ function render(d) {
 
   // Populate select with new running/done experiments
   d.experiments.forEach(e => {
-    if (!prevOptions.has(e.exp) && e.status !== 'pending') {
+    if (!prevOptions.has(e.exp) && ['running', 'done', 'failed'].includes(e.status)) {
       const opt = document.createElement('option');
       opt.value = e.exp;
       opt.textContent = e.exp;
@@ -1116,15 +1340,13 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/log":
             exp   = params.get("exp", ["__sweep__"])[0]
             lines = int(params.get("lines", [80])[0])
+            ctx = get_sweep_context()
             if exp == "__sweep__":
-                sweep_logs = sorted(
-                    LOGS_DIR.glob("sweep_*.log"),
-                    key=lambda p: p.stat().st_mtime, reverse=True
-                )
-                if sweep_logs:
-                    text = get_exp_log.__func__(None, None) if False else ""
+                sweep_log_path = ctx["sweep_log_path"]
+                if sweep_log_path and sweep_log_path.exists():
+                    text = ""
                     try:
-                        with open(sweep_logs[0], "rb") as f:
+                        with open(sweep_log_path, "rb") as f:
                             f.seek(0, 2)
                             f.seek(max(0, f.tell() - lines * 200))
                             text = f.read().decode("utf-8", errors="replace")
@@ -1135,7 +1357,7 @@ class Handler(BaseHTTPRequestHandler):
                     text = "[Sin sweep log todavía]"
                 self.send_text(text)
             else:
-                self.send_text(get_exp_log(exp, lines))
+                self.send_text(get_exp_log(exp, lines, ctx=ctx))
 
         else:
             self.send_response(404)

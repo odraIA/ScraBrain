@@ -136,6 +136,110 @@ SWEEP_LOG="${PROJECT_DIR}/logs/sweep_${SWEEP_RUN_TS}.log"
 touch "$SWEEP_LOG"
 ln -sfn "$(basename "$SWEEP_LOG")" "$LATEST_SWEEP_LINK"
 SWEEP_PLAN="${PROJECT_DIR}/.sweep_plan.json"
+export SWEEP_LOG SWEEP_RUN_TS SWEEP_PLAN
+
+plan_set_experiment_status() {
+  local exp_name="$1"
+  local exp_status="$2"
+
+  python3 - "$SWEEP_PLAN" "$exp_name" "$exp_status" <<'PYEOF'
+import json
+import sys
+from datetime import datetime
+from pathlib import Path
+
+plan_path = Path(sys.argv[1])
+exp_name = sys.argv[2]
+exp_status = sys.argv[3]
+now = datetime.now().isoformat()
+
+if not plan_path.exists():
+    sys.exit(0)
+
+with plan_path.open(encoding="utf-8") as f:
+    data = json.load(f)
+
+experiments = data.get("experiments", [])
+normalized = []
+found = False
+for item in experiments:
+    if isinstance(item, str):
+        entry = {"name": item}
+    elif isinstance(item, dict):
+        entry = dict(item)
+    else:
+        continue
+
+    if entry.get("name") == exp_name:
+        entry["status"] = exp_status
+        entry["updated_at"] = now
+        found = True
+    normalized.append(entry)
+
+if not found:
+    normalized.append({
+        "name": exp_name,
+        "status": exp_status,
+        "updated_at": now,
+    })
+
+data["experiments"] = normalized
+
+with plan_path.open("w", encoding="utf-8") as f:
+    json.dump(data, f, indent=2)
+PYEOF
+}
+
+plan_set_precompute_status() {
+  local stage_key="$1"
+  local task_name="$2"
+  local task_status="$3"
+
+  python3 - "$SWEEP_PLAN" "$stage_key" "$task_name" "$task_status" <<'PYEOF'
+import json
+import sys
+from datetime import datetime
+from pathlib import Path
+
+plan_path = Path(sys.argv[1])
+stage_key = sys.argv[2]
+task_name = sys.argv[3]
+task_status = sys.argv[4]
+now = datetime.now().isoformat()
+
+if not plan_path.exists():
+    sys.exit(0)
+
+with plan_path.open(encoding="utf-8") as f:
+    data = json.load(f)
+
+precompute = data.setdefault("precompute", {})
+stage_items = precompute.get(stage_key, [])
+normalized = []
+found = False
+for item in stage_items:
+    if not isinstance(item, dict):
+        continue
+    entry = dict(item)
+    if entry.get("task") == task_name:
+        entry["status"] = task_status
+        entry["updated_at"] = now
+        found = True
+    normalized.append(entry)
+
+if not found:
+    normalized.append({
+        "task": task_name,
+        "status": task_status,
+        "updated_at": now,
+    })
+
+precompute[stage_key] = normalized
+
+with plan_path.open("w", encoding="utf-8") as f:
+    json.dump(data, f, indent=2)
+PYEOF
+}
 
 cleanup_pid_file() {
   local pid_file="${SWEEP_COORDINATOR_PID_FILE:-}"
@@ -202,14 +306,24 @@ raw_experiments = [
     if exp.strip()
 ]
 experiments = [f"speech_image__{exp}" for exp in raw_experiments]
+now = datetime.now().isoformat()
 
 payload = {
-    "generated_at": datetime.now().isoformat(),
+    "generated_at": now,
     "mode": "speech_image",
-    "experiments": experiments,
+    "run_ts": os.environ.get("SWEEP_RUN_TS"),
+    "sweep_log": f"logs/{os.path.basename(os.environ['SWEEP_LOG'])}",
+    "experiments": [
+        {
+            "name": exp,
+            "status": "pending",
+            "updated_at": now,
+        }
+        for exp in experiments
+    ],
     "precompute": {
-        "stats_tasks": [],
-        "images_tasks": [],
+        "stats": [],
+        "images": [],
     },
 }
 
@@ -234,6 +348,7 @@ PYEOF
     log "━━━ [${EXP_NUM}/${TOTAL}] ${EXP} ━━━"
 
     if [[ -f "$DONE_SENTINEL" ]] && ! $RESUME_FAILED; then
+      plan_set_experiment_status "$EXP" "skipped"
       log_ok "  Ya completado (sentinel existente). Saltando."
       SKIPPED+=("$EXP")
       continue
@@ -260,6 +375,7 @@ PYEOF
     fi
 
     START_TS=$(date +%s)
+    plan_set_experiment_status "$EXP" "running"
     CONTAINER_ID=$(compose_run_detached \
       --entrypoint python \
       meg_training_job \
@@ -287,9 +403,11 @@ PYEOF
 
     if [[ "$EXIT_CODE" -eq 0 ]]; then
       touch "$DONE_SENTINEL"
+      plan_set_experiment_status "$EXP" "done"
       log_ok "  Completado en ${ELAPSED_MIN}min → ${JOB_LOG}"
       PASSED+=("$EXP")
     else
+      plan_set_experiment_status "$EXP" "failed"
       log_err "  FALLIDO (exit ${EXIT_CODE}) en ${ELAPSED_MIN}min → ${JOB_LOG}"
       FAILED+=("$EXP")
     fi
@@ -375,14 +493,31 @@ from datetime import datetime
 tasks = [x.strip() for x in os.environ.get("TASKS_CSV", "").split(",") if x.strip()]
 backbones = [x.strip() for x in os.environ.get("BACKBONES_CSV", "").split(",") if x.strip()]
 strategies = [x.strip() for x in os.environ.get("STRATEGIES_CSV", "").split(",") if x.strip()]
+now = datetime.now().isoformat()
 
 payload = {
-    "generated_at": datetime.now().isoformat(),
+    "generated_at": now,
     "mode": "classic",
-    "experiments": [f"{t}__{b}__{s}" for t, b, s in itertools.product(tasks, backbones, strategies)],
+    "run_ts": os.environ.get("SWEEP_RUN_TS"),
+    "sweep_log": f"logs/{os.path.basename(os.environ['SWEEP_LOG'])}",
+    "experiments": [
+        {
+            "name": f"{t}__{b}__{s}",
+            "status": "pending",
+            "updated_at": now,
+        }
+        for t, b, s in itertools.product(tasks, backbones, strategies)
+    ],
     "precompute": {
-        "stats_tasks": tasks,
-        "images_tasks": [],
+        "stats": [
+            {
+                "task": task,
+                "status": "pending",
+                "updated_at": now,
+            }
+            for task in tasks
+        ],
+        "images": [],
     },
 }
 
@@ -420,6 +555,7 @@ for TASK in "${TASKS[@]}"; do
   STATS_SENTINEL="${PROJECT_DIR}/.precompute_done_${TASK}"
 
   if [[ -f "$STATS_SENTINEL" ]]; then
+    plan_set_precompute_status "stats" "$TASK" "skipped"
     log_ok "Stats para '${TASK}' ya calculadas (sentinel: ${STATS_SENTINEL})"
     continue
   fi
@@ -432,6 +568,7 @@ for TASK in "${TASKS[@]}"; do
   fi
 
   # Lanzar precompute desacoplado de la sesión SSH y esperar a que termine
+  plan_set_precompute_status "stats" "$TASK" "running"
   PRECOMPUTE_CID=$(compose_run_detached \
     -e "TASK_OVERRIDE=${TASK}" \
     precompute_stats \
@@ -450,8 +587,10 @@ for TASK in "${TASKS[@]}"; do
 
   if [[ "$EXIT_CODE" -eq 0 ]]; then
     touch "$STATS_SENTINEL"
+    plan_set_precompute_status "stats" "$TASK" "done"
     log_ok "Precompute '${TASK}' completado."
   else
+    plan_set_precompute_status "stats" "$TASK" "failed"
     log_err "Precompute '${TASK}' falló (exit ${EXIT_CODE}). Ver logs/precompute_${TASK}.log"
     exit 1
   fi
@@ -494,6 +633,7 @@ for STRATEGY in "${STRATEGIES[@]}"; do
 
   # ── Saltar experimentos ya completados ──────────────────────────────────────
   if [[ -f "$DONE_SENTINEL" ]] && ! $RESUME_FAILED; then
+    plan_set_experiment_status "$EXP" "skipped"
     log_ok "  Ya completado (sentinel existente). Saltando."
     SKIPPED+=("$EXP")
     continue
@@ -521,6 +661,7 @@ for STRATEGY in "${STRATEGIES[@]}"; do
   fi
 
   START_TS=$(date +%s)
+  plan_set_experiment_status "$EXP" "running"
 
   # ── Lanzar job desacoplado de la sesión SSH ────────────────────────────────
   CONTAINER_ID=$(compose_run_detached \
@@ -553,9 +694,11 @@ for STRATEGY in "${STRATEGIES[@]}"; do
 
   if [[ $EXIT_CODE -eq 0 ]]; then
     touch "$DONE_SENTINEL"
+    plan_set_experiment_status "$EXP" "done"
     log_ok "  Completado en ${ELAPSED_MIN}min → ${JOB_LOG}"
     PASSED+=("$EXP")
   else
+    plan_set_experiment_status "$EXP" "failed"
     log_err "  FALLIDO (exit ${EXIT_CODE}) en ${ELAPSED_MIN}min → ${JOB_LOG}"
     FAILED+=("$EXP")
     # Continuar con el siguiente experimento (no abortar el sweep)

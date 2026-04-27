@@ -149,6 +149,26 @@ def _compute_classification_metrics(
     return metrics
 
 
+def _json_safe(value: Any) -> Any:
+    """
+    Convierte métricas y metadatos a tipos serializables por JSON sin perder
+    estructura para listas, tensores o arrays.
+    """
+    if isinstance(value, dict):
+        return {str(k): _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(v) for v in value]
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, torch.Tensor):
+        return value.detach().cpu().tolist() if value.ndim > 0 else value.item()
+    if isinstance(value, Path):
+        return str(value)
+    return value
+
+
 def train_one_epoch_raw(
     model,
     cwt_layer,
@@ -441,7 +461,7 @@ class CheckpointManager:
         meta = {
             "last_checkpoint": str(final_path),
             "epoch": epoch,
-            "metrics": {k: float(v) for k, v in metrics.items()},
+            "metrics": _json_safe(metrics),
             "timestamp": checkpoint["timestamp"],
         }
         meta_path = self.checkpoint_dir / "training_state.json"
