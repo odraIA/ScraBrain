@@ -7,6 +7,7 @@
 #   bash run_sweep.sh              # sweep completo
 #   bash run_sweep.sh --dry-run    # ver qué se lanzaría sin ejecutar nada
 #   bash run_sweep.sh --resume     # reanudar experimentos fallidos (resume_from=latest)
+#   bash run_sweep.sh --detach     # dejar el coordinador corriendo sin depender de la terminal
 #   bash run_sweep.sh --ddp        # alias legacy: mantiene train_ddp.py (raw+CWT)
 #   bash run_sweep.sh --speech-image        # sweep A–F (imagen TF + ImageNet)
 #   bash run_sweep.sh --speech-image --low-freq-bias
@@ -30,22 +31,94 @@
 
 set -euo pipefail
 
+# ── Rutas base ────────────────────────────────────────────────────────────────
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_PATH="${PROJECT_DIR}/$(basename "${BASH_SOURCE[0]}")"
+export PROJECT_DIR
+
 # ── Flags ─────────────────────────────────────────────────────────────────────
 DRY_RUN=false
 RESUME_FAILED=false
 SPEECH_IMAGE_SWEEP=false
 USE_WANDB=false
 LOW_FREQ_BIAS=false
+DETACH_REQUESTED=false
+FORWARD_ARGS=()
 for arg in "$@"; do
   case $arg in
     --dry-run) DRY_RUN=true ;;
     --resume)  RESUME_FAILED=true ;;
+    --detach|--daemon|--bg) DETACH_REQUESTED=true; continue ;;
     --ddp)     ;;
     --speech-image) SPEECH_IMAGE_SWEEP=true ;;
     --use-wandb) USE_WANDB=true ;;
     --low-freq-bias) LOW_FREQ_BIAS=true ;;
   esac
+  FORWARD_ARGS+=("$arg")
 done
+
+# ── Coordinador desacoplado ───────────────────────────────────────────────────
+SWEEP_KIND="classic"
+if $SPEECH_IMAGE_SWEEP; then
+  SWEEP_KIND="speech_image"
+fi
+
+mkdir -p "${PROJECT_DIR}/logs"
+PID_FILE="${PROJECT_DIR}/.sweep_coordinator_${SWEEP_KIND}.pid"
+LATEST_COORDINATOR_LINK="${PROJECT_DIR}/logs/latest_${SWEEP_KIND}_coordinator.log"
+LATEST_SWEEP_LINK="${PROJECT_DIR}/logs/latest_${SWEEP_KIND}_sweep.log"
+
+if [[ -f "$PID_FILE" ]]; then
+  EXISTING_PID="$(cat "$PID_FILE" 2>/dev/null || true)"
+  if [[ -n "$EXISTING_PID" ]] && kill -0 "$EXISTING_PID" 2>/dev/null; then
+    if $DETACH_REQUESTED && [[ "${SWEEP_COORDINATOR_DETACHED:-0}" != "1" ]]; then
+      echo "Ya hay un coordinador '${SWEEP_KIND}' corriendo con PID ${EXISTING_PID}."
+      echo "Log: ${LATEST_COORDINATOR_LINK}"
+      echo "Para pararlo: kill ${EXISTING_PID}"
+      exit 1
+    fi
+  else
+    rm -f "$PID_FILE"
+  fi
+fi
+
+if $DETACH_REQUESTED && [[ "${SWEEP_COORDINATOR_DETACHED:-0}" != "1" ]]; then
+  SWEEP_RUN_TS="$(date +%Y%m%d_%H%M%S)"
+  COORDINATOR_LOG="${PROJECT_DIR}/logs/sweep_coordinator_${SWEEP_KIND}_${SWEEP_RUN_TS}.log"
+
+  ln -sfn "$(basename "$COORDINATOR_LOG")" "$LATEST_COORDINATOR_LINK"
+
+  SWEEP_COORDINATOR_DETACHED=1 \
+  SWEEP_COORDINATOR_PID_FILE="$PID_FILE" \
+  SWEEP_RUN_TS="$SWEEP_RUN_TS" \
+  nohup bash "$SCRIPT_PATH" "${FORWARD_ARGS[@]}" \
+    > "$COORDINATOR_LOG" 2>&1 < /dev/null &
+
+  CHILD_PID=$!
+  echo "$CHILD_PID" > "$PID_FILE"
+  sleep 1
+
+  if kill -0 "$CHILD_PID" 2>/dev/null; then
+    echo "Sweep '${SWEEP_KIND}' lanzado en background."
+    echo "PID: ${CHILD_PID}"
+    echo "Log coordinador: ${COORDINATOR_LOG}"
+    echo "Log sweep: ${PROJECT_DIR}/logs/sweep_${SWEEP_RUN_TS}.log"
+    echo "Symlink log: ${LATEST_COORDINATOR_LINK}"
+    echo "Parar: kill ${CHILD_PID}"
+    exit 0
+  fi
+
+  if wait "$CHILD_PID"; then
+    echo "Sweep '${SWEEP_KIND}' arrancó y terminó antes de la comprobación inicial."
+    echo "Log coordinador: ${COORDINATOR_LOG}"
+    echo "Log sweep: ${PROJECT_DIR}/logs/sweep_${SWEEP_RUN_TS}.log"
+    exit 0
+  fi
+
+  rm -f "$PID_FILE"
+  echo "No se pudo lanzar el coordinador en background. Revisa ${COORDINATOR_LOG}" >&2
+  exit 1
+fi
 
 # ── Colores ───────────────────────────────────────────────────────────────────
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; BLUE='\033[0;34m'; NC='\033[0m'
@@ -58,12 +131,27 @@ log_step() { echo -e "\n${BLUE}━━━━━━━━━━━━━━━━�
              echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}" | tee -a "$SWEEP_LOG"; }
 
 # ── Directorios ───────────────────────────────────────────────────────────────
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-export PROJECT_DIR
-mkdir -p "${PROJECT_DIR}/logs"
-SWEEP_LOG="${PROJECT_DIR}/logs/sweep_$(date +%Y%m%d_%H%M%S).log"
+SWEEP_RUN_TS="${SWEEP_RUN_TS:-$(date +%Y%m%d_%H%M%S)}"
+SWEEP_LOG="${PROJECT_DIR}/logs/sweep_${SWEEP_RUN_TS}.log"
 touch "$SWEEP_LOG"
+ln -sfn "$(basename "$SWEEP_LOG")" "$LATEST_SWEEP_LINK"
 SWEEP_PLAN="${PROJECT_DIR}/.sweep_plan.json"
+
+cleanup_pid_file() {
+  local pid_file="${SWEEP_COORDINATOR_PID_FILE:-}"
+  local recorded_pid
+
+  if [[ -z "$pid_file" ]] || [[ ! -f "$pid_file" ]]; then
+    return
+  fi
+
+  recorded_pid="$(cat "$pid_file" 2>/dev/null || true)"
+  if [[ "$recorded_pid" == "$$" ]]; then
+    rm -f "$pid_file"
+  fi
+}
+
+trap cleanup_pid_file EXIT
 
 # ── Compatibilidad docker compose run ─────────────────────────────────────────
 DOCKER_COMPOSE_RUN_FLAGS=(-d --no-deps)

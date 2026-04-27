@@ -22,10 +22,12 @@ No hay modelos sobre señal cruda en este runner.
 ## Integración con sweep/monitor existentes
 
 - Sweep completo A–F con el flujo estándar: `bash run_sweep.sh --speech-image`
+- Sweep A–F desacoplado de la terminal: `bash run_sweep.sh --speech-image --detach`
 - Añadir variante low-freq en el sweep: `bash run_sweep.sh --speech-image --low-freq-bias`
 - Monitor en paralelo (igual que antes): `docker compose up -d monitor`
 
 `run_sweep.sh` escribe `.sweep_mode=speech_image`, y `monitor_server.py` cambia automáticamente a descubrimiento dinámico de experimentos para mostrar este modo.
+Con `--detach`, el coordinador queda bajo `nohup`, deja PID en `.sweep_coordinator_speech_image.pid` y symlinks a los logs más recientes en `logs/latest_speech_image_*`.
 
 ## CLI directa
 

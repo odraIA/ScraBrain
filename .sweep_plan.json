@@ -1,0 +1,16 @@
+{
+  "generated_at": "2026-04-27T15:59:15.069598",
+  "mode": "speech_image",
+  "experiments": [
+    "speech_image__baseline_image_resnet18",
+    "speech_image__baseline_image_vittiny",
+    "speech_image__ablation_projection",
+    "speech_image__ablation_finetuning",
+    "speech_image__ablation_window_length",
+    "speech_image__ablation_augmentations"
+  ],
+  "precompute": {
+    "stats_tasks": [],
+    "images_tasks": []
+  }
+}
