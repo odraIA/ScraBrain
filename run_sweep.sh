@@ -65,6 +65,21 @@ SWEEP_LOG="${PROJECT_DIR}/logs/sweep_$(date +%Y%m%d_%H%M%S).log"
 touch "$SWEEP_LOG"
 SWEEP_PLAN="${PROJECT_DIR}/.sweep_plan.json"
 
+# ── Compatibilidad docker compose run ─────────────────────────────────────────
+DOCKER_COMPOSE_RUN_FLAGS=(-d --no-deps)
+if command -v docker >/dev/null 2>&1; then
+  if docker compose run --help 2>/dev/null | grep -q -- '--init'; then
+    DOCKER_COMPOSE_RUN_FLAGS=(-d --init --no-deps)
+  else
+    log_warn "docker compose run no soporta --init; se ejecutará sin ese flag."
+  fi
+fi
+DOCKER_COMPOSE_RUN_FLAGS_STR="${DOCKER_COMPOSE_RUN_FLAGS[*]}"
+
+compose_run_detached() {
+  docker compose run "${DOCKER_COMPOSE_RUN_FLAGS[@]}" "$@"
+}
+
 # ==============================================================================
 # MODO ALTERNATIVO: SWEEP DE SPEECH IMAGE EXPERIMENTS (A–F)
 # ==============================================================================
@@ -147,7 +162,7 @@ PYEOF
     fi
 
     if $DRY_RUN; then
-      log "  [DRY-RUN] docker compose run -d --init --rm --entrypoint python meg_training_job \\"
+      log "  [DRY-RUN] docker compose run ${DOCKER_COMPOSE_RUN_FLAGS_STR} --rm --entrypoint python meg_training_job \\"
       log "    /workspace/run_speech_image_experiments.py \\"
       log "    --experiment ${EXP_ID} --data_path /workspace/libribrain_data \\"
       log "    --output_dir ${OUT_DIR} --epochs 20 --stage1_epochs 6 \\"
@@ -157,9 +172,7 @@ PYEOF
     fi
 
     START_TS=$(date +%s)
-    CONTAINER_ID=$(docker compose run -d \
-      --init \
-      --no-deps \
+    CONTAINER_ID=$(compose_run_detached \
       --entrypoint python \
       meg_training_job \
       /workspace/run_speech_image_experiments.py \
@@ -331,9 +344,7 @@ for TASK in "${TASKS[@]}"; do
   fi
 
   # Lanzar precompute desacoplado de la sesión SSH y esperar a que termine
-  PRECOMPUTE_CID=$(docker compose run -d \
-    --init \
-    --no-deps \
+  PRECOMPUTE_CID=$(compose_run_detached \
     -e "TASK_OVERRIDE=${TASK}" \
     precompute_stats \
     /workspace/precompute_stats.py \
@@ -412,7 +423,7 @@ for STRATEGY in "${STRATEGIES[@]}"; do
   fi
 
   if $DRY_RUN; then
-    log "  [DRY-RUN] docker compose run -d --init --rm meg_training_job train_ddp.py \\"
+    log "  [DRY-RUN] docker compose run ${DOCKER_COMPOSE_RUN_FLAGS_STR} --rm meg_training_job train_ddp.py \\"
     log "    --task ${TASK} --backbone ${BACKBONE} --strategy ${STRATEGY} \\"
     log "    --n_epochs ${N_EPOCHS} --batch_size ${BATCH_SIZE} \\"
     log "    --output_dir ${OUTPUT_DIR} --checkpoint_dir ${CKPT_DIR} \\"
@@ -424,9 +435,7 @@ for STRATEGY in "${STRATEGIES[@]}"; do
   START_TS=$(date +%s)
 
   # ── Lanzar job desacoplado de la sesión SSH ────────────────────────────────
-  CONTAINER_ID=$(docker compose run -d \
-    --init \
-    --no-deps \
+  CONTAINER_ID=$(compose_run_detached \
     meg_training_job \
     train_ddp.py \
       --task          "${TASK}" \
