@@ -98,6 +98,57 @@ def _apply_cwt_and_normalize(cwt_layer, batch_x: torch.Tensor) -> torch.Tensor:
     return scalogram
 
 
+def _gather_numpy_concat(local_array: np.ndarray) -> np.ndarray:
+    """
+    Concatena arrays numpy entre todos los ranks usando all_gather_object.
+    """
+    if not dist.is_initialized():
+        return local_array
+    gathered = [None for _ in range(dist.get_world_size())]
+    dist.all_gather_object(gathered, local_array)
+    return np.concatenate(gathered, axis=0) if gathered else local_array
+
+
+def _safe_auroc(y_true: np.ndarray, y_prob: np.ndarray) -> float:
+    from sklearn.metrics import roc_auc_score
+
+    unique = np.unique(y_true)
+    if unique.size < 2:
+        return float("nan")
+
+    try:
+        if y_prob.shape[1] == 2:
+            return float(roc_auc_score(y_true, y_prob[:, 1]))
+        labels = np.arange(y_prob.shape[1])
+        return float(roc_auc_score(y_true, y_prob, multi_class="ovr", labels=labels))
+    except ValueError:
+        return float("nan")
+
+
+def _compute_classification_metrics(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    y_prob: np.ndarray,
+) -> Dict[str, Any]:
+    from sklearn.metrics import f1_score, balanced_accuracy_score, confusion_matrix
+
+    n_classes = int(y_prob.shape[1])
+    labels = np.arange(n_classes)
+    f1_per_class = f1_score(y_true, y_pred, average=None, labels=labels, zero_division=0)
+    cm = confusion_matrix(y_true, y_pred, labels=labels)
+
+    metrics: Dict[str, Any] = {
+        "f1_macro": float(f1_score(y_true, y_pred, average="macro", zero_division=0)),
+        "balanced_acc": float(balanced_accuracy_score(y_true, y_pred)),
+        "auroc": _safe_auroc(y_true, y_prob),
+        "f1_per_class": [float(x) for x in f1_per_class.tolist()],
+        "confusion_matrix": cm.tolist(),
+    }
+    for idx, value in enumerate(f1_per_class.tolist()):
+        metrics[f"f1_class_{idx}"] = float(value)
+    return metrics
+
+
 def train_one_epoch_raw(
     model,
     cwt_layer,
@@ -111,14 +162,14 @@ def train_one_epoch_raw(
     Versión de train_one_epoch que acepta señales MEG raw (B, 306, T) y aplica
     CWT en GPU antes del forward del modelo.
     """
-    from sklearn.metrics import f1_score, balanced_accuracy_score
-    import torch.distributed as dist
     from tqdm import tqdm
 
     model.train()
     total_loss = 0.0
+    total_examples = 0
     all_preds  = []
     all_labels = []
+    all_probs  = []
 
     is_main = (not dist.is_initialized()) or dist.get_rank() == 0
 
@@ -145,14 +196,31 @@ def train_one_epoch_raw(
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip)
         optimizer.step()
 
-        total_loss += loss.item()
-        all_preds.extend(logits.argmax(dim=1).cpu().numpy())
-        all_labels.extend(batch_y.cpu().numpy())
+        probs = torch.softmax(logits.detach(), dim=1).cpu().numpy()
+        preds = probs.argmax(axis=1)
 
-    avg_loss = total_loss / len(loader)
-    f1       = f1_score(all_labels, all_preds, average="macro", zero_division=0)
-    bal_acc  = balanced_accuracy_score(all_labels, all_preds)
-    return {"loss": avg_loss, "f1_macro": f1, "balanced_acc": bal_acc}
+        total_loss += float(loss.item()) * int(batch_y.size(0))
+        total_examples += int(batch_y.size(0))
+        all_probs.append(probs)
+        all_preds.append(preds)
+        all_labels.append(batch_y.cpu().numpy())
+
+    loss_tensor = torch.tensor([total_loss, float(total_examples)], device=device)
+    if dist.is_initialized():
+        dist.all_reduce(loss_tensor, op=dist.ReduceOp.SUM)
+    avg_loss = float(loss_tensor[0].item() / max(loss_tensor[1].item(), 1.0))
+
+    y_true = np.concatenate(all_labels, axis=0) if all_labels else np.empty((0,), dtype=np.int64)
+    y_pred = np.concatenate(all_preds, axis=0) if all_preds else np.empty((0,), dtype=np.int64)
+    y_prob = np.concatenate(all_probs, axis=0) if all_probs else np.empty((0, 0), dtype=np.float32)
+
+    y_true = _gather_numpy_concat(y_true)
+    y_pred = _gather_numpy_concat(y_pred)
+    y_prob = _gather_numpy_concat(y_prob)
+
+    metrics = _compute_classification_metrics(y_true, y_pred, y_prob)
+    metrics["loss"] = avg_loss
+    return metrics
 
 
 @torch.no_grad()
@@ -166,14 +234,14 @@ def evaluate_raw(
     """
     Versión de evaluate que acepta señales MEG raw (B, 306, T).
     """
-    from sklearn.metrics import f1_score, balanced_accuracy_score
-    import torch.distributed as dist
     from tqdm import tqdm
 
     model.eval()
     total_loss = 0.0
+    total_examples = 0
     all_preds  = []
     all_labels = []
+    all_probs  = []
     is_main = (not dist.is_initialized()) or dist.get_rank() == 0
 
     for batch_x, batch_y in tqdm(loader, desc="Eval", leave=False, disable=not is_main):
@@ -184,14 +252,31 @@ def evaluate_raw(
         logits    = model(scalogram)
         loss      = criterion(logits, batch_y)
 
-        total_loss += loss.item()
-        all_preds.extend(logits.argmax(dim=1).cpu().numpy())
-        all_labels.extend(batch_y.cpu().numpy())
+        probs = torch.softmax(logits.detach(), dim=1).cpu().numpy()
+        preds = probs.argmax(axis=1)
 
-    avg_loss = total_loss / len(loader)
-    f1       = f1_score(all_labels, all_preds, average="macro", zero_division=0)
-    bal_acc  = balanced_accuracy_score(all_labels, all_preds)
-    return {"loss": avg_loss, "f1_macro": f1, "balanced_acc": bal_acc}
+        total_loss += float(loss.item()) * int(batch_y.size(0))
+        total_examples += int(batch_y.size(0))
+        all_probs.append(probs)
+        all_preds.append(preds)
+        all_labels.append(batch_y.cpu().numpy())
+
+    loss_tensor = torch.tensor([total_loss, float(total_examples)], device=device)
+    if dist.is_initialized():
+        dist.all_reduce(loss_tensor, op=dist.ReduceOp.SUM)
+    avg_loss = float(loss_tensor[0].item() / max(loss_tensor[1].item(), 1.0))
+
+    y_true = np.concatenate(all_labels, axis=0) if all_labels else np.empty((0,), dtype=np.int64)
+    y_pred = np.concatenate(all_preds, axis=0) if all_preds else np.empty((0,), dtype=np.int64)
+    y_prob = np.concatenate(all_probs, axis=0) if all_probs else np.empty((0, 0), dtype=np.float32)
+
+    y_true = _gather_numpy_concat(y_true)
+    y_pred = _gather_numpy_concat(y_pred)
+    y_prob = _gather_numpy_concat(y_prob)
+
+    metrics = _compute_classification_metrics(y_true, y_pred, y_prob)
+    metrics["loss"] = avg_loss
+    return metrics
 
 
 def _speech_window_to_scalar(raw_label, threshold: float = 0.5) -> Optional[int]:
@@ -851,12 +936,6 @@ def train_ddp(args):
         # ── Val (todos los ranks evalúan, rank 0 reporta) ─────────────────────
         val_metrics = evaluate_raw(model, cwt_layer, val_loader, criterion, device)
 
-        # ── Agregar métricas de validación entre ranks ────────────────────────
-        # DDP necesita agregar métricas de todos los ranks
-        val_f1_tensor = torch.tensor(val_metrics["f1_macro"], device=device)
-        dist.all_reduce(val_f1_tensor, op=dist.ReduceOp.AVG)
-        val_metrics["f1_macro"] = val_f1_tensor.item()
-
         # ── Scheduler ─────────────────────────────────────────────────────────
         if scheduler:
             scheduler.step()
@@ -870,8 +949,10 @@ def train_ddp(args):
             print(
                 f"Epoch {epoch:04d}/{args.n_epochs} │ "
                 f"Train Loss: {train_metrics['loss']:.4f} │ "
-                f"Train F1: {train_metrics['f1_macro']:.4f} │ "
-                f"Val F1: {val_metrics['f1_macro']:.4f} "
+                f"Train F1-macro: {train_metrics['f1_macro']:.4f} │ "
+                f"Val F1-macro: {val_metrics['f1_macro']:.4f} │ "
+                f"Val BalAcc: {val_metrics['balanced_acc']:.4f} │ "
+                f"Val AUROC: {val_metrics['auroc']:.4f} "
                 f"{'★ BEST' if is_best else ''} │ "
                 f"Tiempo: {train_time:.1f}s"
             )
@@ -880,8 +961,13 @@ def train_ddp(args):
             if writer:
                 writer.add_scalar("Train/Loss",        train_metrics["loss"],        epoch)
                 writer.add_scalar("Train/F1_macro",    train_metrics["f1_macro"],    epoch)
+                writer.add_scalar("Train/Balanced_Acc", train_metrics["balanced_acc"], epoch)
+                if not np.isnan(train_metrics["auroc"]):
+                    writer.add_scalar("Train/AUROC", train_metrics["auroc"], epoch)
                 writer.add_scalar("Val/F1_macro",      val_metrics["f1_macro"],      epoch)
                 writer.add_scalar("Val/Balanced_Acc",  val_metrics["balanced_acc"],  epoch)
+                if not np.isnan(val_metrics["auroc"]):
+                    writer.add_scalar("Val/AUROC", val_metrics["auroc"], epoch)
                 writer.add_scalar("LR/head",
                                   optimizer.param_groups[0]["lr"], epoch)
 
@@ -928,17 +1014,15 @@ def train_ddp(args):
 
     test_metrics = evaluate_raw(model, cwt_layer, test_loader, criterion, device)
 
-    # Agregar métricas de test entre GPUs
-    for key in ["f1_macro", "balanced_acc"]:
-        t = torch.tensor(test_metrics[key], device=device)
-        dist.all_reduce(t, op=dist.ReduceOp.AVG)
-        test_metrics[key] = t.item()
-
     if is_main:
         print(f"\n{'='*50}")
         print(f"  RESULTADOS FINALES (TEST SET)")
         print(f"  F1-macro:      {test_metrics['f1_macro']:.4f}")
+        if "f1_per_class" in test_metrics:
+            print(f"  F1 por clase:   {[round(x, 4) for x in test_metrics['f1_per_class']]}")
         print(f"  Balanced Acc:  {test_metrics['balanced_acc']:.4f}")
+        print(f"  AUROC:         {test_metrics['auroc']:.4f}")
+        print(f"  Confusion Mtx: {test_metrics['confusion_matrix']}")
         print(f"{'='*50}")
 
         # Guardar resultados finales
@@ -950,7 +1034,10 @@ def train_ddp(args):
                 "strategy": args.strategy,
                 "task": args.task,
                 "test_f1_macro": test_metrics["f1_macro"],
+                "test_f1_per_class": test_metrics.get("f1_per_class"),
                 "test_balanced_acc": test_metrics["balanced_acc"],
+                "test_auroc": test_metrics["auroc"],
+                "test_confusion_matrix": test_metrics.get("confusion_matrix"),
                 "best_val_f1": best_val_f1,
                 "timestamp": datetime.now().isoformat(),
             }, f, indent=2)

@@ -7,8 +7,7 @@
 #   bash run_sweep.sh              # sweep completo
 #   bash run_sweep.sh --dry-run    # ver qué se lanzaría sin ejecutar nada
 #   bash run_sweep.sh --resume     # reanudar experimentos fallidos (resume_from=latest)
-#   bash run_sweep.sh --ddp        # forzar modo train_ddp.py (raw+CWT)
-#   bash run_sweep.sh --precomputed-train  # forzar modo imágenes precomputadas
+#   bash run_sweep.sh --ddp        # alias legacy: mantiene train_ddp.py (raw+CWT)
 #   bash run_sweep.sh --speech-image        # sweep A–F (imagen TF + ImageNet)
 #   bash run_sweep.sh --speech-image --low-freq-bias
 #
@@ -16,7 +15,6 @@
 #   - docker compose up --build  (al menos una vez para construir la imagen)
 #   - precompute_stats corrido para 'phoneme' (ver abajo, lo hace automáticamente)
 #   - train_ddp.py parcheado para speech (este script lo hace automáticamente)
-#   - (opcional) imágenes precomputadas (este script también lo puede hacer)
 #
 # Resultados:
 #   logs/
@@ -35,7 +33,6 @@ set -euo pipefail
 # ── Flags ─────────────────────────────────────────────────────────────────────
 DRY_RUN=false
 RESUME_FAILED=false
-USE_PRECOMPUTED_IMAGES_FOR_TRAIN=true
 SPEECH_IMAGE_SWEEP=false
 USE_WANDB=false
 LOW_FREQ_BIAS=false
@@ -43,8 +40,7 @@ for arg in "$@"; do
   case $arg in
     --dry-run) DRY_RUN=true ;;
     --resume)  RESUME_FAILED=true ;;
-    --ddp)     USE_PRECOMPUTED_IMAGES_FOR_TRAIN=false ;;
-    --precomputed-train) USE_PRECOMPUTED_IMAGES_FOR_TRAIN=true ;;
+    --ddp)     ;;
     --speech-image) SPEECH_IMAGE_SWEEP=true ;;
     --use-wandb) USE_WANDB=true ;;
     --low-freq-bias) LOW_FREQ_BIAS=true ;;
@@ -63,15 +59,18 @@ log_step() { echo -e "\n${BLUE}━━━━━━━━━━━━━━━━�
 
 # ── Directorios ───────────────────────────────────────────────────────────────
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export PROJECT_DIR
 mkdir -p "${PROJECT_DIR}/logs"
 SWEEP_LOG="${PROJECT_DIR}/logs/sweep_$(date +%Y%m%d_%H%M%S).log"
 touch "$SWEEP_LOG"
+SWEEP_PLAN="${PROJECT_DIR}/.sweep_plan.json"
 
 # ==============================================================================
 # MODO ALTERNATIVO: SWEEP DE SPEECH IMAGE EXPERIMENTS (A–F)
 # ==============================================================================
 if $SPEECH_IMAGE_SWEEP; then
   echo "speech_image" > "${PROJECT_DIR}/.sweep_mode"
+  export SWEEP_PLAN
   log_step "MODO SPEECH-IMAGE: lanzando experimentos A–F"
 
   SPEECH_EXPERIMENTS=(
@@ -85,6 +84,35 @@ if $SPEECH_IMAGE_SWEEP; then
   if $LOW_FREQ_BIAS; then
     SPEECH_EXPERIMENTS+=("low_freq_bias_variant")
   fi
+  export SWEEP_PLAN
+  export SPEECH_EXPERIMENTS_CSV
+  SPEECH_EXPERIMENTS_CSV="$(IFS=,; echo "${SPEECH_EXPERIMENTS[*]}")"
+
+  python3 - <<'PYEOF'
+import json
+import os
+from datetime import datetime
+
+raw_experiments = [
+    exp.strip()
+    for exp in os.environ.get("SPEECH_EXPERIMENTS_CSV", "").split(",")
+    if exp.strip()
+]
+experiments = [f"speech_image__{exp}" for exp in raw_experiments]
+
+payload = {
+    "generated_at": datetime.now().isoformat(),
+    "mode": "speech_image",
+    "experiments": experiments,
+    "precompute": {
+        "stats_tasks": [],
+        "images_tasks": [],
+    },
+}
+
+with open(os.environ["SWEEP_PLAN"], "w", encoding="utf-8") as f:
+    json.dump(payload, f, indent=2)
+PYEOF
 
   TOTAL=${#SPEECH_EXPERIMENTS[@]}
   PASSED=()
@@ -197,8 +225,8 @@ for path in jsons:
     rows.append((exp, d))
 
 rows.sort(key=lambda x: x[1].get("test_f1_macro", 0), reverse=True)
-print(f"\n{'Experimento':<38} {'Backbone':<10} {'Proj':<26} {'FT':<12} {'F1':>7} {'BalAcc':>7}")
-print("─" * 114)
+print(f"\n{'Experimento':<38} {'Backbone':<10} {'Proj':<26} {'FT':<12} {'F1':>7} {'BalAcc':>7} {'AUROC':>7}")
+print("─" * 122)
 for exp, d in rows:
     print(
         f"  {exp:<36} "
@@ -206,7 +234,8 @@ for exp, d in rows:
         f"{str(d.get('projection_type','?')):<26} "
         f"{str(d.get('fine_tuning_type','?')):<12} "
         f"{float(d.get('test_f1_macro',0)):.4f} "
-        f"{float(d.get('test_balanced_acc',0)):.4f}"
+        f"{float(d.get('test_balanced_acc',0)):.4f} "
+        f"{float(d.get('test_auroc', float('nan'))):.4f}"
     )
 print()
 PYEOF
@@ -221,7 +250,7 @@ echo "classic" > "${PROJECT_DIR}/.sweep_mode"
 # ESPACIO DE BÚSQUEDA
 # Editar aquí para añadir/quitar experimentos.
 # ==============================================================================
-TASKS=("phoneme" "speech")
+TASKS=("speech") # "phoneme"  # Por ahora solo speech, para validar el flujo completo. Phoneme se mantiene como sanity check (precompute + entrenamiento rápido).
 BACKBONES=("resnet18" "efficientnet_b0" "vit_tiny")
 STRATEGIES=("frozen" "partial_ft")
 
@@ -231,16 +260,37 @@ BATCH_SIZE=256       # Por GPU — batch global = 256 × 2 GPUs = 512
 NUM_WORKERS=4
 CHECKPOINT_EVERY=5   # Guardar checkpoint cada 5 epochs (no cada 1, para no llenar disco)
 DATA_PATH="/workspace/libribrain_data"
+export SWEEP_PLAN
+export TASKS_CSV BACKBONES_CSV STRATEGIES_CSV
+TASKS_CSV="$(IFS=,; echo "${TASKS[*]}")"
+BACKBONES_CSV="$(IFS=,; echo "${BACKBONES[*]}")"
+STRATEGIES_CSV="$(IFS=,; echo "${STRATEGIES[*]}")"
+python3 - <<'PYEOF'
+import itertools
+import json
+import os
+from datetime import datetime
 
-# ── Precompute de imágenes (pipeline señal->augmentación->imagen) ────────────
-PRECOMPUTE_IMAGES=true
-PRECOMPUTED_IMAGES_BASE="/workspace/results/precomputed_images"
-TRAIN_AUGMENTED_COPIES=1
-PRECOMPUTE_IMG_DTYPE="float32"   # float32 | float16
+tasks = [x.strip() for x in os.environ.get("TASKS_CSV", "").split(",") if x.strip()]
+backbones = [x.strip() for x in os.environ.get("BACKBONES_CSV", "").split(",") if x.strip()]
+strategies = [x.strip() for x in os.environ.get("STRATEGIES_CSV", "").split(",") if x.strip()]
+
+payload = {
+    "generated_at": datetime.now().isoformat(),
+    "mode": "classic",
+    "experiments": [f"{t}__{b}__{s}" for t, b, s in itertools.product(tasks, backbones, strategies)],
+    "precompute": {
+        "stats_tasks": tasks,
+        "images_tasks": [],
+    },
+}
+
+with open(os.environ["SWEEP_PLAN"], "w", encoding="utf-8") as f:
+    json.dump(payload, f, indent=2)
+PYEOF
 
 # ── Modo de entrenamiento ─────────────────────────────────────────────────────
-# false: mantiene train_ddp.py (DDP raw+CWT, flujo actual)
-# true : usa meg_transfer_learning_libribrain.py con --precomputed_dir
+# Se mantiene train_ddp.py (DDP raw+CWT, flujo actual).
 
 # ==============================================================================
 # PASO 0: PARCHE DE train_ddp.py PARA SOPORTE DE SPEECH
@@ -277,7 +327,6 @@ for TASK in "${TASKS[@]}"; do
 
   if $DRY_RUN; then
     log "  [DRY-RUN] docker compose run --rm precompute_stats ..."
-    touch "$STATS_SENTINEL"
     continue
   fi
 
@@ -310,64 +359,9 @@ for TASK in "${TASKS[@]}"; do
 done
 
 # ==============================================================================
-# PASO 2: PRECOMPUTE DE IMÁGENES (SEÑAL + AUGMENTACIÓN + CWT)
+# PASO 2: SWEEP DE ENTRENAMIENTO
 # ==============================================================================
-if $PRECOMPUTE_IMAGES; then
-  log_step "PASO 2: Precompute de imágenes para train/validation/test"
-
-  for TASK in "${TASKS[@]}"; do
-    IMG_SENTINEL="${PROJECT_DIR}/.precompute_images_done_${TASK}"
-    IMG_OUTPUT_DIR="${PRECOMPUTED_IMAGES_BASE}/${TASK}"
-
-    if [[ -f "$IMG_SENTINEL" ]]; then
-      log_ok "Imágenes para '${TASK}' ya generadas (sentinel: ${IMG_SENTINEL})"
-      continue
-    fi
-
-    log "Lanzando precompute_meg_images para task='${TASK}'..."
-
-    if $DRY_RUN; then
-      log "  [DRY-RUN] docker compose run --rm precompute_stats /workspace/precompute_meg_images.py ..."
-      touch "$IMG_SENTINEL"
-      continue
-    fi
-
-    PRECOMP_IMG_CID=$(docker compose run -d \
-      --init \
-      --no-deps \
-      precompute_stats \
-      /workspace/precompute_meg_images.py \
-        --task "${TASK}" \
-        --data_path "${DATA_PATH}" \
-        --output_dir "${IMG_OUTPUT_DIR}" \
-        --n_freqs 96 \
-        --train_augmented_copies "${TRAIN_AUGMENTED_COPIES}" \
-        --dtype "${PRECOMPUTE_IMG_DTYPE}" \
-        --overwrite)
-
-    docker logs -f "$PRECOMP_IMG_CID" 2>&1 | tee "${PROJECT_DIR}/logs/precompute_images_${TASK}.log" &
-    LOGS_PID=$!
-
-    EXIT_CODE=$(docker wait "$PRECOMP_IMG_CID")
-    kill $LOGS_PID 2>/dev/null || true
-    docker rm "$PRECOMP_IMG_CID" 2>/dev/null || true
-
-    if [[ "$EXIT_CODE" -eq 0 ]]; then
-      touch "$IMG_SENTINEL"
-      log_ok "Precompute de imágenes '${TASK}' completado."
-    else
-      log_err "Precompute de imágenes '${TASK}' falló (exit ${EXIT_CODE}). Ver logs/precompute_images_${TASK}.log"
-      exit 1
-    fi
-  done
-else
-  log_warn "PASO 2 omitido: PRECOMPUTE_IMAGES=false"
-fi
-
-# ==============================================================================
-# PASO 3: SWEEP DE ENTRENAMIENTO
-# ==============================================================================
-log_step "PASO 3: Iniciando sweep de entrenamiento"
+log_step "PASO 2: Iniciando sweep de entrenamiento"
 
 # Calcular total de experimentos
 TOTAL=$(( ${#TASKS[@]} * ${#BACKBONES[@]} * ${#STRATEGIES[@]} ))
@@ -377,11 +371,7 @@ log "  Backbones:   ${BACKBONES[*]}"
 log "  Estrategias: ${STRATEGIES[*]}"
 log "  Total:       ${TOTAL} experimentos"
 log "  Epochs/exp:  ${N_EPOCHS}"
-if $USE_PRECOMPUTED_IMAGES_FOR_TRAIN; then
-  log "  Modo train:  precomputed images (--precomputed_dir)"
-else
-  log "  Modo train:  DDP raw+CWT (train_ddp.py)"
-fi
+log "  Modo train:  DDP raw+CWT (train_ddp.py)"
 log ""
 
 FAILED=()
@@ -412,45 +402,21 @@ for STRATEGY in "${STRATEGIES[@]}"; do
 
   # ── Determinar resume_from ──────────────────────────────────────────────────
   RESUME_FROM="none"
-  if $USE_PRECOMPUTED_IMAGES_FOR_TRAIN; then
-    if $RESUME_FAILED; then
-      log_warn "  --resume ignorado en modo precomputed (meg_transfer_learning_libribrain.py no usa checkpoint_latest)."
+  if $RESUME_FAILED; then
+    # Si hay checkpoint previo para este experimento, reanudar desde él
+    CKPT_LOCAL="${PROJECT_DIR}/checkpoints/${EXP}/checkpoint_latest.pt"
+    if [[ -f "$CKPT_LOCAL" ]]; then
+      RESUME_FROM="latest"
+      log_warn "  Reanudando desde checkpoint: ${CKPT_LOCAL}"
     fi
-  else
-    if $RESUME_FAILED; then
-      # Si hay checkpoint previo para este experimento, reanudar desde él
-      CKPT_LOCAL="${PROJECT_DIR}/checkpoints/${EXP}/checkpoint_latest.pt"
-      if [[ -f "$CKPT_LOCAL" ]]; then
-        RESUME_FROM="latest"
-        log_warn "  Reanudando desde checkpoint: ${CKPT_LOCAL}"
-      fi
-    fi
-  fi
-
-  PRECOMP_DIR="${PRECOMPUTED_IMAGES_BASE}/${TASK}"
-  PRECOMP_SENTINEL="${PROJECT_DIR}/.precompute_images_done_${TASK}"
-  if $USE_PRECOMPUTED_IMAGES_FOR_TRAIN && [[ ! -f "$PRECOMP_SENTINEL" ]]; then
-    log_err "  No existe precompute de imágenes para '${TASK}' (falta ${PRECOMP_SENTINEL})."
-    log_err "  Ejecuta el PASO 2 o desactiva modo precomputed con --ddp."
-    FAILED+=("$EXP")
-    continue
   fi
 
   if $DRY_RUN; then
-    if $USE_PRECOMPUTED_IMAGES_FOR_TRAIN; then
-      log "  [DRY-RUN] docker compose run -d --init --rm --entrypoint python meg_training_job \\"
-      log "    /workspace/meg_transfer_learning_libribrain.py \\"
-      log "    --task ${TASK} --model ${BACKBONE} --strategy ${STRATEGY} \\"
-      log "    --n_epochs ${N_EPOCHS} --batch_size ${BATCH_SIZE} \\"
-      log "    --data_path ${DATA_PATH} --output_dir ${OUTPUT_DIR} \\"
-      log "    --precomputed_dir ${PRECOMP_DIR}"
-    else
-      log "  [DRY-RUN] docker compose run -d --init --rm meg_training_job train_ddp.py \\"
-      log "    --task ${TASK} --backbone ${BACKBONE} --strategy ${STRATEGY} \\"
-      log "    --n_epochs ${N_EPOCHS} --batch_size ${BATCH_SIZE} \\"
-      log "    --output_dir ${OUTPUT_DIR} --checkpoint_dir ${CKPT_DIR} \\"
-      log "    --checkpoint_every ${CHECKPOINT_EVERY} --resume_from ${RESUME_FROM}"
-    fi
+    log "  [DRY-RUN] docker compose run -d --init --rm meg_training_job train_ddp.py \\"
+    log "    --task ${TASK} --backbone ${BACKBONE} --strategy ${STRATEGY} \\"
+    log "    --n_epochs ${N_EPOCHS} --batch_size ${BATCH_SIZE} \\"
+    log "    --output_dir ${OUTPUT_DIR} --checkpoint_dir ${CKPT_DIR} \\"
+    log "    --checkpoint_every ${CHECKPOINT_EVERY} --resume_from ${RESUME_FROM}"
     PASSED+=("$EXP [dry-run]")
     continue
   fi
@@ -458,39 +424,22 @@ for STRATEGY in "${STRATEGIES[@]}"; do
   START_TS=$(date +%s)
 
   # ── Lanzar job desacoplado de la sesión SSH ────────────────────────────────
-  if $USE_PRECOMPUTED_IMAGES_FOR_TRAIN; then
-    CONTAINER_ID=$(docker compose run -d \
-      --init \
-      --no-deps \
-      --entrypoint python \
-      meg_training_job \
-      /workspace/meg_transfer_learning_libribrain.py \
-        --task            "${TASK}" \
-        --model           "${BACKBONE}" \
-        --strategy        "${STRATEGY}" \
-        --n_epochs        "${N_EPOCHS}" \
-        --batch_size      "${BATCH_SIZE}" \
-        --data_path       "${DATA_PATH}" \
-        --output_dir      "${OUTPUT_DIR}" \
-        --precomputed_dir "${PRECOMP_DIR}")
-  else
-    CONTAINER_ID=$(docker compose run -d \
-      --init \
-      --no-deps \
-      meg_training_job \
-      train_ddp.py \
-        --task          "${TASK}" \
-        --backbone      "${BACKBONE}" \
-        --strategy      "${STRATEGY}" \
-        --n_epochs      "${N_EPOCHS}" \
-        --batch_size    "${BATCH_SIZE}" \
-        --num_workers   "${NUM_WORKERS}" \
-        --data_path     "${DATA_PATH}" \
-        --output_dir    "${OUTPUT_DIR}" \
-        --checkpoint_dir "${CKPT_DIR}" \
-        --checkpoint_every "${CHECKPOINT_EVERY}" \
-        --resume_from   "${RESUME_FROM}")
-  fi
+  CONTAINER_ID=$(docker compose run -d \
+    --init \
+    --no-deps \
+    meg_training_job \
+    train_ddp.py \
+      --task          "${TASK}" \
+      --backbone      "${BACKBONE}" \
+      --strategy      "${STRATEGY}" \
+      --n_epochs      "${N_EPOCHS}" \
+      --batch_size    "${BATCH_SIZE}" \
+      --num_workers   "${NUM_WORKERS}" \
+      --data_path     "${DATA_PATH}" \
+      --output_dir    "${OUTPUT_DIR}" \
+      --checkpoint_dir "${CKPT_DIR}" \
+      --checkpoint_every "${CHECKPOINT_EVERY}" \
+      --resume_from   "${RESUME_FROM}")
 
   log "  Contenedor: ${CONTAINER_ID:0:12}"
 
@@ -568,8 +517,8 @@ for path in jsons:
 rows.sort(key=lambda r: r.get("test_f1_macro", 0), reverse=True)
 
 # Cabecera
-print(f"\n{'Experimento':<45} {'Task':<10} {'Backbone':<18} {'Strategy':<12} {'Test F1':>8} {'Bal Acc':>8}")
-print("─" * 110)
+print(f"\n{'Experimento':<45} {'Task':<10} {'Backbone':<18} {'Strategy':<12} {'Test F1':>8} {'Bal Acc':>8} {'AUROC':>8}")
+print("─" * 120)
 for r in rows:
     exp = f"{r.get('task','?')}__{r.get('backbone','?')}__{r.get('strategy','?')}"
     print(
@@ -578,7 +527,8 @@ for r in rows:
         f"{r.get('backbone','?'):<18} "
         f"{r.get('strategy','?'):<12} "
         f"{r.get('test_f1_macro', 0):.4f}   "
-        f"{r.get('test_balanced_acc', 0):.4f}"
+        f"{r.get('test_balanced_acc', 0):.4f}   "
+        f"{r.get('test_auroc', float('nan')):.4f}"
     )
 print()
 PYEOF

@@ -352,14 +352,28 @@ def main():
     metric_cols = [
         "val_loss",
         "val_f1",
+        "val_f1_macro",
+        "val_f1_class_0",
+        "val_f1_class_1",
         "val_balanced_accuracy",
         "val_auroc",
         "val_jaccard",
+        "val_confusion_matrix_00",
+        "val_confusion_matrix_01",
+        "val_confusion_matrix_10",
+        "val_confusion_matrix_11",
         "test_loss",
         "test_f1",
+        "test_f1_macro",
+        "test_f1_class_0",
+        "test_f1_class_1",
         "test_balanced_accuracy",
         "test_auroc",
         "test_jaccard",
+        "test_confusion_matrix_00",
+        "test_confusion_matrix_01",
+        "test_confusion_matrix_10",
+        "test_confusion_matrix_11",
     ]
 
     grouped = defaultdict(list)
@@ -394,7 +408,10 @@ def main():
 
     if args.write_final_results and summary_rows:
         # Resultado compacto compatible con run_sweep.sh / monitor_server.py
-        best = max(summary_rows, key=lambda r: float(r.get("test_f1", float("-inf"))))
+        best = max(summary_rows, key=lambda r: float(r.get("test_f1_macro", float("-inf"))))
+        best_key = tuple(best[c] for c in group_cols)
+        matching_runs = [r for r in rows if tuple(r[c] for c in group_cols) == best_key]
+        best_run = max(matching_runs, key=lambda r: float(r.get("test_f1_macro", float("-inf"))))
         final_payload = {
             "task": "speech",
             "experiment_name": args.experiment,
@@ -404,15 +421,21 @@ def main():
             "window_seconds": best.get("window_seconds"),
             "augmentations": best.get("augmentations"),
             "tf_variant": best.get("tf_variant"),
-            "test_f1_macro": best.get("test_f1"),
+            "test_f1_macro": best.get("test_f1_macro"),
+            "test_f1_class_0": best.get("test_f1_class_0"),
+            "test_f1_class_1": best.get("test_f1_class_1"),
             "test_balanced_acc": best.get("test_balanced_accuracy"),
             "test_auroc": best.get("test_auroc"),
             "test_jaccard": best.get("test_jaccard"),
+            "test_confusion_matrix": best_run.get("test_confusion_matrix"),
             "test_loss": best.get("test_loss"),
-            "val_f1_macro": best.get("val_f1"),
+            "val_f1_macro": best.get("val_f1_macro"),
+            "val_f1_class_0": best.get("val_f1_class_0"),
+            "val_f1_class_1": best.get("val_f1_class_1"),
             "val_balanced_acc": best.get("val_balanced_accuracy"),
             "val_auroc": best.get("val_auroc"),
             "val_jaccard": best.get("val_jaccard"),
+            "val_confusion_matrix": best_run.get("val_confusion_matrix"),
             "val_loss": best.get("val_loss"),
             "num_runs": len(rows),
         }

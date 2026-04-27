@@ -186,13 +186,20 @@ services:
     restart: unless-stopped      # Se reinicia solo si se cae; parar con 'docker compose stop monitor'
     init: true
 
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
     # ── Montar proyecto completo en read-only para que el monitor vea:
     #    logs/results/checkpoints y sentinels (.precompute_*, .exp_done_*) ─────
     volumes:
       - ./:/workspace:ro
 
-    # ── Acceder a nvidia-smi del host para stats de GPU ───────────────────────
-    # Nota: solo necesita acceso de lectura a /dev/nvidiactl para nvidia-smi
+    # ── Exponer runtime NVIDIA para leer NVML/nvidia-smi si está disponible ───
     devices:
       - /dev/nvidiactl:/dev/nvidiactl
     volumes_from: []             # Limpio, sin herencia del anchor
@@ -202,9 +209,9 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=utility   # Solo nvidia-smi, sin CUDA completo
 
-    # ── Instalar nvidia-smi y lanzar el servidor ───────────────────────────────
+    # ── Instalar acceso NVML para stats de GPU y lanzar el servidor ───────────
     command: >
-      bash -c "
+      sh -c "
         pip install --quiet --no-cache-dir nvidia-ml-py 2>/dev/null || true &&
         python /workspace/monitor_server.py --port 8080 --base-dir /workspace
       "
@@ -213,9 +220,9 @@ services:
     ports:
       - "8080:8080"
 
-    # ── Sin GPUs (no necesita CUDA, solo lee nvidia-smi) ──────────────────────
-    # Si nvidia-smi no está disponible en el contenedor, el monitor simplemente
-    # no muestra el strip de GPU (falla silenciosamente con try/except).
+    # ── Solo monitorización: no usa CUDA para entrenar, solo telemetría GPU ───
+    # Si NVML/nvidia-smi no está disponible en el contenedor, el monitor
+    # simplemente oculta el strip de GPU.
 
     # ── Seguridad ──────────────────────────────────────────────────────────────
     security_opt:

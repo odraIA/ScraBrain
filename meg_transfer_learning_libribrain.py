@@ -526,63 +526,6 @@ def apply_signal_augmentation(
     return epoch_aug
 
 
-def load_precomputed_manifest(precomputed_dir: Path) -> Optional[dict]:
-    """Carga `manifest.json` de un directorio de imágenes precomputadas."""
-    manifest_path = precomputed_dir / "manifest.json"
-    if not manifest_path.exists():
-        return None
-    with manifest_path.open("r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-class MEGPrecomputedImageDataset(Dataset):
-    """
-    Dataset para leer imágenes precomputadas guardadas en disco como `.npy`.
-
-    Espera:
-      - <split>_images.npy  (N, 3, 224, 224)
-      - <split>_labels.npy  (N,)
-    donde split ∈ {train, validation, test}.
-    """
-
-    _ALIASES = {"val": "validation"}
-
-    def __init__(self, precomputed_dir: Path, split: str):
-        self.precomputed_dir = Path(precomputed_dir)
-        self.split = self._ALIASES.get(split, split)
-        self.images_path = self.precomputed_dir / f"{self.split}_images.npy"
-        self.labels_path = self.precomputed_dir / f"{self.split}_labels.npy"
-
-        if not self.images_path.exists():
-            raise FileNotFoundError(f"No existe: {self.images_path}")
-        if not self.labels_path.exists():
-            raise FileNotFoundError(f"No existe: {self.labels_path}")
-
-        self._images = None
-        self._labels = None
-
-    def _ensure_loaded(self):
-        if self._images is not None and self._labels is not None:
-            return
-        self._images = np.load(self.images_path, mmap_mode="r")
-        self._labels = np.load(self.labels_path, mmap_mode="r")
-        if self._images.shape[0] != self._labels.shape[0]:
-            raise ValueError(
-                f"Mismatch en {self.split}: {self._images.shape[0]} imágenes vs "
-                f"{self._labels.shape[0]} etiquetas"
-            )
-
-    def __len__(self) -> int:
-        self._ensure_loaded()
-        return int(self._labels.shape[0])
-
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        self._ensure_loaded()
-        image = np.array(self._images[idx], dtype=np.float32, copy=True)
-        label = int(self._labels[idx])
-        return torch.from_numpy(image), torch.tensor(label, dtype=torch.long)
-
-
 # ==============================================================================
 # SECCIÓN 4: DATASET PYTORCH CON GENERACIÓN ON-THE-FLY
 # ==============================================================================
@@ -597,8 +540,8 @@ class MEGImageDataset(Dataset):
         → MEGToImage       (CWT + proyección + resize)
         → tensor (3, 224, 224)
 
-    Para acelerar el entrenamiento (la CWT es lenta), se puede precomputar
-    todas las imágenes y guardarlas en disco con `precompute=True`.
+    La representación se genera siempre on-the-fly para no congelar una
+    proyección fija antes de capas aprendibles posteriores.
 
     Data augmentation (siguiendo el paper ISBI 2026 y MEGConformer):
       - Temporal shift: ±10% de la longitud de la ventana
@@ -612,21 +555,11 @@ class MEGImageDataset(Dataset):
         preprocessor: MEGPreprocessor,
         img_converter: MEGToImage,
         augment: bool = False,
-        precompute: bool = False,
-        cache_dir: Optional[str] = None,
     ):
         self.pnpl_dataset  = pnpl_dataset
         self.preprocessor  = preprocessor
         self.img_converter = img_converter
         self.augment       = augment
-        self.precompute    = precompute
-
-        self._cache: Dict[int, Tuple[np.ndarray, int]] = {}
-
-        if precompute:
-            print("[INFO] Precomputando imágenes MEG (puede tardar varios minutos)...")
-            for i in tqdm(range(len(pnpl_dataset))):
-                self._cache[i] = self._process_sample(i)
 
     def _process_sample(self, idx: int) -> Tuple[np.ndarray, int]:
         """Carga, preprocesa y convierte un sample a imagen."""
@@ -655,22 +588,16 @@ class MEGImageDataset(Dataset):
         return len(self.pnpl_dataset)
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        if idx in self._cache:
-            image, label = self._cache[idx]
-        else:
-            image, label = self._process_sample(idx)
-
+        image, label = self._process_sample(idx)
         return torch.from_numpy(image), torch.tensor(label, dtype=torch.long)
 
 
 def build_dataloaders(
     train_pnpl, val_pnpl, test_pnpl,
-    preprocessor: Optional[MEGPreprocessor],
-    img_converter: Optional[MEGToImage],
+    preprocessor: MEGPreprocessor,
+    img_converter: MEGToImage,
     batch_size: int = 32,
     num_workers: int = 4,
-    precompute_train: bool = False,
-    precomputed_dir: Optional[str] = None,
 ) -> Tuple[DataLoader, DataLoader, DataLoader]:
     """
     Construye los DataLoaders de entrenamiento, validación y test.
@@ -678,38 +605,18 @@ def build_dataloaders(
     Returns:
         train_loader, val_loader, test_loader
     """
-    if precomputed_dir:
-        precomputed_root = Path(precomputed_dir)
-        manifest = load_precomputed_manifest(precomputed_root)
-        if manifest:
-            split_info = manifest.get("splits", {})
-            msg = ", ".join(
-                f"{k}={v.get('num_samples', '?')}" for k, v in split_info.items()
-            )
-            print(f"[INFO] Usando imágenes precomputadas: {precomputed_root} ({msg})")
-        else:
-            print(f"[INFO] Usando imágenes precomputadas: {precomputed_root}")
-
-        train_ds = MEGPrecomputedImageDataset(precomputed_root, split="train")
-        val_ds   = MEGPrecomputedImageDataset(precomputed_root, split="validation")
-        test_ds  = MEGPrecomputedImageDataset(precomputed_root, split="test")
-    else:
-        if preprocessor is None or img_converter is None:
-            raise ValueError(
-                "preprocessor e img_converter son obligatorios cuando no se usa precomputed_dir."
-            )
-        train_ds = MEGImageDataset(
-            train_pnpl, preprocessor, img_converter,
-            augment=True, precompute=precompute_train,
-        )
-        val_ds = MEGImageDataset(
-            val_pnpl, preprocessor, img_converter,
-            augment=False, precompute=False,
-        )
-        test_ds = MEGImageDataset(
-            test_pnpl, preprocessor, img_converter,
-            augment=False, precompute=False,
-        )
+    train_ds = MEGImageDataset(
+        train_pnpl, preprocessor, img_converter,
+        augment=True,
+    )
+    val_ds = MEGImageDataset(
+        val_pnpl, preprocessor, img_converter,
+        augment=False,
+    )
+    test_ds = MEGImageDataset(
+        test_pnpl, preprocessor, img_converter,
+        augment=False,
+    )
 
     train_loader = DataLoader(
         train_ds, batch_size=batch_size, shuffle=True,
@@ -1557,17 +1464,6 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--n_freqs",    type=int, default=96,
                         help="Bins de frecuencia para CWT (96 como en ISBI 2026)")
-    parser.add_argument("--precompute", action="store_true", default=False,
-                        help="Precomputar imágenes TF (más rápido en GPU, requiere RAM)")
-    parser.add_argument(
-        "--precomputed_dir",
-        type=str,
-        default=None,
-        help=(
-            "Directorio con imágenes precomputadas en disco. "
-            "Si se define, entrenamiento usa esas imágenes y no genera CWT on-the-fly."
-        ),
-    )
     return parser.parse_args()
 
 def get_labels_fast(dataset) -> np.ndarray:
@@ -1601,39 +1497,31 @@ def main():
     val_pnpl,   _,         _          = load_libribrain(val_cfg)
     test_pnpl,  _,         _          = load_libribrain(test_cfg)
 
-    preprocessor = None
-    img_converter = None
+    # ── PASO 2: Configurar preprocesado ─────────────────────────────────────
+    print("\n[PASO 2] Configurando preprocesado MEG...")
 
-    if args.precomputed_dir:
-        print("\n[PASO 2] Usando imágenes precomputadas")
-        print(f"  - Directorio: {args.precomputed_dir}")
-        print("  - Se omite CWT/augmentación on-the-fly en el Dataset de entrenamiento")
-    else:
-        # ── PASO 2: Configurar preprocesado ───────────────────────────────────
-        print("\n[PASO 2] Configurando preprocesado MEG...")
+    # Instance normalization: clave para generalización en holdout (MEGConformer)
+    preprocessor = MEGPreprocessor(
+        use_instance_norm=True,
+        baseline_samples=None,  # LibriBrain no tiene pre-cue definido
+        clip_std=5.0,
+    )
 
-        # Instance normalization: clave para generalización en holdout (MEGConformer)
-        preprocessor = MEGPreprocessor(
-            use_instance_norm=True,
-            baseline_samples=None,  # LibriBrain no tiene pre-cue definido
-            clip_std=5.0,
-        )
+    # ── PASO 3: Configurar conversión a imagen TF ───────────────────────────
+    print("\n[PASO 3] Configurando representación imagen tiempo-frecuencia (CWT)...")
+    print(f"  - CWT Morlet: {args.n_freqs} frecuencias log, 1–125 Hz")
+    print(f"  - Imagen destino: 224×224×3 (compatible con ImageNet)")
+    print("  - Generación on-the-fly en cada batch")
 
-        # ── PASO 3: Configurar conversión a imagen TF ─────────────────────────
-        print("\n[PASO 3] Configurando representación imagen tiempo-frecuencia (CWT)...")
-        print(f"  - CWT Morlet: {args.n_freqs} frecuencias log, 1–125 Hz")
-        print(f"  - Imagen destino: 224×224×3 (compatible con ImageNet)")
-        print(f"  - Proyección de canales: PCA-3 (estática, conv learnable en modelo)")
-
-        img_converter = MEGToImage(
-            sfreq=250.0,
-            n_freqs=args.n_freqs,
-            f_min=1.0,
-            f_max=125.0,     # Nyquist para fs=250 Hz
-            img_size=224,
-            wavelet="cmor1.5-1.0",  # Morlet complejo (ISBI 2026)
-            projection="pca",       # PCA estática; conv learnable está en el modelo
-        )
+    img_converter = MEGToImage(
+        sfreq=250.0,
+        n_freqs=args.n_freqs,
+        f_min=1.0,
+        f_max=125.0,     # Nyquist para fs=250 Hz
+        img_size=224,
+        wavelet="cmor1.5-1.0",  # Morlet complejo (ISBI 2026)
+        projection="pca",
+    )
 
     # ── PASO 4: Construir DataLoaders ─────────────────────────────────────────
     print("\n[PASO 4] Construyendo DataLoaders...")
@@ -1642,8 +1530,6 @@ def main():
         preprocessor, img_converter,
         batch_size=args.batch_size,
         num_workers=4,
-        precompute_train=args.precompute,
-        precomputed_dir=args.precomputed_dir,
     )
 
     # ── PASO 5: Pesos de clase para loss ponderada ────────────────────────────

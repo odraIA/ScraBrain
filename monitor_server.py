@@ -38,6 +38,7 @@ BASE_DIR     = Path(os.environ.get("BASE_DIR", "/workspace"))
 LOGS_DIR     = BASE_DIR / "logs"
 RESULTS_DIR  = BASE_DIR / "results"
 CKPT_DIR     = BASE_DIR / "checkpoints"
+PLAN_FILE    = BASE_DIR / ".sweep_plan.json"
 REFRESH_SECS = 8
 
 # Espacio clásico (fallback cuando no hay sweep_mode explícito)
@@ -51,6 +52,17 @@ CLASSIC_EXPS = [
     for s in STRATEGIES
 ]
 PRECOMPUTE_TASKS = TASKS[:]
+
+
+def load_sweep_plan() -> dict:
+    if not PLAN_FILE.exists():
+        return {}
+    try:
+        with PLAN_FILE.open(encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
 
 
 def get_sweep_mode() -> str:
@@ -70,6 +82,11 @@ def discover_experiments() -> list[str]:
       - modo clásico: task__backbone__strategy
       - modo speech-image: speech_image__<exp_id>
     """
+    plan = load_sweep_plan()
+    planned = plan.get("experiments", [])
+    if isinstance(planned, list) and planned:
+        return [str(exp) for exp in planned]
+
     mode = get_sweep_mode()
     if mode == "classic":
         return CLASSIC_EXPS[:]
@@ -160,14 +177,18 @@ def get_precompute_status() -> dict:
     """
     Estado agregado de precompute de stats e imágenes por tarea.
     """
-    if get_sweep_mode() != "classic":
-        return {
-            "tasks": [],
-            "stats": [],
-            "images": [],
-            "counts_stats": {"done": 0, "running": 0, "failed": 0, "pending": 0},
-            "counts_images": {"done": 0, "running": 0, "failed": 0, "pending": 0},
-        }
+    plan = load_sweep_plan()
+    precompute_plan = plan.get("precompute", {}) if isinstance(plan, dict) else {}
+
+    if isinstance(precompute_plan, dict):
+        stats_tasks = [str(t) for t in precompute_plan.get("stats_tasks", [])]
+        images_tasks = [str(t) for t in precompute_plan.get("images_tasks", [])]
+    elif get_sweep_mode() == "classic":
+        stats_tasks = PRECOMPUTE_TASKS[:]
+        images_tasks = PRECOMPUTE_TASKS[:]
+    else:
+        stats_tasks = []
+        images_tasks = []
 
     stats = [
         _get_stage_status_for_task(
@@ -175,7 +196,7 @@ def get_precompute_status() -> dict:
             sentinel_name=".precompute_done_{task}",
             log_name="precompute_{task}.log",
         )
-        for t in PRECOMPUTE_TASKS
+        for t in stats_tasks
     ]
     images = [
         _get_stage_status_for_task(
@@ -183,7 +204,7 @@ def get_precompute_status() -> dict:
             sentinel_name=".precompute_images_done_{task}",
             log_name="precompute_images_{task}.log",
         )
-        for t in PRECOMPUTE_TASKS
+        for t in images_tasks
     ]
 
     def _counts(items):
@@ -193,12 +214,67 @@ def get_precompute_status() -> dict:
         return c
 
     return {
-        "tasks": PRECOMPUTE_TASKS,
+        "tasks": sorted(set(stats_tasks + images_tasks)),
         "stats": stats,
         "images": images,
         "counts_stats": _counts(stats),
         "counts_images": _counts(images),
+        "show_stats_stage": bool(stats_tasks),
+        "show_images_stage": bool(images_tasks),
     }
+
+
+def get_gpu_info() -> list[dict]:
+    try:
+        import pynvml
+
+        pynvml.nvmlInit()
+        gpu_info = []
+        try:
+            for idx in range(pynvml.nvmlDeviceGetCount()):
+                handle = pynvml.nvmlDeviceGetHandleByIndex(idx)
+                util = pynvml.nvmlDeviceGetUtilizationRates(handle)
+                mem = pynvml.nvmlDeviceGetMemoryInfo(handle)
+                name = pynvml.nvmlDeviceGetName(handle)
+                if isinstance(name, bytes):
+                    name = name.decode("utf-8", errors="replace")
+                gpu_info.append({
+                    "index": str(idx),
+                    "name": str(name),
+                    "util": str(getattr(util, "gpu", 0)),
+                    "mem_used": str(int(mem.used / 1024 / 1024)),
+                    "mem_total": str(int(mem.total / 1024 / 1024)),
+                    "temp": str(pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)),
+                })
+        finally:
+            try:
+                pynvml.nvmlShutdown()
+            except Exception:
+                pass
+        if gpu_info:
+            return gpu_info
+    except Exception:
+        pass
+
+    gpu_info = []
+    try:
+        out = subprocess.check_output(
+            ["nvidia-smi",
+             "--query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu",
+             "--format=csv,noheader,nounits"],
+            timeout=3, stderr=subprocess.DEVNULL
+        ).decode().strip()
+        for line in out.split("\n"):
+            parts = [p.strip() for p in line.split(",")]
+            if len(parts) >= 6:
+                gpu_info.append({
+                    "index": parts[0], "name": parts[1],
+                    "util": parts[2], "mem_used": parts[3],
+                    "mem_total": parts[4], "temp": parts[5],
+                })
+    except Exception:
+        pass
+    return gpu_info
 
 
 def get_exp_status(exp: str) -> dict:
@@ -300,26 +376,6 @@ def get_sweep_status() -> dict:
         except Exception:
             pass
 
-    # GPU stats via nvidia-smi
-    gpu_info = []
-    try:
-        out = subprocess.check_output(
-            ["nvidia-smi",
-             "--query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu",
-             "--format=csv,noheader,nounits"],
-            timeout=3, stderr=subprocess.DEVNULL
-        ).decode().strip()
-        for line in out.split("\n"):
-            parts = [p.strip() for p in line.split(",")]
-            if len(parts) >= 6:
-                gpu_info.append({
-                    "index": parts[0], "name": parts[1],
-                    "util": parts[2], "mem_used": parts[3],
-                    "mem_total": parts[4], "temp": parts[5],
-                })
-    except Exception:
-        pass
-
     return {
         "timestamp": datetime.now().isoformat(),
         "total": len(all_exps),
@@ -328,7 +384,7 @@ def get_sweep_status() -> dict:
         "experiments": exps,
         "leaderboard": completed,
         "sweep_tail": sweep_tail,
-        "gpu_info": gpu_info,
+        "gpu_info": get_gpu_info(),
         "sweep_mode": get_sweep_mode(),
     }
 
@@ -724,16 +780,16 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   <div id="gpu-strip" class="gpu-strip"></div>
 
   <!-- Precompute status -->
-  <div class="card" style="margin-bottom:20px;">
+  <div class="card" id="precompute-card" style="margin-bottom:20px;">
     <div class="card-title">Precompute</div>
     <div class="precompute-grid">
-      <div class="precompute-stage">
+      <div class="precompute-stage" id="precompute-stats-stage">
         <div class="precompute-stage-title">Stats (H5 normalización)</div>
         <div id="precompute-stats-wrap">
           <div class="precompute-row"><span class="precompute-task">cargando…</span></div>
         </div>
       </div>
-      <div class="precompute-stage">
+      <div class="precompute-stage" id="precompute-images-stage">
         <div class="precompute-stage-title">Imágenes (señal + augmentación + CWT)</div>
         <div id="precompute-images-wrap">
           <div class="precompute-row"><span class="precompute-task">cargando…</span></div>
@@ -882,6 +938,14 @@ function renderPrecomputeStage(targetId, rows) {
 function render(d) {
   // Precompute (stats + imágenes)
   if (d.precompute) {
+    const statsVisible = !!d.precompute.show_stats_stage;
+    const imagesVisible = !!d.precompute.show_images_stage;
+    document.getElementById('precompute-card').style.display =
+      (statsVisible || imagesVisible) ? 'block' : 'none';
+    document.getElementById('precompute-stats-stage').style.display =
+      statsVisible ? 'block' : 'none';
+    document.getElementById('precompute-images-stage').style.display =
+      imagesVisible ? 'block' : 'none';
     renderPrecomputeStage('precompute-stats-wrap', d.precompute.stats || []);
     renderPrecomputeStage('precompute-images-wrap', d.precompute.images || []);
   }

@@ -12,6 +12,7 @@ from sklearn.metrics import (
     f1_score,
     balanced_accuracy_score,
     roc_auc_score,
+    confusion_matrix,
     jaccard_score,
 )
 from torch.optim import AdamW
@@ -72,9 +73,20 @@ def compute_class_weights_binary(labels: np.ndarray, device: torch.device) -> to
 
 def _compute_metrics(y_true: np.ndarray, probs: np.ndarray, pred: np.ndarray) -> Dict[str, float]:
     out: Dict[str, float] = {}
-    out["f1"] = float(f1_score(y_true, pred, average="binary", zero_division=0))
+    f1_per_class = f1_score(y_true, pred, average=None, labels=[0, 1], zero_division=0)
+    cm = confusion_matrix(y_true, pred, labels=[0, 1])
+
+    out["f1"] = float(f1_score(y_true, pred, average="macro", zero_division=0))
+    out["f1_macro"] = out["f1"]
+    out["f1_class_0"] = float(f1_per_class[0])
+    out["f1_class_1"] = float(f1_per_class[1])
     out["balanced_accuracy"] = float(balanced_accuracy_score(y_true, pred))
     out["jaccard"] = float(jaccard_score(y_true, pred, average="binary", zero_division=0))
+    out["confusion_matrix"] = cm.tolist()
+    out["confusion_matrix_00"] = int(cm[0, 0])
+    out["confusion_matrix_01"] = int(cm[0, 1])
+    out["confusion_matrix_10"] = int(cm[1, 0])
+    out["confusion_matrix_11"] = int(cm[1, 1])
 
     unique = np.unique(y_true)
     if unique.size > 1:
@@ -176,15 +188,19 @@ def train_and_evaluate(
                 wandb_run.log({
                     "epoch": epoch,
                     "train/loss": train_m["loss"],
-                    "train/f1": train_m["f1"],
+                    "train/f1_macro": train_m["f1_macro"],
+                    "train/f1_class_0": train_m["f1_class_0"],
+                    "train/f1_class_1": train_m["f1_class_1"],
                     "val/loss": val_m["loss"],
-                    "val/f1": val_m["f1"],
+                    "val/f1_macro": val_m["f1_macro"],
+                    "val/f1_class_0": val_m["f1_class_0"],
+                    "val/f1_class_1": val_m["f1_class_1"],
                     "val/balanced_accuracy": val_m["balanced_accuracy"],
                     "val/auroc": val_m["auroc"],
                     "val/jaccard": val_m["jaccard"],
                 })
 
-            if stopper.step(val_m["f1"], model):
+            if stopper.step(val_m["f1_macro"], model):
                 break
 
     elif cfg.fine_tuning_type in {"partial_ft", "full_ft"}:
@@ -200,15 +216,19 @@ def train_and_evaluate(
                 wandb_run.log({
                     "epoch": epoch,
                     "train/loss": train_m["loss"],
-                    "train/f1": train_m["f1"],
+                    "train/f1_macro": train_m["f1_macro"],
+                    "train/f1_class_0": train_m["f1_class_0"],
+                    "train/f1_class_1": train_m["f1_class_1"],
                     "val/loss": val_m["loss"],
-                    "val/f1": val_m["f1"],
+                    "val/f1_macro": val_m["f1_macro"],
+                    "val/f1_class_0": val_m["f1_class_0"],
+                    "val/f1_class_1": val_m["f1_class_1"],
                     "val/balanced_accuracy": val_m["balanced_accuracy"],
                     "val/auroc": val_m["auroc"],
                     "val/jaccard": val_m["jaccard"],
                 })
 
-            if stopper.step(val_m["f1"], model):
+            if stopper.step(val_m["f1_macro"], model):
                 break
     else:
         raise ValueError(f"fine_tuning_type desconocido: {cfg.fine_tuning_type}")
@@ -221,14 +241,30 @@ def train_and_evaluate(
     payload = {
         "val_loss": val_metrics["loss"],
         "val_f1": val_metrics["f1"],
+        "val_f1_macro": val_metrics["f1_macro"],
+        "val_f1_class_0": val_metrics["f1_class_0"],
+        "val_f1_class_1": val_metrics["f1_class_1"],
         "val_balanced_accuracy": val_metrics["balanced_accuracy"],
         "val_auroc": val_metrics["auroc"],
         "val_jaccard": val_metrics["jaccard"],
+        "val_confusion_matrix": val_metrics["confusion_matrix"],
+        "val_confusion_matrix_00": val_metrics["confusion_matrix_00"],
+        "val_confusion_matrix_01": val_metrics["confusion_matrix_01"],
+        "val_confusion_matrix_10": val_metrics["confusion_matrix_10"],
+        "val_confusion_matrix_11": val_metrics["confusion_matrix_11"],
         "test_loss": test_metrics["loss"],
         "test_f1": test_metrics["f1"],
+        "test_f1_macro": test_metrics["f1_macro"],
+        "test_f1_class_0": test_metrics["f1_class_0"],
+        "test_f1_class_1": test_metrics["f1_class_1"],
         "test_balanced_accuracy": test_metrics["balanced_accuracy"],
         "test_auroc": test_metrics["auroc"],
         "test_jaccard": test_metrics["jaccard"],
+        "test_confusion_matrix": test_metrics["confusion_matrix"],
+        "test_confusion_matrix_00": test_metrics["confusion_matrix_00"],
+        "test_confusion_matrix_01": test_metrics["confusion_matrix_01"],
+        "test_confusion_matrix_10": test_metrics["confusion_matrix_10"],
+        "test_confusion_matrix_11": test_metrics["confusion_matrix_11"],
     }
 
     with (run_dir / "metrics.json").open("w", encoding="utf-8") as f:
