@@ -139,6 +139,58 @@ PRECOMPUTE_LAUNCH_RE = re.compile(r"Lanzando precompute_stats para task='([^']+)
 PRECOMPUTE_SKIP_RE = re.compile(r"Stats para '([^']+)' ya calculadas")
 PRECOMPUTE_DONE_RE = re.compile(r"Precompute '([^']+)' completado")
 PRECOMPUTE_FAIL_RE = re.compile(r"Precompute '([^']+)' falló")
+RUN_TS_RE = re.compile(r"(\d{8}_\d{6})")
+
+
+def _extract_run_ts(raw_value: str | Path | None) -> str | None:
+    if raw_value is None:
+        return None
+    text = raw_value.name if isinstance(raw_value, Path) else str(raw_value)
+    match = RUN_TS_RE.search(text)
+    return match.group(1) if match else None
+
+
+def _parse_run_ts(value: str | None) -> float | None:
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        return datetime.strptime(value, "%Y%m%d_%H%M%S").timestamp()
+    except Exception:
+        return None
+
+
+def _latest_mode_log_path(mode: str, kind: str) -> Path | None:
+    path = LOGS_DIR / f"latest_{mode}_{kind}.log"
+    return path.resolve() if path.exists() else None
+
+
+def _infer_active_run_ts(plan: dict | None = None, mode: str | None = None) -> str | None:
+    if isinstance(plan, dict):
+        run_ts = plan.get("run_ts")
+        if isinstance(run_ts, str) and run_ts.strip():
+            return run_ts.strip()
+
+        run_ts = _extract_run_ts(plan.get("sweep_log"))
+        if run_ts:
+            return run_ts
+
+    mode = mode or get_sweep_mode()
+    for kind in ("sweep", "coordinator"):
+        path = _latest_mode_log_path(mode, kind)
+        run_ts = _extract_run_ts(path)
+        if run_ts:
+            return run_ts
+
+    for path in sorted(
+        (p for p in LOGS_DIR.glob("sweep_*.log") if not p.name.startswith("sweep_coordinator_")),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    ):
+        run_ts = _extract_run_ts(path)
+        if run_ts:
+            return run_ts
+
+    return None
 
 
 def _parse_sweep_log_statuses(sweep_log_path: Path | None) -> dict:
@@ -201,7 +253,19 @@ def _parse_sweep_log_statuses(sweep_log_path: Path | None) -> dict:
 
 
 def _get_active_sweep_log_path(plan: dict | None = None) -> Path | None:
+    mode = get_sweep_mode()
+
+    latest_mode_path = _latest_mode_log_path(mode, "sweep")
+    if latest_mode_path:
+        return latest_mode_path
+
     if isinstance(plan, dict):
+        run_ts = _infer_active_run_ts(plan, mode)
+        if run_ts:
+            run_path = LOGS_DIR / f"sweep_{run_ts}.log"
+            if run_path.exists():
+                return run_path
+
         planned_path = _resolve_plan_path(plan.get("sweep_log"))
         if planned_path and planned_path.exists():
             return planned_path
@@ -217,17 +281,75 @@ def _get_active_sweep_log_path(plan: dict | None = None) -> Path | None:
     return sweep_logs[0] if sweep_logs else None
 
 
+def _get_active_coordinator_log_path(plan: dict | None = None) -> Path | None:
+    mode = get_sweep_mode()
+
+    latest_mode_path = _latest_mode_log_path(mode, "coordinator")
+    if latest_mode_path:
+        return latest_mode_path
+
+    if isinstance(plan, dict):
+        run_ts = _infer_active_run_ts(plan, mode)
+        if run_ts:
+            run_path = LOGS_DIR / f"sweep_coordinator_{mode}_{run_ts}.log"
+            if run_path.exists():
+                return run_path
+
+    coordinator_logs = sorted(
+        LOGS_DIR.glob(f"sweep_coordinator_{mode}_*.log"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    if coordinator_logs:
+        return coordinator_logs[0]
+
+    coordinator_logs = sorted(
+        LOGS_DIR.glob("sweep_coordinator_*.log"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    return coordinator_logs[0] if coordinator_logs else None
+
+
+def _get_active_run_started_at(
+    plan: dict | None = None,
+    sweep_log_path: Path | None = None,
+    coordinator_log_path: Path | None = None,
+) -> float | None:
+    mode = get_sweep_mode()
+    run_ts = _infer_active_run_ts(plan, mode)
+    started_at = _parse_run_ts(run_ts)
+    if started_at is not None:
+        return started_at
+
+    for path in (sweep_log_path, coordinator_log_path):
+        if path and path.exists():
+            try:
+                return min(path.stat().st_ctime, path.stat().st_mtime)
+            except Exception:
+                pass
+
+    if isinstance(plan, dict):
+        return _parse_iso_ts(plan.get("generated_at"))
+
+    return None
+
+
 def get_sweep_context() -> dict:
     plan = load_sweep_plan()
     sweep_log_path = _get_active_sweep_log_path(plan)
+    coordinator_log_path = _get_active_coordinator_log_path(plan)
+    run_started_at = _get_active_run_started_at(plan, sweep_log_path, coordinator_log_path)
     return {
         "plan": plan,
-        "plan_started_at": _parse_iso_ts(plan.get("generated_at")) if isinstance(plan, dict) else None,
+        "run_ts": _infer_active_run_ts(plan),
+        "run_started_at": run_started_at,
         "experiments": _normalize_plan_experiment_entries(plan),
         "precompute_stats": _normalize_plan_precompute_entries(plan, "stats"),
         "precompute_images": _normalize_plan_precompute_entries(plan, "images"),
         "log_statuses": _parse_sweep_log_statuses(sweep_log_path),
         "sweep_log_path": sweep_log_path,
+        "coordinator_log_path": coordinator_log_path,
     }
 
 
@@ -289,6 +411,21 @@ def _tail_last_line(path: Path, max_bytes: int = 1024) -> str:
             f.seek(max(0, size - max_bytes))
             tail = f.read().decode("utf-8", errors="replace").strip()
         return tail.split("\n")[-1][:180]
+    except Exception:
+        return ""
+
+
+def _read_recent_log(path: Path | None, *, max_bytes: int = 2000, lines: int | None = None) -> str:
+    if path is None or not path.exists():
+        return ""
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, 2)
+            f.seek(max(0, f.tell() - max_bytes))
+            content = f.read().decode("utf-8", errors="replace")
+        if lines is not None:
+            content = "\n".join(content.split("\n")[-lines:])
+        return content
     except Exception:
         return ""
 
@@ -363,7 +500,7 @@ def get_precompute_status(ctx: dict | None = None) -> dict:
     log_precompute = ctx["log_statuses"].get("precompute", {})
     log_stats = log_precompute.get("stats", {}) if isinstance(log_precompute, dict) else {}
     log_images = log_precompute.get("images", {}) if isinstance(log_precompute, dict) else {}
-    started_at = ctx["plan_started_at"]
+    started_at = ctx["run_started_at"]
 
     if rich_stats or rich_images:
         stats_tasks = list(rich_stats.keys())
@@ -479,7 +616,7 @@ def get_exp_status(exp: str, ctx: dict | None = None) -> dict:
     ctx = ctx or get_sweep_context()
     plan_entry = ctx["experiments"].get(exp, {})
     log_override = ctx["log_statuses"].get("experiments", {}).get(exp, {})
-    started_at = ctx["plan_started_at"]
+    started_at = ctx["run_started_at"]
 
     done_sentinel  = BASE_DIR / f".exp_done_{exp}"
     job_log        = LOGS_DIR / f"{exp}.log"
@@ -509,6 +646,9 @@ def get_exp_status(exp: str, ctx: dict | None = None) -> dict:
     current_job_log = _artifact_belongs_to_current_run(job_log, started_at)
     current_training_state = _artifact_belongs_to_current_run(training_state, started_at)
 
+    if result["status"] == "skipped":
+        return result
+
     # ── Completado ────────────────────────────────────────────────────────────
     # `final_results.json` es la evidencia más fiable de finalización.
     if result["status"] == "done" or current_results or current_done_sentinel:
@@ -521,9 +661,6 @@ def get_exp_status(exp: str, ctx: dict | None = None) -> dict:
             result["best_val_f1"] = d.get("best_val_f1")
         except Exception:
             pass
-        return result
-
-    if result["status"] == "skipped":
         return result
 
     # ── En curso: el log existe y tiene actividad reciente ────────────────────
@@ -576,17 +713,11 @@ def get_sweep_status() -> dict:
     completed = [e for e in exps if e["status"] == "done" and e["f1_macro"] is not None]
     completed.sort(key=lambda x: x["f1_macro"] or 0, reverse=True)
 
-    # Leer el log del sweep activo, no el último global indiscriminadamente.
-    sweep_tail = ""
-    sweep_log_path = ctx["sweep_log_path"]
-    if sweep_log_path and sweep_log_path.exists():
-        try:
-            with open(sweep_log_path, "rb") as f:
-                f.seek(0, 2)
-                f.seek(max(0, f.tell() - 2000))
-                sweep_tail = f.read().decode("utf-8", errors="replace")
-        except Exception:
-            pass
+    # Leer el log del sweep activo. Con `--detach` preferimos el sweep log y,
+    # si todavía no tiene contenido útil, caemos al coordinator log.
+    sweep_tail = _read_recent_log(ctx["sweep_log_path"], max_bytes=2000)
+    if not sweep_tail.strip():
+        sweep_tail = _read_recent_log(ctx["coordinator_log_path"], max_bytes=2000)
 
     return {
         "timestamp": datetime.now().isoformat(),
@@ -605,17 +736,10 @@ def get_exp_log(exp: str, lines: int = 80, ctx: dict | None = None) -> str:
     """Últimas N líneas del log de un experimento del sweep activo."""
     ctx = ctx or get_sweep_context()
     log_path = LOGS_DIR / f"{exp}.log"
-    if not log_path.exists() or not _artifact_belongs_to_current_run(log_path, ctx["plan_started_at"]):
+    if not log_path.exists() or not _artifact_belongs_to_current_run(log_path, ctx["run_started_at"]):
         return f"[Sin log del sweep actual para {exp}]"
-    try:
-        with open(log_path, "rb") as f:
-            f.seek(0, 2)
-            f.seek(max(0, f.tell() - lines * 200))
-            content = f.read().decode("utf-8", errors="replace")
-        tail = "\n".join(content.split("\n")[-lines:])
-        return tail
-    except Exception as e:
-        return f"[Error leyendo log: {e}]"
+    content = _read_recent_log(log_path, max_bytes=lines * 200, lines=lines)
+    return content or f"[Error leyendo log: {log_path}]"
 
 
 # ==============================================================================
@@ -1342,18 +1466,10 @@ class Handler(BaseHTTPRequestHandler):
             lines = int(params.get("lines", [80])[0])
             ctx = get_sweep_context()
             if exp == "__sweep__":
-                sweep_log_path = ctx["sweep_log_path"]
-                if sweep_log_path and sweep_log_path.exists():
-                    text = ""
-                    try:
-                        with open(sweep_log_path, "rb") as f:
-                            f.seek(0, 2)
-                            f.seek(max(0, f.tell() - lines * 200))
-                            text = f.read().decode("utf-8", errors="replace")
-                        text = "\n".join(text.split("\n")[-lines:])
-                    except Exception as e:
-                        text = str(e)
-                else:
+                text = _read_recent_log(ctx["sweep_log_path"], max_bytes=lines * 200, lines=lines)
+                if not text.strip():
+                    text = _read_recent_log(ctx["coordinator_log_path"], max_bytes=lines * 200, lines=lines)
+                if not text.strip():
                     text = "[Sin sweep log todavía]"
                 self.send_text(text)
             else:
