@@ -253,9 +253,11 @@ class CWTLayer(nn.Module):
 
         # IFFT → coeficientes CWT complejos
         coeff = torch.fft.ifft(product)         # (B*C, n_freqs, T) complex
+        del product, X_exp, F_exp
 
         # Magnitud → escalograma
         scalogram = coeff.abs().to(torch.float32)  # (B*C, n_freqs, T) float32
+        del coeff
 
         # Restaurar forma: (B*C, n_freqs, T) → (B, C_meg, n_freqs, T)
         scalogram = scalogram.view(B_sz, C_meg, self.n_freqs, T)
@@ -295,6 +297,8 @@ def build_raw_dataloaders(
     preprocessor,
     batch_size:   int  = 256,
     num_workers:  int  = 12,
+    eval_batch_size: Optional[int] = None,
+    eval_num_workers: Optional[int] = None,
     distributed:  bool = False,
     rank:         int  = 0,
     world_size:   int  = 1,
@@ -312,10 +316,21 @@ def build_raw_dataloaders(
     val_ds   = MEGRawDataset(val_pnpl,   preprocessor, augment=False)
     test_ds  = MEGRawDataset(test_pnpl,  preprocessor, augment=False)
 
+    eval_batch_size = batch_size if eval_batch_size is None else eval_batch_size
+    eval_num_workers = min(num_workers, 2) if eval_num_workers is None else eval_num_workers
+
     train_sampler = None
+    val_sampler = None
+    test_sampler = None
     if distributed:
         train_sampler = DistributedSampler(
             train_ds, num_replicas=world_size, rank=rank, shuffle=True
+        )
+        val_sampler = DistributedSampler(
+            val_ds, num_replicas=world_size, rank=rank, shuffle=False, drop_last=False
+        )
+        test_sampler = DistributedSampler(
+            test_ds, num_replicas=world_size, rank=rank, shuffle=False, drop_last=False
         )
 
     train_loader = DataLoader(
@@ -330,26 +345,29 @@ def build_raw_dataloaders(
     )
     val_loader = DataLoader(
         val_ds,
-        batch_size=batch_size * 2,
+        batch_size=eval_batch_size,
         shuffle=False,
-        num_workers=num_workers,
+        sampler=val_sampler,
+        num_workers=eval_num_workers,
         pin_memory=True,
-        persistent_workers=(num_workers > 0),
+        persistent_workers=(eval_num_workers > 0),
     )
     test_loader = DataLoader(
         test_ds,
-        batch_size=batch_size * 2,
+        batch_size=eval_batch_size,
         shuffle=False,
-        num_workers=num_workers,
+        sampler=test_sampler,
+        num_workers=eval_num_workers,
         pin_memory=True,
-        persistent_workers=(num_workers > 0),
+        persistent_workers=(eval_num_workers > 0),
     )
 
     if rank == 0:
         print(f"[INFO] DataLoaders MEG raw:")
-        print(f"  Train:      {len(train_ds):,} samples → {len(train_loader):,} batches")
-        print(f"  Validation: {len(val_ds):,} samples → {len(val_loader):,} batches")
-        print(f"  Test:       {len(test_ds):,} samples → {len(test_loader):,} batches")
+        print(f"  Train:      {len(train_ds):,} samples → {len(train_loader):,} batches/rank")
+        print(f"  Validation: {len(val_ds):,} samples → {len(val_loader):,} batches/rank")
+        print(f"  Test:       {len(test_ds):,} samples → {len(test_loader):,} batches/rank")
+        print(f"  Eval batch/rank: {eval_batch_size} | Eval workers/rank: {eval_num_workers}")
 
     return train_loader, val_loader, test_loader, train_sampler
 

@@ -430,6 +430,47 @@ def _read_recent_log(path: Path | None, *, max_bytes: int = 2000, lines: int | N
         return ""
 
 
+def _extract_exp_section_from_log(path: Path | None, exp: str, *, lines: int = 80) -> str:
+    if path is None or not path.exists():
+        return ""
+
+    captured: list[str] = []
+    capturing = False
+    target_header_suffix = f" {exp} ━━━"
+
+    try:
+        with path.open(encoding="utf-8", errors="replace") as f:
+            for raw_line in f:
+                stripped = _strip_ansi(raw_line).strip()
+                is_exp_header = bool(EXP_HEADER_RE.search(stripped))
+
+                if is_exp_header and stripped.endswith(target_header_suffix):
+                    capturing = True
+                    captured = [raw_line.rstrip("\n")]
+                    continue
+
+                if capturing and is_exp_header:
+                    break
+
+                if capturing:
+                    captured.append(raw_line.rstrip("\n"))
+    except Exception:
+        return ""
+
+    if not captured:
+        return ""
+
+    return "\n".join(captured[-lines:])
+
+
+def _get_fallback_exp_log(exp: str, ctx: dict, *, lines: int = 80) -> str:
+    for path in (ctx.get("sweep_log_path"), ctx.get("coordinator_log_path")):
+        content = _extract_exp_section_from_log(path, exp, lines=lines)
+        if content.strip():
+            return content
+    return ""
+
+
 def _get_stage_status_for_task(
     task: str,
     sentinel_name: str,
@@ -736,10 +777,16 @@ def get_exp_log(exp: str, lines: int = 80, ctx: dict | None = None) -> str:
     """Últimas N líneas del log de un experimento del sweep activo."""
     ctx = ctx or get_sweep_context()
     log_path = LOGS_DIR / f"{exp}.log"
-    if not log_path.exists() or not _artifact_belongs_to_current_run(log_path, ctx["run_started_at"]):
-        return f"[Sin log del sweep actual para {exp}]"
-    content = _read_recent_log(log_path, max_bytes=lines * 200, lines=lines)
-    return content or f"[Error leyendo log: {log_path}]"
+    if log_path.exists() and _artifact_belongs_to_current_run(log_path, ctx["run_started_at"]):
+        content = _read_recent_log(log_path, max_bytes=lines * 200, lines=lines)
+        if content:
+            return content
+
+    fallback = _get_fallback_exp_log(exp, ctx, lines=lines)
+    if fallback:
+        return fallback
+
+    return f"[Sin log del sweep actual para {exp}]"
 
 
 # ==============================================================================

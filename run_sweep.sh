@@ -494,7 +494,7 @@ STRATEGIES=("frozen" "partial_ft")
 
 # Hiperparámetros comunes (se pueden hacer arrays para grid search)
 N_EPOCHS=50
-BATCH_SIZE=256       # Por GPU — batch global = 256 × 2 GPUs = 512
+BATCH_SIZE=128       # Por GPU — batch global = 256 × 2 GPUs = 512
 NUM_WORKERS=4
 CHECKPOINT_EVERY=5   # Guardar checkpoint cada 5 epochs (no cada 1, para no llenar disco)
 DATA_PATH="/workspace/libribrain_data"

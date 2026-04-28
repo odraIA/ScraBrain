@@ -792,6 +792,8 @@ def train_ddp(args):
         preprocessor=preprocessor,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
+        eval_batch_size=args.eval_batch_size,
+        eval_num_workers=args.eval_num_workers,
         distributed=True,
         rank=rank,
         world_size=dist.get_world_size(),
@@ -953,8 +955,14 @@ def train_ddp(args):
         )
         train_time = time.time() - t0
 
-        # ── Val (todos los ranks evalúan, rank 0 reporta) ─────────────────────
+        if device.type == "cuda":
+            torch.cuda.empty_cache()
+
+        # ── Val (cada rank evalúa su shard, rank 0 reporta) ───────────────────
         val_metrics = evaluate_raw(model, cwt_layer, val_loader, criterion, device)
+
+        if device.type == "cuda":
+            torch.cuda.empty_cache()
 
         # ── Scheduler ─────────────────────────────────────────────────────────
         if scheduler:
@@ -1090,8 +1098,12 @@ def parse_args():
     # Entrenamiento
     parser.add_argument("--n_epochs",        type=int,   default=30)
     parser.add_argument("--batch_size",      type=int,   default=32,  help="Batch POR GPU")
+    parser.add_argument("--eval_batch_size", type=int,   default=None,
+                        help="Batch POR GPU para validación/test. Por defecto igual a --batch_size.")
     parser.add_argument("--n_freqs",         type=int,   default=96)
     parser.add_argument("--num_workers",     type=int,   default=4)
+    parser.add_argument("--eval_num_workers", type=int,  default=None,
+                        help="Workers por rank para validación/test. Por defecto min(--num_workers, 2).")
 
     # Checkpointing
     parser.add_argument("--checkpoint_dir",   default="./checkpoints")
