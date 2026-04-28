@@ -7,6 +7,8 @@
 #   bash run_sweep.sh              # sweep completo
 #   bash run_sweep.sh --dry-run    # ver qué se lanzaría sin ejecutar nada
 #   bash run_sweep.sh --resume     # reanudar experimentos fallidos (resume_from=latest)
+#   bash run_sweep.sh --rerun      # relanzar experimentos desde cero, ignorando .exp_done_*
+#   bash run_sweep.sh --rerun-precompute  # recalcular stats aunque exista .precompute_done_*
 #   bash run_sweep.sh --detach     # dejar el coordinador corriendo sin depender de la terminal
 #   bash run_sweep.sh --ddp        # alias legacy: mantiene train_ddp.py (raw+CWT)
 #   bash run_sweep.sh --speech-image        # sweep A–F (imagen TF + ImageNet)
@@ -39,6 +41,8 @@ export PROJECT_DIR
 # ── Flags ─────────────────────────────────────────────────────────────────────
 DRY_RUN=false
 RESUME_FAILED=false
+FORCE_RERUN=false
+RERUN_PRECOMPUTE=false
 SPEECH_IMAGE_SWEEP=false
 USE_WANDB=false
 LOW_FREQ_BIAS=false
@@ -48,6 +52,8 @@ for arg in "$@"; do
   case $arg in
     --dry-run) DRY_RUN=true ;;
     --resume)  RESUME_FAILED=true ;;
+    --rerun|--force) FORCE_RERUN=true ;;
+    --rerun-precompute|--force-precompute) RERUN_PRECOMPUTE=true ;;
     --detach|--daemon|--bg) DETACH_REQUESTED=true; continue ;;
     --ddp)     ;;
     --speech-image) SPEECH_IMAGE_SWEEP=true ;;
@@ -366,11 +372,18 @@ PYEOF
     log ""
     log "━━━ [${EXP_NUM}/${TOTAL}] ${EXP} ━━━"
 
-    if [[ -f "$DONE_SENTINEL" ]] && ! $RESUME_FAILED; then
+    if [[ -f "$DONE_SENTINEL" ]] && ! $RESUME_FAILED && ! $FORCE_RERUN; then
       plan_set_experiment_status "$EXP" "skipped"
       log_ok "  Ya completado (sentinel existente). Saltando."
       SKIPPED+=("$EXP")
       continue
+    fi
+
+    if [[ -f "$DONE_SENTINEL" ]] && $FORCE_RERUN && ! $DRY_RUN; then
+      rm -f "$DONE_SENTINEL"
+      log_warn "  Relanzando desde cero: sentinel anterior eliminado."
+    elif [[ -f "$DONE_SENTINEL" ]] && $FORCE_RERUN; then
+      log_warn "  [DRY-RUN] Se ignoraría/eliminaría sentinel anterior para relanzar."
     fi
 
     TF_VARIANT="full_band_tf"
@@ -573,10 +586,17 @@ for TASK in "${TASKS[@]}"; do
   # y no hay ningún lock reciente, asumimos que precompute ya corrió)
   STATS_SENTINEL="${PROJECT_DIR}/.precompute_done_${TASK}"
 
-  if [[ -f "$STATS_SENTINEL" ]]; then
+  if [[ -f "$STATS_SENTINEL" ]] && ! $RERUN_PRECOMPUTE; then
     plan_set_precompute_status "stats" "$TASK" "skipped"
     log_ok "Stats para '${TASK}' ya calculadas (sentinel: ${STATS_SENTINEL})"
     continue
+  fi
+
+  if [[ -f "$STATS_SENTINEL" ]] && $RERUN_PRECOMPUTE && ! $DRY_RUN; then
+    rm -f "$STATS_SENTINEL"
+    log_warn "Recalculando stats para '${TASK}': sentinel anterior eliminado."
+  elif [[ -f "$STATS_SENTINEL" ]] && $RERUN_PRECOMPUTE; then
+    log_warn "[DRY-RUN] Se ignoraría/eliminaría sentinel de stats para '${TASK}'."
   fi
 
   log "Lanzando precompute_stats para task='${TASK}'..."
@@ -651,16 +671,23 @@ for STRATEGY in "${STRATEGIES[@]}"; do
   log "━━━ [${EXP_NUM}/${TOTAL}] ${EXP} ━━━"
 
   # ── Saltar experimentos ya completados ──────────────────────────────────────
-  if [[ -f "$DONE_SENTINEL" ]] && ! $RESUME_FAILED; then
+  if [[ -f "$DONE_SENTINEL" ]] && ! $RESUME_FAILED && ! $FORCE_RERUN; then
     plan_set_experiment_status "$EXP" "skipped"
     log_ok "  Ya completado (sentinel existente). Saltando."
     SKIPPED+=("$EXP")
     continue
   fi
 
+  if [[ -f "$DONE_SENTINEL" ]] && $FORCE_RERUN && ! $DRY_RUN; then
+    rm -f "$DONE_SENTINEL"
+    log_warn "  Relanzando desde cero: sentinel anterior eliminado."
+  elif [[ -f "$DONE_SENTINEL" ]] && $FORCE_RERUN; then
+    log_warn "  [DRY-RUN] Se ignoraría/eliminaría sentinel anterior para relanzar."
+  fi
+
   # ── Determinar resume_from ──────────────────────────────────────────────────
   RESUME_FROM="none"
-  if $RESUME_FAILED; then
+  if $RESUME_FAILED && ! $FORCE_RERUN; then
     # Si hay checkpoint previo para este experimento, reanudar desde él.
     # Fallback: si el proceso cayó tras guardar el .pt pero antes del symlink
     # "latest", usar el checkpoint_epoch_*.pt más reciente.

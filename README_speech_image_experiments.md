@@ -23,11 +23,16 @@ No hay modelos sobre señal cruda en este runner.
 
 - Sweep completo A–F con el flujo estándar: `bash run_sweep.sh --speech-image`
 - Sweep A–F desacoplado de la terminal: `bash run_sweep.sh --speech-image --detach`
+- Relanzar experimentos desde cero aunque exista `.exp_done_*`: `bash run_sweep.sh --speech-image --rerun`
+- Relanzar desde cero y dejarlo en background: `bash run_sweep.sh --speech-image --rerun --detach`
+- Recalcular también stats aunque exista `.precompute_done_*`: `bash run_sweep.sh --speech-image --rerun-precompute`
 - Añadir variante low-freq en el sweep: `bash run_sweep.sh --speech-image --low-freq-bias`
 - Monitor en paralelo (igual que antes): `docker compose up -d monitor`
 
 `run_sweep.sh` escribe `.sweep_mode=speech_image`, y `monitor_server.py` cambia automáticamente a descubrimiento dinámico de experimentos para mostrar este modo.
 Con `--detach`, el coordinador queda bajo `nohup`, deja PID en `.sweep_coordinator_speech_image.pid` y symlinks a los logs más recientes en `logs/latest_speech_image_*`.
+
+`--resume` reanuda desde checkpoints existentes; `--rerun` ignora los sentinels `.exp_done_*`, elimina el sentinel del experimento antes de lanzarlo y entrena desde cero. Los sentinels de precompute se respetan salvo que añadas `--rerun-precompute`.
 
 ## CLI directa
 
