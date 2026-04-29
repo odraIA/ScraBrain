@@ -1,0 +1,84 @@
+
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m  PASO 0: Verificando/parcheando train_ddp.py para soporte de 'speech'[0m
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;32m[✓][0m train_ddp.py ya está parcheado para speech. Sin cambios.
+
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m  PASO 1: Precompute stats de normalización H5[0m
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;32m[✓][0m Stats para 'phoneme' ya calculadas (sentinel: /home/rdiaper/proyectos/ScraBrain/.precompute_done_phoneme)
+[0;32m[✓][0m Stats para 'speech' ya calculadas (sentinel: /home/rdiaper/proyectos/ScraBrain/.precompute_done_speech)
+
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m  PASO 2: Iniciando sweep de entrenamiento[0m
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[15:40:14] Espacio de búsqueda:
+[15:40:14]   Tareas:      phoneme speech
+[15:40:14]   Backbones:   resnet18 efficientnet_b0 vit_tiny
+[15:40:14]   Estrategias: frozen partial_ft
+[15:40:14]   Total:       12 experimentos
+[15:40:14]   Epochs/exp:  50
+[15:40:14] 
+[15:40:14] 
+[15:40:14] ━━━ [1/12] phoneme__resnet18__frozen ━━━
+[0;32m[✓][0m   Completado en 0min → /home/rdiaper/proyectos/ScraBrain/logs/phoneme__resnet18__frozen.log
+[15:40:15] 
+[15:40:15] ━━━ [2/12] phoneme__resnet18__partial_ft ━━━
+[0;32m[✓][0m   Completado en 0min → /home/rdiaper/proyectos/ScraBrain/logs/phoneme__resnet18__partial_ft.log
+[15:40:15] 
+[15:40:15] ━━━ [3/12] phoneme__efficientnet_b0__frozen ━━━
+[0;32m[✓][0m   Completado en 0min → /home/rdiaper/proyectos/ScraBrain/logs/phoneme__efficientnet_b0__frozen.log
+[15:40:15] 
+[15:40:16] ━━━ [4/12] phoneme__efficientnet_b0__partial_ft ━━━
+[0;32m[✓][0m   Completado en 0min → /home/rdiaper/proyectos/ScraBrain/logs/phoneme__efficientnet_b0__partial_ft.log
+[15:40:16] 
+[15:40:16] ━━━ [5/12] phoneme__vit_tiny__frozen ━━━
+[0;32m[✓][0m   Completado en 0min → /home/rdiaper/proyectos/ScraBrain/logs/phoneme__vit_tiny__frozen.log
+[15:40:16] 
+[15:40:16] ━━━ [6/12] phoneme__vit_tiny__partial_ft ━━━
+[0;32m[✓][0m   Completado en 0min → /home/rdiaper/proyectos/ScraBrain/logs/phoneme__vit_tiny__partial_ft.log
+[15:40:17] 
+[15:40:17] ━━━ [7/12] speech__resnet18__frozen ━━━
+[0;32m[✓][0m   Completado en 0min → /home/rdiaper/proyectos/ScraBrain/logs/speech__resnet18__frozen.log
+[15:40:17] 
+[15:40:17] ━━━ [8/12] speech__resnet18__partial_ft ━━━
+[0;32m[✓][0m   Completado en 0min → /home/rdiaper/proyectos/ScraBrain/logs/speech__resnet18__partial_ft.log
+[15:40:18] 
+[15:40:18] ━━━ [9/12] speech__efficientnet_b0__frozen ━━━
+[0;32m[✓][0m   Completado en 0min → /home/rdiaper/proyectos/ScraBrain/logs/speech__efficientnet_b0__frozen.log
+[15:40:18] 
+[15:40:18] ━━━ [10/12] speech__efficientnet_b0__partial_ft ━━━
+[0;32m[✓][0m   Completado en 0min → /home/rdiaper/proyectos/ScraBrain/logs/speech__efficientnet_b0__partial_ft.log
+[15:40:19] 
+[15:40:19] ━━━ [11/12] speech__vit_tiny__frozen ━━━
+[0;32m[✓][0m   Completado en 0min → /home/rdiaper/proyectos/ScraBrain/logs/speech__vit_tiny__frozen.log
+[15:40:19] 
+[15:40:19] ━━━ [12/12] speech__vit_tiny__partial_ft ━━━
+[0;32m[✓][0m   Completado en 0min → /home/rdiaper/proyectos/ScraBrain/logs/speech__vit_tiny__partial_ft.log
+
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m  RESUMEN DEL SWEEP[0m
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[15:40:20] Completados OK (12/12):
+[0;32m[✓][0m   phoneme__resnet18__frozen
+[0;32m[✓][0m   phoneme__resnet18__partial_ft
+[0;32m[✓][0m   phoneme__efficientnet_b0__frozen
+[0;32m[✓][0m   phoneme__efficientnet_b0__partial_ft
+[0;32m[✓][0m   phoneme__vit_tiny__frozen
+[0;32m[✓][0m   phoneme__vit_tiny__partial_ft
+[0;32m[✓][0m   speech__resnet18__frozen
+[0;32m[✓][0m   speech__resnet18__partial_ft
+[0;32m[✓][0m   speech__efficientnet_b0__frozen
+[0;32m[✓][0m   speech__efficientnet_b0__partial_ft
+[0;32m[✓][0m   speech__vit_tiny__frozen
+[0;32m[✓][0m   speech__vit_tiny__partial_ft
+[15:40:20] 
+[15:40:20] Log completo del sweep: /home/rdiaper/proyectos/ScraBrain/logs/sweep_20260416_154014.log
+[15:40:20] 
+
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m  RESULTADOS (final_results.json por experimento)[0m
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[15:40:20] 
+[0;32m[✓][0m Sweep finalizado.

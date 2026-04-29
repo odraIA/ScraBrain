@@ -2,8 +2,23 @@
   "backbone": "resnet18",
   "strategy": "partial_ft",
   "task": "speech",
-  "test_f1_macro": 0.6313296763334266,
-  "test_balanced_acc": 0.6236107707014407,
-  "best_val_f1": 0.6190534796667887,
-  "timestamp": "2026-04-21T00:46:20.532088"
+  "test_f1_macro": 0.6360767992721379,
+  "test_f1_per_class": [
+    0.436278342455043,
+    0.8358752560892329
+  ],
+  "test_balanced_acc": 0.6280591451801184,
+  "test_auroc": 0.6930671157211572,
+  "test_confusion_matrix": [
+    [
+      558,
+      868
+    ],
+    [
+      574,
+      3672
+    ]
+  ],
+  "best_val_f1": 0.6229584725697301,
+  "timestamp": "2026-04-28T11:34:29.690624"
 }

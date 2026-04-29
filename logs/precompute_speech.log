@@ -1,0 +1,27 @@
+[INFO] Dispositivo: cuda
+======================================================================
+  Precalculando stats de normalización
+  Tarea:     speech
+  Data path: /workspace/libribrain_data
+======================================================================
+
+[precompute] train ...
+[INFO] Cargando LibriBrain – tarea: speech, partición: train
+[INFO] Dataset cargado: 373212 samples, 2 clases, 306 canales
+[precompute] ✓ train listo (3.7s)
+
+[precompute] validation ...
+[INFO] Cargando LibriBrain – tarea: speech, partición: validation
+[INFO] Dataset cargado: 2673 samples, 2 clases, 306 canales
+[precompute] ✓ validation listo (0.0s)
+
+[precompute] test ...
+[INFO] Cargando LibriBrain – tarea: speech, partición: test
+[INFO] Dataset cargado: 2836 samples, 2 clases, 306 canales
+[precompute] ✓ test listo (0.0s)
+
+======================================================================
+  ✓ Stats calculadas para las 3 particiones
+  Tiempo total: 3.7s (0.1 min)
+  Ya puedes lanzar: docker compose up meg_training_job
+======================================================================

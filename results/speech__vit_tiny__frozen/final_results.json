@@ -2,8 +2,23 @@
   "backbone": "vit_tiny",
   "strategy": "frozen",
   "task": "speech",
-  "test_f1_macro": 0.5693795214671286,
-  "test_balanced_acc": 0.5669829338593737,
-  "best_val_f1": 0.5777942033249963,
-  "timestamp": "2026-04-21T02:59:02.664383"
+  "test_f1_macro": 0.5669024859790859,
+  "test_f1_per_class": [
+    0.3043867502238138,
+    0.8294182217343579
+  ],
+  "test_balanced_acc": 0.5641038938388676,
+  "test_auroc": 0.6371071791683816,
+  "test_confusion_matrix": [
+    [
+      340,
+      1086
+    ],
+    [
+      468,
+      3778
+    ]
+  ],
+  "best_val_f1": 0.5854081531351745,
+  "timestamp": "2026-04-28T12:34:06.842887"
 }

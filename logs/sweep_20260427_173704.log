@@ -1,0 +1,70 @@
+[1;33m[⚠][0m docker compose run no soporta --init; se ejecutará sin ese flag.
+
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m  PASO 0: Verificando/parcheando train_ddp.py para soporte de 'speech'[0m
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;32m[✓][0m train_ddp.py ya incluye soporte robusto para speech/phoneme. Sin parche dinámico.
+
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m  PASO 1: Precompute stats de normalización H5[0m
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;32m[✓][0m Stats para 'speech' ya calculadas (sentinel: /home/rdiaper/proyectos/ScraBrain/.precompute_done_speech)
+
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m  PASO 2: Iniciando sweep de entrenamiento[0m
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[17:37:04] Espacio de búsqueda:
+[17:37:04]   Tareas:      speech
+[17:37:04]   Backbones:   resnet18 efficientnet_b0 vit_tiny
+[17:37:04]   Estrategias: frozen partial_ft
+[17:37:04]   Total:       6 experimentos
+[17:37:04]   Epochs/exp:  50
+[17:37:04]   Modo train:  DDP raw+CWT (train_ddp.py)
+[17:37:04] 
+[17:37:04] 
+[17:37:04] ━━━ [1/6] speech__resnet18__frozen ━━━
+[17:37:05]   Contenedor: 8be04174d53f
+[0;31m[✗][0m   FALLIDO (exit 1) en 3min → /home/rdiaper/proyectos/ScraBrain/logs/speech__resnet18__frozen.log
+[17:40:08] 
+[17:40:08] ━━━ [2/6] speech__resnet18__partial_ft ━━━
+[17:40:09]   Contenedor: c797cb30eedc
+[0;31m[✗][0m   FALLIDO (exit 1) en 3min → /home/rdiaper/proyectos/ScraBrain/logs/speech__resnet18__partial_ft.log
+[17:43:14] 
+[17:43:14] ━━━ [3/6] speech__efficientnet_b0__frozen ━━━
+[17:43:15]   Contenedor: c6bbe864ff3c
+[0;31m[✗][0m   FALLIDO (exit 1) en 3min → /home/rdiaper/proyectos/ScraBrain/logs/speech__efficientnet_b0__frozen.log
+[17:46:57] 
+[17:46:57] ━━━ [4/6] speech__efficientnet_b0__partial_ft ━━━
+[17:46:57]   Contenedor: 1730847b61e2
+[0;31m[✗][0m   FALLIDO (exit 1) en 17min → /home/rdiaper/proyectos/ScraBrain/logs/speech__efficientnet_b0__partial_ft.log
+[18:04:47] 
+[18:04:47] ━━━ [5/6] speech__vit_tiny__frozen ━━━
+[18:04:48]   Contenedor: 3bab64c1f27f
+[0;31m[✗][0m   FALLIDO (exit 1) en 24min → /home/rdiaper/proyectos/ScraBrain/logs/speech__vit_tiny__frozen.log
+[18:29:33] 
+[18:29:33] ━━━ [6/6] speech__vit_tiny__partial_ft ━━━
+[18:29:33]   Contenedor: e46f1d7f8597
+[0;32m[✓][0m   Completado en 45min → /home/rdiaper/proyectos/ScraBrain/logs/speech__vit_tiny__partial_ft.log
+
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m  RESUMEN DEL SWEEP[0m
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[19:15:07] Completados OK (1/6):
+[0;32m[✓][0m   speech__vit_tiny__partial_ft
+[19:15:07] Fallidos (5):
+[0;31m[✗][0m   speech__resnet18__frozen
+[0;31m[✗][0m   speech__resnet18__partial_ft
+[0;31m[✗][0m   speech__efficientnet_b0__frozen
+[0;31m[✗][0m   speech__efficientnet_b0__partial_ft
+[0;31m[✗][0m   speech__vit_tiny__frozen
+[19:15:07] 
+[1;33m[⚠][0m Para reanudar los fallidos:  bash run_sweep.sh --resume
+[19:15:07] 
+[19:15:07] Log completo del sweep: /home/rdiaper/proyectos/ScraBrain/logs/sweep_20260427_173704.log
+[19:15:07] 
+
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m  RESULTADOS (final_results.json por experimento)[0m
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[19:15:07] 
+[0;32m[✓][0m Sweep finalizado.

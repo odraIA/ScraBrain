@@ -1,0 +1,8 @@
+[INFO] Dispositivo: cuda
+[INFO] Cargando splits de LibriBrain (session-aware por pnpl)
+[INFO] Cargando LibriBrain – tarea: speech, partición: train
+[INFO] Dataset cargado: 373212 samples, 2 clases, 306 canales
+[INFO] Cargando LibriBrain – tarea: speech, partición: validation
+[INFO] Dataset cargado: 2673 samples, 2 clases, 306 canales
+[INFO] Cargando LibriBrain – tarea: speech, partición: test
+[INFO] Dataset cargado: 2836 samples, 2 clases, 306 canales

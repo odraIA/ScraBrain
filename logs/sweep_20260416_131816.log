@@ -1,0 +1,24 @@
+
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m  PASO 0: Verificando/parcheando train_ddp.py para soporte de 'speech'[0m
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;32m[✓][0m train_ddp.py ya está parcheado para speech. Sin cambios.
+
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m  PASO 1: Precompute stats de normalización H5[0m
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;32m[✓][0m Stats para 'phoneme' ya calculadas (sentinel: /home/rdiaper/proyectos/ScraBrain/.precompute_done_phoneme)
+[0;32m[✓][0m Stats para 'speech' ya calculadas (sentinel: /home/rdiaper/proyectos/ScraBrain/.precompute_done_speech)
+
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m  PASO 2: Iniciando sweep de entrenamiento[0m
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[13:18:16] Espacio de búsqueda:
+[13:18:16]   Tareas:      phoneme speech
+[13:18:16]   Backbones:   resnet18 efficientnet_b0 vit_tiny
+[13:18:16]   Estrategias: frozen partial_ft
+[13:18:16]   Total:       12 experimentos
+[13:18:16]   Epochs/exp:  50
+[13:18:16] 
+[13:18:16] 
+[13:18:16] ━━━ [1/12] phoneme__resnet18__frozen ━━━

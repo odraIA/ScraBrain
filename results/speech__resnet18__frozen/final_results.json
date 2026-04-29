@@ -3,7 +3,22 @@
   "strategy": "frozen",
   "task": "speech",
   "test_f1_macro": 0.42811050615043356,
+  "test_f1_per_class": [
+    0.0,
+    0.8562210123008671
+  ],
   "test_balanced_acc": 0.5,
-  "best_val_f1": 0.43067092651757194,
-  "timestamp": "2026-04-21T00:19:25.198617"
+  "test_auroc": 0.6253128924574833,
+  "test_confusion_matrix": [
+    [
+      0,
+      713
+    ],
+    [
+      0,
+      2123
+    ]
+  ],
+  "best_val_f1": 0.4305792163543441,
+  "timestamp": "2026-04-28T16:25:25.555248"
 }

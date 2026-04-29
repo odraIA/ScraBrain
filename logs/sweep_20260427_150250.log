@@ -1,0 +1,8 @@
+[1;33m[⚠][0m docker compose run no soporta --init; se ejecutará sin ese flag.
+
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m  MODO SPEECH-IMAGE: lanzando experimentos A–F[0m
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[15:02:50] 
+[15:02:50] ━━━ [1/6] speech_image__baseline_image_resnet18 ━━━
+[15:02:51]   Contenedor: a094d1239ebf

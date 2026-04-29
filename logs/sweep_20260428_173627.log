@@ -1,0 +1,26 @@
+[1;33m[⚠][0m docker compose run no soporta --init; se ejecutará sin ese flag.
+
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m  PASO 0: Verificando/parcheando train_ddp.py para soporte de 'speech'[0m
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;32m[✓][0m train_ddp.py ya incluye soporte robusto para speech/phoneme. Sin parche dinámico.
+
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m  PASO 1: Precompute stats de normalización H5[0m
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;32m[✓][0m Stats para 'speech' ya calculadas (sentinel: /home/rdiaper/proyectos/ScraBrain/.precompute_done_speech)
+
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m  PASO 2: Iniciando sweep de entrenamiento[0m
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[17:36:27] Espacio de búsqueda:
+[17:36:27]   Tareas:      speech
+[17:36:27]   Backbones:   resnet18 efficientnet_b0 vit_tiny
+[17:36:27]   Estrategias: frozen partial_ft
+[17:36:27]   Total:       6 experimentos
+[17:36:27]   Epochs/exp:  50
+[17:36:27]   Modo train:  DDP raw+CWT (train_ddp.py)
+[17:36:27] 
+[17:36:27] 
+[17:36:27] ━━━ [1/6] speech__resnet18__frozen ━━━
+[17:36:28]   Contenedor: ecfc05dbfbd9

@@ -1,0 +1,19 @@
+
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m  PASO 0: Verificando/parcheando train_ddp.py para soporte de 'speech'[0m
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;32m[✓][0m train_ddp.py ya incluye soporte robusto para speech/phoneme. Sin parche dinámico.
+
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m  PASO 1: Precompute stats de normalización H5[0m
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[18:02:10] Lanzando precompute_stats para task='phoneme'...
+[0;32m[✓][0m Precompute 'phoneme' completado.
+[18:02:19] Lanzando precompute_stats para task='speech'...
+[0;32m[✓][0m Precompute 'speech' completado.
+
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m  PASO 2: Precompute de imágenes para train/validation/test[0m
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[18:02:28] Lanzando precompute_meg_images para task='phoneme'...
+[0;31m[✗][0m Precompute de imágenes 'phoneme' falló (exit 2). Ver logs/precompute_images_phoneme.log

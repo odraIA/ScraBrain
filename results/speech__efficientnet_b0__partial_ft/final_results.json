@@ -2,8 +2,23 @@
   "backbone": "efficientnet_b0",
   "strategy": "partial_ft",
   "task": "speech",
-  "test_f1_macro": 0.6210762954071831,
-  "test_balanced_acc": 0.6122079092342665,
-  "best_val_f1": 0.6225250746497205,
-  "timestamp": "2026-04-21T02:16:18.762469"
+  "test_f1_macro": 0.6312866455408499,
+  "test_f1_per_class": [
+    0.41715727502102606,
+    0.8454160160606737
+  ],
+  "test_balanced_acc": 0.6202154457392124,
+  "test_auroc": 0.7051771851603258,
+  "test_confusion_matrix": [
+    [
+      248,
+      465
+    ],
+    [
+      228,
+      1895
+    ]
+  ],
+  "best_val_f1": 0.6342558291752206,
+  "timestamp": "2026-04-28T18:26:24.850263"
 }

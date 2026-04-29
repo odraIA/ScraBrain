@@ -1,18 +1,48 @@
 {
-  "generated_at": "2026-04-27T17:37:04.897387",
+  "generated_at": "2026-04-28T18:08:43.276840",
   "mode": "classic",
+  "run_ts": "20260428_180843",
+  "sweep_log": "logs/sweep_20260428_180843.log",
   "experiments": [
-    "speech__resnet18__frozen",
-    "speech__resnet18__partial_ft",
-    "speech__efficientnet_b0__frozen",
-    "speech__efficientnet_b0__partial_ft",
-    "speech__vit_tiny__frozen",
-    "speech__vit_tiny__partial_ft"
+    {
+      "name": "speech__resnet18__frozen",
+      "status": "done",
+      "updated_at": "2026-04-28T18:25:28.914778"
+    },
+    {
+      "name": "speech__resnet18__partial_ft",
+      "status": "skipped",
+      "updated_at": "2026-04-28T18:25:28.959184"
+    },
+    {
+      "name": "speech__efficientnet_b0__frozen",
+      "status": "done",
+      "updated_at": "2026-04-28T19:18:11.851247"
+    },
+    {
+      "name": "speech__efficientnet_b0__partial_ft",
+      "status": "done",
+      "updated_at": "2026-04-28T20:26:27.838506"
+    },
+    {
+      "name": "speech__vit_tiny__frozen",
+      "status": "skipped",
+      "updated_at": "2026-04-28T20:26:27.883054"
+    },
+    {
+      "name": "speech__vit_tiny__partial_ft",
+      "status": "skipped",
+      "updated_at": "2026-04-28T20:26:27.927798"
+    }
   ],
   "precompute": {
-    "stats_tasks": [
-      "speech"
+    "stats": [
+      {
+        "task": "speech",
+        "status": "skipped",
+        "updated_at": "2026-04-28T18:08:43.315891"
+      }
     ],
-    "images_tasks": []
+    "images": []
   }
 }

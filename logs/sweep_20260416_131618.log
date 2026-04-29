@@ -1,0 +1,134 @@
+
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m  PASO 0: Verificando/parcheando train_ddp.py para soporte de 'speech'[0m
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;32m[✓][0m train_ddp.py ya está parcheado para speech. Sin cambios.
+
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m  PASO 1: Precompute stats de normalización H5[0m
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[13:16:18] Lanzando precompute_stats para task='phoneme'...
+[13:16:18]   [DRY-RUN] docker compose run --rm precompute_stats ...
+[13:16:18] Lanzando precompute_stats para task='speech'...
+[13:16:18]   [DRY-RUN] docker compose run --rm precompute_stats ...
+
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m  PASO 2: Iniciando sweep de entrenamiento[0m
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[13:16:18] Espacio de búsqueda:
+[13:16:18]   Tareas:      phoneme speech
+[13:16:18]   Backbones:   resnet18 efficientnet_b0 vit_tiny
+[13:16:18]   Estrategias: frozen partial_ft
+[13:16:18]   Total:       12 experimentos
+[13:16:18]   Epochs/exp:  50
+[13:16:18] 
+[13:16:18] 
+[13:16:18] ━━━ [1/12] phoneme__resnet18__frozen ━━━
+[13:16:18]   [DRY-RUN] docker compose run --rm meg_training_job train_ddp.py \
+[13:16:18]     --task phoneme --backbone resnet18 --strategy frozen \
+[13:16:18]     --n_epochs 50 --batch_size 256 \
+[13:16:18]     --output_dir /workspace/results/phoneme__resnet18__frozen --checkpoint_dir /workspace/checkpoints/phoneme__resnet18__frozen \
+[13:16:18]     --checkpoint_every 5 --resume_from none
+[13:16:18] 
+[13:16:18] ━━━ [2/12] phoneme__resnet18__partial_ft ━━━
+[13:16:18]   [DRY-RUN] docker compose run --rm meg_training_job train_ddp.py \
+[13:16:18]     --task phoneme --backbone resnet18 --strategy partial_ft \
+[13:16:18]     --n_epochs 50 --batch_size 256 \
+[13:16:18]     --output_dir /workspace/results/phoneme__resnet18__partial_ft --checkpoint_dir /workspace/checkpoints/phoneme__resnet18__partial_ft \
+[13:16:18]     --checkpoint_every 5 --resume_from none
+[13:16:18] 
+[13:16:18] ━━━ [3/12] phoneme__efficientnet_b0__frozen ━━━
+[13:16:18]   [DRY-RUN] docker compose run --rm meg_training_job train_ddp.py \
+[13:16:18]     --task phoneme --backbone efficientnet_b0 --strategy frozen \
+[13:16:18]     --n_epochs 50 --batch_size 256 \
+[13:16:18]     --output_dir /workspace/results/phoneme__efficientnet_b0__frozen --checkpoint_dir /workspace/checkpoints/phoneme__efficientnet_b0__frozen \
+[13:16:18]     --checkpoint_every 5 --resume_from none
+[13:16:18] 
+[13:16:18] ━━━ [4/12] phoneme__efficientnet_b0__partial_ft ━━━
+[13:16:18]   [DRY-RUN] docker compose run --rm meg_training_job train_ddp.py \
+[13:16:18]     --task phoneme --backbone efficientnet_b0 --strategy partial_ft \
+[13:16:18]     --n_epochs 50 --batch_size 256 \
+[13:16:18]     --output_dir /workspace/results/phoneme__efficientnet_b0__partial_ft --checkpoint_dir /workspace/checkpoints/phoneme__efficientnet_b0__partial_ft \
+[13:16:18]     --checkpoint_every 5 --resume_from none
+[13:16:18] 
+[13:16:18] ━━━ [5/12] phoneme__vit_tiny__frozen ━━━
+[13:16:18]   [DRY-RUN] docker compose run --rm meg_training_job train_ddp.py \
+[13:16:18]     --task phoneme --backbone vit_tiny --strategy frozen \
+[13:16:18]     --n_epochs 50 --batch_size 256 \
+[13:16:18]     --output_dir /workspace/results/phoneme__vit_tiny__frozen --checkpoint_dir /workspace/checkpoints/phoneme__vit_tiny__frozen \
+[13:16:18]     --checkpoint_every 5 --resume_from none
+[13:16:18] 
+[13:16:18] ━━━ [6/12] phoneme__vit_tiny__partial_ft ━━━
+[13:16:18]   [DRY-RUN] docker compose run --rm meg_training_job train_ddp.py \
+[13:16:18]     --task phoneme --backbone vit_tiny --strategy partial_ft \
+[13:16:18]     --n_epochs 50 --batch_size 256 \
+[13:16:18]     --output_dir /workspace/results/phoneme__vit_tiny__partial_ft --checkpoint_dir /workspace/checkpoints/phoneme__vit_tiny__partial_ft \
+[13:16:18]     --checkpoint_every 5 --resume_from none
+[13:16:18] 
+[13:16:18] ━━━ [7/12] speech__resnet18__frozen ━━━
+[13:16:18]   [DRY-RUN] docker compose run --rm meg_training_job train_ddp.py \
+[13:16:18]     --task speech --backbone resnet18 --strategy frozen \
+[13:16:18]     --n_epochs 50 --batch_size 256 \
+[13:16:18]     --output_dir /workspace/results/speech__resnet18__frozen --checkpoint_dir /workspace/checkpoints/speech__resnet18__frozen \
+[13:16:18]     --checkpoint_every 5 --resume_from none
+[13:16:18] 
+[13:16:18] ━━━ [8/12] speech__resnet18__partial_ft ━━━
+[13:16:18]   [DRY-RUN] docker compose run --rm meg_training_job train_ddp.py \
+[13:16:18]     --task speech --backbone resnet18 --strategy partial_ft \
+[13:16:18]     --n_epochs 50 --batch_size 256 \
+[13:16:18]     --output_dir /workspace/results/speech__resnet18__partial_ft --checkpoint_dir /workspace/checkpoints/speech__resnet18__partial_ft \
+[13:16:18]     --checkpoint_every 5 --resume_from none
+[13:16:18] 
+[13:16:18] ━━━ [9/12] speech__efficientnet_b0__frozen ━━━
+[13:16:18]   [DRY-RUN] docker compose run --rm meg_training_job train_ddp.py \
+[13:16:18]     --task speech --backbone efficientnet_b0 --strategy frozen \
+[13:16:18]     --n_epochs 50 --batch_size 256 \
+[13:16:18]     --output_dir /workspace/results/speech__efficientnet_b0__frozen --checkpoint_dir /workspace/checkpoints/speech__efficientnet_b0__frozen \
+[13:16:18]     --checkpoint_every 5 --resume_from none
+[13:16:18] 
+[13:16:18] ━━━ [10/12] speech__efficientnet_b0__partial_ft ━━━
+[13:16:18]   [DRY-RUN] docker compose run --rm meg_training_job train_ddp.py \
+[13:16:18]     --task speech --backbone efficientnet_b0 --strategy partial_ft \
+[13:16:18]     --n_epochs 50 --batch_size 256 \
+[13:16:18]     --output_dir /workspace/results/speech__efficientnet_b0__partial_ft --checkpoint_dir /workspace/checkpoints/speech__efficientnet_b0__partial_ft \
+[13:16:18]     --checkpoint_every 5 --resume_from none
+[13:16:18] 
+[13:16:18] ━━━ [11/12] speech__vit_tiny__frozen ━━━
+[13:16:18]   [DRY-RUN] docker compose run --rm meg_training_job train_ddp.py \
+[13:16:18]     --task speech --backbone vit_tiny --strategy frozen \
+[13:16:18]     --n_epochs 50 --batch_size 256 \
+[13:16:18]     --output_dir /workspace/results/speech__vit_tiny__frozen --checkpoint_dir /workspace/checkpoints/speech__vit_tiny__frozen \
+[13:16:18]     --checkpoint_every 5 --resume_from none
+[13:16:18] 
+[13:16:18] ━━━ [12/12] speech__vit_tiny__partial_ft ━━━
+[13:16:18]   [DRY-RUN] docker compose run --rm meg_training_job train_ddp.py \
+[13:16:18]     --task speech --backbone vit_tiny --strategy partial_ft \
+[13:16:18]     --n_epochs 50 --batch_size 256 \
+[13:16:18]     --output_dir /workspace/results/speech__vit_tiny__partial_ft --checkpoint_dir /workspace/checkpoints/speech__vit_tiny__partial_ft \
+[13:16:18]     --checkpoint_every 5 --resume_from none
+
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m  RESUMEN DEL SWEEP[0m
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[13:16:18] Completados OK (12/12):
+[0;32m[✓][0m   phoneme__resnet18__frozen [dry-run]
+[0;32m[✓][0m   phoneme__resnet18__partial_ft [dry-run]
+[0;32m[✓][0m   phoneme__efficientnet_b0__frozen [dry-run]
+[0;32m[✓][0m   phoneme__efficientnet_b0__partial_ft [dry-run]
+[0;32m[✓][0m   phoneme__vit_tiny__frozen [dry-run]
+[0;32m[✓][0m   phoneme__vit_tiny__partial_ft [dry-run]
+[0;32m[✓][0m   speech__resnet18__frozen [dry-run]
+[0;32m[✓][0m   speech__resnet18__partial_ft [dry-run]
+[0;32m[✓][0m   speech__efficientnet_b0__frozen [dry-run]
+[0;32m[✓][0m   speech__efficientnet_b0__partial_ft [dry-run]
+[0;32m[✓][0m   speech__vit_tiny__frozen [dry-run]
+[0;32m[✓][0m   speech__vit_tiny__partial_ft [dry-run]
+[13:16:18] 
+[13:16:18] Log completo del sweep: /home/rdiaper/proyectos/ScraBrain/logs/sweep_20260416_131618.log
+[13:16:18] 
+
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m  RESULTADOS (final_results.json por experimento)[0m
+[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[13:16:18] 
+[0;32m[✓][0m Sweep finalizado.
