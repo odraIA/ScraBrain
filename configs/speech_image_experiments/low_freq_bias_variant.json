@@ -1,8 +1,0 @@
-{
-  "experiment": "baseline_image_resnet18",
-  "tf_variant": "low_freq_biased_tf",
-  "epochs": 20,
-  "stage1_epochs": 6,
-  "batch_size": 32,
-  "seeds": [42, 43, 44]
-}

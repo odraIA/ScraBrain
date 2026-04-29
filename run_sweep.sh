@@ -13,6 +13,7 @@
 #   bash run_sweep.sh --ddp        # alias legacy: mantiene train_ddp.py (raw+CWT)
 #   bash run_sweep.sh --speech-image        # sweep A–F (imagen TF + ImageNet)
 #   bash run_sweep.sh --speech-image --low-freq-bias
+#   bash run_sweep.sh --source-projection-path ./libribrain/source_W.npy
 #
 # Prerrequisitos:
 #   - docker compose up --build  (al menos una vez para construir la imagen)
@@ -47,8 +48,12 @@ SPEECH_IMAGE_SWEEP=false
 USE_WANDB=false
 LOW_FREQ_BIAS=false
 DETACH_REQUESTED=false
+SOURCE_RETRAIN_BEST=false
+SOURCE_PROJECTION_PATH=""
+SOURCE_VARIANT_NAME="source_lcmv"
 FORWARD_ARGS=()
-for arg in "$@"; do
+while [[ $# -gt 0 ]]; do
+  arg="$1"
   case $arg in
     --dry-run) DRY_RUN=true ;;
     --resume)  RESUME_FAILED=true ;;
@@ -59,9 +64,44 @@ for arg in "$@"; do
     --speech-image) SPEECH_IMAGE_SWEEP=true ;;
     --use-wandb) USE_WANDB=true ;;
     --low-freq-bias) LOW_FREQ_BIAS=true ;;
+    --source-retrain-best) SOURCE_RETRAIN_BEST=true ;;
+    --source-projection-path=*)
+      SOURCE_PROJECTION_PATH="${arg#*=}"
+      SOURCE_RETRAIN_BEST=true
+      ;;
+    --source-projection-path)
+      FORWARD_ARGS+=("$arg")
+      shift
+      if [[ $# -eq 0 ]]; then
+        echo "--source-projection-path requiere una ruta" >&2
+        exit 2
+      fi
+      SOURCE_PROJECTION_PATH="$1"
+      SOURCE_RETRAIN_BEST=true
+      arg="$1"
+      ;;
+    --source-variant-name=*)
+      SOURCE_VARIANT_NAME="${arg#*=}"
+      ;;
+    --source-variant-name)
+      FORWARD_ARGS+=("$arg")
+      shift
+      if [[ $# -eq 0 ]]; then
+        echo "--source-variant-name requiere un nombre" >&2
+        exit 2
+      fi
+      SOURCE_VARIANT_NAME="$1"
+      arg="$1"
+      ;;
   esac
   FORWARD_ARGS+=("$arg")
+  shift
 done
+
+if $SOURCE_RETRAIN_BEST && [[ -z "$SOURCE_PROJECTION_PATH" ]]; then
+  echo "--source-retrain-best requiere --source-projection-path <matriz>" >&2
+  exit 2
+fi
 
 # ── Coordinador desacoplado ───────────────────────────────────────────────────
 SWEEP_KIND="classic"
@@ -295,6 +335,22 @@ DOCKER_COMPOSE_RUN_FLAGS_STR="${DOCKER_COMPOSE_RUN_FLAGS[*]}"
 
 compose_run_detached() {
   docker compose run "${DOCKER_COMPOSE_RUN_FLAGS[@]}" "$@"
+}
+
+to_workspace_path() {
+  local path="$1"
+  while [[ "$path" == ./* ]]; do
+    path="${path#./}"
+  done
+  if [[ "$path" == /workspace/* ]]; then
+    printf '%s\n' "$path"
+  elif [[ "$path" == "$PROJECT_DIR"/* ]]; then
+    printf '/workspace/%s\n' "${path#"$PROJECT_DIR"/}"
+  elif [[ "$path" = /* ]]; then
+    printf '%s\n' "$path"
+  else
+    printf '/workspace/%s\n' "$path"
+  fi
 }
 
 # ==============================================================================
@@ -761,11 +817,140 @@ done  # BACKBONE
 done  # TASK
 
 # ==============================================================================
+# PASO 3: REENTRENAR EL MEJOR EXPERIMENTO EN ESPACIO FUENTE/ROI
+# ==============================================================================
+if $SOURCE_RETRAIN_BEST; then
+  log_step "PASO 3: Reentrenando mejor experimento con proyección fuente antes de CWT"
+
+  SOURCE_PROJECTION_CONTAINER_PATH="$(to_workspace_path "$SOURCE_PROJECTION_PATH")"
+  export SOURCE_VARIANT_NAME
+
+  BEST_SPEC="$(python3 - <<'PYEOF'
+import glob
+import json
+import os
+import sys
+from pathlib import Path
+
+results_base = Path(os.environ.get("PROJECT_DIR", ".")) / "results"
+allowed_tasks = {x.strip() for x in os.environ.get("TASKS_CSV", "").split(",") if x.strip()}
+allowed_backbones = {x.strip() for x in os.environ.get("BACKBONES_CSV", "").split(",") if x.strip()}
+allowed_strategies = {x.strip() for x in os.environ.get("STRATEGIES_CSV", "").split(",") if x.strip()}
+rows = []
+for path in glob.glob(str(results_base / "*" / "final_results.json")):
+    try:
+        with open(path, encoding="utf-8") as f:
+            d = json.load(f)
+    except Exception:
+        continue
+    if d.get("representation", "sensor") != "sensor":
+        continue
+    task = d.get("task")
+    backbone = d.get("backbone")
+    strategy = d.get("strategy")
+    f1 = d.get("test_f1_macro")
+    if allowed_tasks and task not in allowed_tasks:
+        continue
+    if allowed_backbones and backbone not in allowed_backbones:
+        continue
+    if allowed_strategies and strategy not in allowed_strategies:
+        continue
+    if task and backbone and strategy and isinstance(f1, (int, float)):
+        rows.append((float(f1), task, backbone, strategy))
+
+if not rows:
+    sys.exit(1)
+
+rows.sort(reverse=True)
+f1, task, backbone, strategy = rows[0]
+print(f"{task}\t{backbone}\t{strategy}\t{f1:.8f}")
+PYEOF
+  )" || BEST_SPEC=""
+
+  if [[ -z "$BEST_SPEC" ]]; then
+    log_warn "No se encontró un final_results.json válido para elegir el mejor experimento. Saltando fuente."
+  else
+    IFS=$'\t' read -r BEST_TASK BEST_BACKBONE BEST_STRATEGY BEST_F1 <<< "$BEST_SPEC"
+    SOURCE_EXP="${BEST_TASK}__${BEST_BACKBONE}__${BEST_STRATEGY}__${SOURCE_VARIANT_NAME}"
+    SOURCE_JOB_LOG="${PROJECT_DIR}/logs/${SOURCE_EXP}.log"
+    SOURCE_OUTPUT_DIR="/workspace/results/${SOURCE_EXP}"
+    SOURCE_CKPT_DIR="/workspace/checkpoints/${SOURCE_EXP}"
+    SOURCE_SENTINEL="${PROJECT_DIR}/.exp_done_${SOURCE_EXP}"
+
+    log "Mejor experimento sensor: ${BEST_TASK} | ${BEST_BACKBONE} | ${BEST_STRATEGY} (F1=${BEST_F1})"
+    log "Proyección fuente: ${SOURCE_PROJECTION_PATH} -> ${SOURCE_PROJECTION_CONTAINER_PATH}"
+
+    if [[ -f "$SOURCE_SENTINEL" ]] && ! $RESUME_FAILED && ! $FORCE_RERUN; then
+      plan_set_experiment_status "$SOURCE_EXP" "skipped"
+      log_ok "  Fuente ya completado (sentinel existente). Saltando."
+      SKIPPED+=("$SOURCE_EXP")
+    elif $DRY_RUN; then
+      log "  [DRY-RUN] docker compose run ${DOCKER_COMPOSE_RUN_FLAGS_STR} --rm meg_training_job train_ddp.py \\"
+      log "    --task ${BEST_TASK} --backbone ${BEST_BACKBONE} --strategy ${BEST_STRATEGY} \\"
+      log "    --source_projection_path ${SOURCE_PROJECTION_CONTAINER_PATH} --source_variant_name ${SOURCE_VARIANT_NAME} \\"
+      log "    --n_epochs ${N_EPOCHS} --batch_size ${BATCH_SIZE} \\"
+      log "    --output_dir ${SOURCE_OUTPUT_DIR} --checkpoint_dir ${SOURCE_CKPT_DIR}"
+      PASSED+=("$SOURCE_EXP [dry-run]")
+    else
+      if [[ -f "$SOURCE_SENTINEL" ]] && $FORCE_RERUN; then
+        rm -f "$SOURCE_SENTINEL"
+        log_warn "  Relanzando fuente desde cero: sentinel anterior eliminado."
+      fi
+
+      START_TS=$(date +%s)
+      plan_set_experiment_status "$SOURCE_EXP" "running"
+      SOURCE_CONTAINER_ID=$(compose_run_detached \
+        meg_training_job \
+        train_ddp.py \
+          --task          "${BEST_TASK}" \
+          --backbone      "${BEST_BACKBONE}" \
+          --strategy      "${BEST_STRATEGY}" \
+          --n_epochs      "${N_EPOCHS}" \
+          --batch_size    "${BATCH_SIZE}" \
+          --num_workers   "${NUM_WORKERS}" \
+          --data_path     "${DATA_PATH}" \
+          --output_dir    "${SOURCE_OUTPUT_DIR}" \
+          --checkpoint_dir "${SOURCE_CKPT_DIR}" \
+          --checkpoint_every "${CHECKPOINT_EVERY}" \
+          --resume_from   "none" \
+          --source_projection_path "${SOURCE_PROJECTION_CONTAINER_PATH}" \
+          --source_variant_name "${SOURCE_VARIANT_NAME}")
+
+      log "  Contenedor fuente: ${SOURCE_CONTAINER_ID:0:12}"
+      docker logs -f "$SOURCE_CONTAINER_ID" 2>&1 | tee "$SOURCE_JOB_LOG" &
+      LOGS_PID=$!
+
+      EXIT_CODE=$(docker wait "$SOURCE_CONTAINER_ID")
+      kill $LOGS_PID 2>/dev/null || true
+      docker rm "$SOURCE_CONTAINER_ID" 2>/dev/null || true
+      ELAPSED=$(( $(date +%s) - START_TS ))
+      ELAPSED_MIN=$(( ELAPSED / 60 ))
+
+      if [[ $EXIT_CODE -eq 0 ]]; then
+        touch "$SOURCE_SENTINEL"
+        plan_set_experiment_status "$SOURCE_EXP" "done"
+        log_ok "  Fuente completado en ${ELAPSED_MIN}min → ${SOURCE_JOB_LOG}"
+        PASSED+=("$SOURCE_EXP")
+      else
+        plan_set_experiment_status "$SOURCE_EXP" "failed"
+        log_err "  Fuente FALLIDO (exit ${EXIT_CODE}) en ${ELAPSED_MIN}min → ${SOURCE_JOB_LOG}"
+        FAILED+=("$SOURCE_EXP")
+      fi
+    fi
+  fi
+fi
+
+# ==============================================================================
 # PASO 4: RESUMEN FINAL
 # ==============================================================================
 log_step "RESUMEN DEL SWEEP"
 
-log "Completados OK (${#PASSED[@]}/${TOTAL}):"
+SUMMARY_TOTAL=$TOTAL
+if $SOURCE_RETRAIN_BEST; then
+  SUMMARY_TOTAL=$(( SUMMARY_TOTAL + 1 ))
+fi
+
+log "Completados OK (${#PASSED[@]}/${SUMMARY_TOTAL}):"
 for e in "${PASSED[@]:-}"; do log_ok "  ${e}"; done
 
 if [[ ${#SKIPPED[@]} -gt 0 ]]; then
@@ -809,12 +994,16 @@ for path in jsons:
 rows.sort(key=lambda r: r.get("test_f1_macro", 0), reverse=True)
 
 # Cabecera
-print(f"\n{'Experimento':<45} {'Task':<10} {'Backbone':<18} {'Strategy':<12} {'Test F1':>8} {'Bal Acc':>8} {'AUROC':>8}")
-print("─" * 120)
+print(f"\n{'Experimento':<58} {'Repr':<12} {'Task':<10} {'Backbone':<18} {'Strategy':<12} {'Test F1':>8} {'Bal Acc':>8} {'AUROC':>8}")
+print("─" * 142)
 for r in rows:
+    repr_name = r.get("representation", "sensor")
     exp = f"{r.get('task','?')}__{r.get('backbone','?')}__{r.get('strategy','?')}"
+    if repr_name != "sensor":
+        exp = f"{exp}__{repr_name}"
     print(
-        f"  {exp:<43} "
+        f"  {exp:<56} "
+        f"{repr_name:<12} "
         f"{r.get('task','?'):<10} "
         f"{r.get('backbone','?'):<18} "
         f"{r.get('strategy','?'):<12} "

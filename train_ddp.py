@@ -62,6 +62,7 @@ from meg_transfer_learning_libribrain import (
     compute_class_weights_isns,
     load_libribrain,
     EarlyStopping,
+    LinearSourceProjector,
     DEVICE,
 )
 
@@ -80,7 +81,21 @@ from meg_gpu_cwt import CWTLayer, MEGRawDataset, build_raw_dataloaders, zscore_s
 # MEGImageModelEndToEnd.forward(), justo antes del backbone.
 
 
-def _apply_cwt_and_normalize(cwt_layer, batch_x: torch.Tensor) -> torch.Tensor:
+def _apply_source_projection(
+    batch_x: torch.Tensor,
+    source_projection: Optional[torch.Tensor],
+) -> torch.Tensor:
+    """Aplica W @ sensors en batch antes de la CWT."""
+    if source_projection is None:
+        return batch_x
+    return torch.einsum("oc,bct->bot", source_projection, batch_x)
+
+
+def _apply_cwt_and_normalize(
+    cwt_layer,
+    batch_x: torch.Tensor,
+    source_projection: Optional[torch.Tensor] = None,
+) -> torch.Tensor:
     """
     Aplica CWT + z-score en GPU. Sin gradientes (el CWT no es diferenciable
     en nuestro pipeline; los gradientes fluyen desde el SensorMixer en adelante).
@@ -93,6 +108,7 @@ def _apply_cwt_and_normalize(cwt_layer, batch_x: torch.Tensor) -> torch.Tensor:
         scalogram : (B, 306, n_freqs, T) float32, z-score normalizado
     """
     with torch.no_grad():
+        batch_x = _apply_source_projection(batch_x, source_projection)
         scalogram = cwt_layer(batch_x)           # (B, 306, n_freqs, T)
         scalogram = zscore_scalogram(scalogram)  # normalización por banda
     return scalogram
@@ -149,6 +165,25 @@ def _compute_classification_metrics(
     return metrics
 
 
+def _loss_probs_preds_from_logits(
+    logits: torch.Tensor,
+    target: torch.Tensor,
+    criterion,
+) -> tuple[torch.Tensor, np.ndarray, np.ndarray]:
+    """Unifica binario con 1 logit y multiclase con softmax."""
+    if logits.ndim == 2 and logits.shape[1] == 1:
+        loss = criterion(logits, target.float().view_as(logits))
+        pos_prob = torch.sigmoid(logits.detach()).cpu().numpy()
+        probs = np.concatenate([1.0 - pos_prob, pos_prob], axis=1)
+        preds = (pos_prob[:, 0] >= 0.5).astype(np.int64)
+        return loss, probs, preds
+
+    loss = criterion(logits, target)
+    probs = torch.softmax(logits.detach(), dim=1).cpu().numpy()
+    preds = probs.argmax(axis=1)
+    return loss, probs, preds
+
+
 def _json_safe(value: Any) -> Any:
     """
     Convierte métricas y metadatos a tipos serializables por JSON sin perder
@@ -176,6 +211,7 @@ def train_one_epoch_raw(
     optimizer,
     criterion,
     device: torch.device,
+    source_projection: Optional[torch.Tensor] = None,
     grad_clip: float = 1.0,
 ):
     """
@@ -203,21 +239,20 @@ def train_one_epoch_raw(
             print(f"  [batch {batch_idx}/{len(loader)}]", flush=True)
 
         # ── CWT en GPU (sin gradientes) ────────────────────────────────────────
-        scalogram = _apply_cwt_and_normalize(cwt_layer, batch_x)  # (B, 306, F, T)
+        scalogram = _apply_cwt_and_normalize(
+            cwt_layer, batch_x, source_projection
+        )  # (B, C, F, T)
 
         # ── Forward ───────────────────────────────────────────────────────────
         optimizer.zero_grad()
         logits = model(scalogram)
-        loss   = criterion(logits, batch_y)
+        loss, probs, preds = _loss_probs_preds_from_logits(logits, batch_y, criterion)
 
         # ── Backward ──────────────────────────────────────────────────────────
         loss.backward()
         if grad_clip > 0:
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip)
         optimizer.step()
-
-        probs = torch.softmax(logits.detach(), dim=1).cpu().numpy()
-        preds = probs.argmax(axis=1)
 
         total_loss += float(loss.item()) * int(batch_y.size(0))
         total_examples += int(batch_y.size(0))
@@ -250,6 +285,7 @@ def evaluate_raw(
     loader,
     criterion,
     device: torch.device,
+    source_projection: Optional[torch.Tensor] = None,
 ):
     """
     Versión de evaluate que acepta señales MEG raw (B, 306, T).
@@ -268,12 +304,9 @@ def evaluate_raw(
         batch_x = batch_x.to(device, non_blocking=True)
         batch_y = batch_y.to(device, non_blocking=True)
 
-        scalogram = _apply_cwt_and_normalize(cwt_layer, batch_x)
+        scalogram = _apply_cwt_and_normalize(cwt_layer, batch_x, source_projection)
         logits    = model(scalogram)
-        loss      = criterion(logits, batch_y)
-
-        probs = torch.softmax(logits.detach(), dim=1).cpu().numpy()
-        preds = probs.argmax(axis=1)
+        loss, probs, preds = _loss_probs_preds_from_logits(logits, batch_y, criterion)
 
         total_loss += float(loss.item()) * int(batch_y.size(0))
         total_examples += int(batch_y.size(0))
@@ -799,6 +832,25 @@ def train_ddp(args):
         world_size=dist.get_world_size(),
     )
 
+    source_projection = None
+    n_model_channels = n_channels
+    representation = "sensor"
+    if args.source_projection_path:
+        projector = LinearSourceProjector(
+            args.source_projection_path,
+            name=args.source_variant_name,
+        )
+        projector.validate_input_channels(n_channels)
+        source_projection = torch.from_numpy(projector.matrix).to(device=device)
+        n_model_channels = projector.n_outputs
+        representation = args.source_variant_name
+        if is_main:
+            print(
+                f"[INFO] Proyección fuente activa: {projector.n_inputs} sensores -> "
+                f"{projector.n_outputs} fuentes/ROIs ({args.source_projection_path})",
+                flush=True,
+            )
+
     # ── Pesos de clase ────────────────────────────────────────────────────────
     # Se calculan desde `train_pnpl.samples` para evitar parseos frágiles de TSV.
     if rank == 0:
@@ -809,17 +861,22 @@ def train_ddp(args):
 
         if train_labels.size == 0:
             print("[WARN] No se pudieron extraer etiquetas de entrenamiento. Usando pesos uniformes.", flush=True)
-            class_weights = torch.ones(n_classes, device=device, dtype=torch.float32)
+            weight_size = 1 if args.task == "speech" and n_classes == 2 else n_classes
+            class_weights = torch.ones(weight_size, device=device, dtype=torch.float32)
         else:
             counts = np.bincount(train_labels, minlength=n_classes).astype(np.float64)
             if args.task == "speech" and n_classes >= 2:
                 print(f"[INFO] Speech counts: no-speech={counts[0]:.0f}, speech={counts[1]:.0f}", flush=True)
-
-            class_weights = compute_class_weights_isns(train_labels, n_classes).to(device)
+                neg_count = max(float(counts[0]), 1.0)
+                pos_count = max(float(counts[1]), 1.0)
+                class_weights = torch.tensor([neg_count / pos_count], device=device, dtype=torch.float32)
+            else:
+                class_weights = compute_class_weights_isns(train_labels, n_classes).to(device)
 
         print(f"[INFO] Pesos: min={class_weights.min().item():.4f} max={class_weights.max().item():.4f}", flush=True)
     else:
-        class_weights = torch.zeros(n_classes, device=device)
+        weight_size = 1 if args.task == "speech" and n_classes == 2 else n_classes
+        class_weights = torch.zeros(weight_size, device=device)
 
     # Broadcast a todos los ranks
     dist.broadcast(class_weights, src=0)
@@ -862,7 +919,7 @@ def train_ddp(args):
     model = MEGImageModelEndToEnd(
         backbone_name=args.backbone,
         n_classes=n_classes,
-        n_meg_channels=306,
+        n_meg_channels=n_model_channels,
         n_freqs=96,
         img_size=224,
         pretrained=True,
@@ -892,7 +949,10 @@ def train_ddp(args):
     )
 
     # ── Loss con pesos de clase ───────────────────────────────────────────────
-    criterion = torch.nn.CrossEntropyLoss(weight=class_weights, label_smoothing=0.1)
+    if args.task == "speech" and n_classes == 2:
+        criterion = torch.nn.BCEWithLogitsLoss(pos_weight=class_weights)
+    else:
+        criterion = torch.nn.CrossEntropyLoss(weight=class_weights, label_smoothing=0.1)
 
     # ── Resume desde checkpoint ───────────────────────────────────────────────
     start_epoch = 1
@@ -951,6 +1011,7 @@ def train_ddp(args):
         t0 = time.time()
         train_metrics = train_one_epoch_raw(
             model, cwt_layer, train_loader, optimizer, criterion, device,
+            source_projection=source_projection,
             grad_clip=config.grad_clip,
         )
         train_time = time.time() - t0
@@ -959,7 +1020,10 @@ def train_ddp(args):
             torch.cuda.empty_cache()
 
         # ── Val (cada rank evalúa su shard, rank 0 reporta) ───────────────────
-        val_metrics = evaluate_raw(model, cwt_layer, val_loader, criterion, device)
+        val_metrics = evaluate_raw(
+            model, cwt_layer, val_loader, criterion, device,
+            source_projection=source_projection,
+        )
 
         if device.type == "cuda":
             torch.cuda.empty_cache()
@@ -1040,7 +1104,10 @@ def train_ddp(args):
     # Sincronizar antes del test eval
     dist.barrier()
 
-    test_metrics = evaluate_raw(model, cwt_layer, test_loader, criterion, device)
+    test_metrics = evaluate_raw(
+        model, cwt_layer, test_loader, criterion, device,
+        source_projection=source_projection,
+    )
 
     if is_main:
         print(f"\n{'='*50}")
@@ -1061,6 +1128,9 @@ def train_ddp(args):
                 "backbone": args.backbone,
                 "strategy": args.strategy,
                 "task": args.task,
+                "representation": representation,
+                "source_projection_path": args.source_projection_path,
+                "n_meg_channels": n_model_channels,
                 "test_f1_macro": test_metrics["f1_macro"],
                 "test_f1_per_class": test_metrics.get("f1_per_class"),
                 "test_balanced_acc": test_metrics["balanced_acc"],
@@ -1115,6 +1185,10 @@ def parse_args():
     # Paths
     parser.add_argument("--data_path",  default="./libribrain_data")
     parser.add_argument("--output_dir", default="./results")
+    parser.add_argument("--source_projection_path", default=None,
+                        help="Matriz W sensor->fuente/ROI (.npy/.npz/.pt/.json) para proyectar antes de CWT")
+    parser.add_argument("--source_variant_name", default="source_lcmv",
+                        help="Nombre de la representación fuente en resultados")
 
     return parser.parse_args()
 

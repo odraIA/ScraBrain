@@ -1,8 +1,0 @@
-{
-  "experiment": "baseline_image_vittiny",
-  "tf_variant": "full_band_tf",
-  "epochs": 20,
-  "stage1_epochs": 6,
-  "batch_size": 32,
-  "seeds": [42, 43, 44]
-}

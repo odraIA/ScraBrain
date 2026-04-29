@@ -1,9 +1,0 @@
-{
-  "backbone": "efficientnet_b0",
-  "strategy": "partial_ft",
-  "task": "phoneme",
-  "test_f1_macro": 0.005208968902854613,
-  "test_balanced_acc": 0.02574421349515183,
-  "best_val_f1": 0.005361730689231552,
-  "timestamp": "2026-04-20T21:26:56.961450"
-}

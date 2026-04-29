@@ -72,6 +72,7 @@ REFERENCIA RÁPIDA
 import os
 import json
 import argparse
+import csv
 from unittest import loader
 import warnings
 from pathlib import Path
@@ -276,6 +277,89 @@ class MEGPreprocessor:
             epoch = np.clip(epoch, -self.clip_std, self.clip_std)
 
         return epoch
+
+
+class LinearSourceProjector:
+    """
+    Aplica una proyección lineal antes de la CWT: source = W @ sensors.
+
+    La idea es mantener el entrenamiento desacoplado de la construcción del
+    modelo directo/inverso. W puede venir de MNE-Python (LCMV por vértice o ROI),
+    DSS, PCA anatómicamente agregada, etc. El contrato es:
+
+        W.shape == (n_sources_or_rois, n_sensor_channels)
+        epoch.shape == (n_sensor_channels, n_times)
+
+    Formatos soportados:
+      - .npy: array W
+      - .npz: clave "W", "filters" o "projection"
+      - .pt/.pth: tensor o dict con "W", "filters" o "projection"
+      - .json: lista 2D
+    """
+
+    def __init__(self, projection_path: str, name: str = "source"):
+        self.projection_path = projection_path
+        self.name = name
+        self.matrix = self._load_matrix(projection_path)
+        if self.matrix.ndim != 2:
+            raise ValueError(
+                f"La matriz de proyección debe ser 2D; recibido {self.matrix.shape}"
+            )
+        self.n_outputs, self.n_inputs = self.matrix.shape
+
+    @staticmethod
+    def _load_matrix(path: str) -> np.ndarray:
+        suffix = Path(path).suffix.lower()
+
+        if suffix == ".npy":
+            matrix = np.load(path)
+        elif suffix == ".npz":
+            data = np.load(path)
+            for key in ("W", "filters", "projection"):
+                if key in data:
+                    matrix = data[key]
+                    break
+            else:
+                raise KeyError(
+                    f"{path} debe contener una clave W, filters o projection"
+                )
+        elif suffix in (".pt", ".pth"):
+            data = torch.load(path, map_location="cpu")
+            if isinstance(data, dict):
+                for key in ("W", "filters", "projection"):
+                    if key in data:
+                        data = data[key]
+                        break
+                else:
+                    raise KeyError(
+                        f"{path} debe contener una clave W, filters o projection"
+                    )
+            matrix = data.detach().cpu().numpy() if torch.is_tensor(data) else data
+        elif suffix == ".json":
+            with open(path, "r", encoding="utf-8") as f:
+                matrix = json.load(f)
+        else:
+            raise ValueError(
+                f"Formato no soportado para source_projection_path: {suffix}. "
+                "Usa .npy, .npz, .pt/.pth o .json."
+            )
+
+        return np.asarray(matrix, dtype=np.float32)
+
+    def validate_input_channels(self, n_channels: int):
+        if self.n_inputs != n_channels:
+            raise ValueError(
+                f"La proyección {self.projection_path} espera {self.n_inputs} "
+                f"canales, pero LibriBrain entregó {n_channels}."
+            )
+
+    def __call__(self, epoch: np.ndarray) -> np.ndarray:
+        if epoch.shape[0] != self.n_inputs:
+            raise ValueError(
+                f"Epoch con {epoch.shape[0]} canales; la proyección espera "
+                f"{self.n_inputs}."
+            )
+        return (self.matrix @ epoch).astype(np.float32)
 
 
 # ==============================================================================
@@ -555,11 +639,13 @@ class MEGImageDataset(Dataset):
         preprocessor: MEGPreprocessor,
         img_converter: MEGToImage,
         augment: bool = False,
+        signal_projector: Optional[LinearSourceProjector] = None,
     ):
         self.pnpl_dataset  = pnpl_dataset
         self.preprocessor  = preprocessor
         self.img_converter = img_converter
         self.augment       = augment
+        self.signal_projector = signal_projector
 
     def _process_sample(self, idx: int) -> Tuple[np.ndarray, int]:
         """Carga, preprocesa y convierte un sample a imagen."""
@@ -567,9 +653,14 @@ class MEGImageDataset(Dataset):
         # pnpl devuelve (epoch, label) donde epoch shape = (n_channels, T)
         epoch, label = sample[0], sample[1]
         epoch = np.array(epoch, dtype=np.float32)
+        label = reduce_label_to_scalar(label)
 
         # Preprocesado
         epoch = self.preprocessor(epoch)
+
+        # Proyección sensor -> fuente/ROI antes de la CWT.
+        if self.signal_projector is not None:
+            epoch = self.signal_projector(epoch)
 
         # Augmentation (solo durante entrenamiento)
         if self.augment:
@@ -578,7 +669,7 @@ class MEGImageDataset(Dataset):
         # Conversión a imagen
         image = self.img_converter(epoch)  # (3, 224, 224)
 
-        return image, int(label)
+        return image, label
 
     def _apply_augmentation(self, epoch: np.ndarray) -> np.ndarray:
         """Wrapper de compatibilidad hacia la función compartida de augmentación."""
@@ -598,6 +689,7 @@ def build_dataloaders(
     img_converter: MEGToImage,
     batch_size: int = 32,
     num_workers: int = 4,
+    signal_projector: Optional[LinearSourceProjector] = None,
 ) -> Tuple[DataLoader, DataLoader, DataLoader]:
     """
     Construye los DataLoaders de entrenamiento, validación y test.
@@ -608,14 +700,17 @@ def build_dataloaders(
     train_ds = MEGImageDataset(
         train_pnpl, preprocessor, img_converter,
         augment=True,
+        signal_projector=signal_projector,
     )
     val_ds = MEGImageDataset(
         val_pnpl, preprocessor, img_converter,
         augment=False,
+        signal_projector=signal_projector,
     )
     test_ds = MEGImageDataset(
         test_pnpl, preprocessor, img_converter,
         augment=False,
+        signal_projector=signal_projector,
     )
 
     train_loader = DataLoader(
@@ -633,6 +728,22 @@ def build_dataloaders(
 
     print(f"[INFO] Batches — Train: {len(train_loader)}, Val: {len(val_loader)}, Test: {len(test_loader)}")
     return train_loader, val_loader, test_loader
+
+
+def reduce_label_to_scalar(label) -> int:
+    """
+    Convierte labels de pnpl a un escalar por ventana.
+
+    LibriBrainSpeech devuelve una etiqueta 0/1 por muestra temporal; este
+    pipeline genera una sola imagen por ventana, así que entrenamos contra la
+    etiqueta central de la ventana.
+    """
+    label_arr = np.asarray(label)
+    if label_arr.ndim == 0 or label_arr.size == 1:
+        return int(label_arr.reshape(-1)[0])
+
+    center_idx = label_arr.size // 2
+    return int(label_arr.reshape(-1)[center_idx])
 
 
 # ==============================================================================
@@ -717,11 +828,12 @@ class MEGImageModel(nn.Module):
         self._apply_strategy(strategy)
 
         # ── Componente 3: Cabeza de clasificación ─────────────────────────────
+        output_dim = 1 if n_classes == 2 else n_classes
         self.classifier = nn.Sequential(
             nn.Linear(feature_dim, 512),
             nn.ReLU(inplace=True),
             nn.Dropout(dropout_rate),
-            nn.Linear(512, n_classes),
+            nn.Linear(512, output_dim),
         )
 
     def _build_backbone(self, name: str, pretrained: bool) -> Tuple[nn.Module, int]:
@@ -770,15 +882,15 @@ class MEGImageModel(nn.Module):
         │ Estrategia      │ Qué se entrena                                           │
         ├─────────────────┼──────────────────────────────────────────────────────────┤
         │ frozen          │ Solo SensorMixer + classification head                   │
-        │                 │ Backbone completamente congelado                          │
+        │                 │ Backbone completamente congelado                         │
         │                 │ → Transfer learning puro, rápido pero menos flexible     │
         ├─────────────────┼──────────────────────────────────────────────────────────┤
-        │ partial_ft      │ SensorMixer + último bloque backbone + classification   │
+        │ partial_ft      │ SensorMixer + último bloque backbone + classification    │
         │                 │ Capas tempranas/medias congeladas                        │
         │                 │ → MEJOR según ablación ISBI: balance rendimiento/overfitting│
         ├─────────────────┼──────────────────────────────────────────────────────────┤
         │ full_ft         │ Todo el modelo                                           │
-        │                 │ → Mayor riesgo de overfitting, peor en LOSO             │
+        │                 │ → Mayor riesgo de overfitting, peor en LOSO              │
         └─────────────────┴──────────────────────────────────────────────────────────┘
         """
         if strategy == "frozen":
@@ -1036,6 +1148,66 @@ def compute_class_weights_isns(labels: np.ndarray, n_classes: int) -> torch.Tens
     return torch.tensor(weights, dtype=torch.float32)
 
 
+def compute_binary_pos_weight(labels: np.ndarray) -> torch.Tensor:
+    """Calcula pos_weight = n_neg / n_pos para BCEWithLogitsLoss."""
+    labels = np.asarray(labels, dtype=np.int64).reshape(-1)
+    counts = np.bincount(labels, minlength=2).astype(np.float32)
+    neg_count = max(counts[0], 1.0)
+    pos_count = max(counts[1], 1.0)
+    return torch.tensor([neg_count / pos_count], dtype=torch.float32)
+
+
+class BCEWithLogitsLossWithSmoothing(nn.Module):
+    """Binary cross-entropy con label smoothing determinista."""
+
+    def __init__(
+        self,
+        smoothing: float = 0.1,
+        pos_weight: Optional[torch.Tensor] = None,
+    ):
+        super().__init__()
+        self.smoothing = smoothing
+        self.register_buffer(
+            "pos_weight",
+            pos_weight.detach().clone() if pos_weight is not None else None,
+            persistent=False,
+        )
+
+    def forward(self, logits: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        target = target.float().view_as(logits)
+        if self.smoothing > 0:
+            target = target * (1.0 - self.smoothing) + self.smoothing * 0.5
+
+        return F.binary_cross_entropy_with_logits(
+            logits,
+            target,
+            pos_weight=self.pos_weight,
+        )
+
+
+def build_criterion(
+    n_classes: int,
+    class_weights: Optional[torch.Tensor] = None,
+    label_smoothing: float = 0.1,
+) -> nn.Module:
+    if n_classes == 2:
+        pos_weight = class_weights.to(DEVICE) if class_weights is not None else None
+        return BCEWithLogitsLossWithSmoothing(
+            smoothing=label_smoothing,
+            pos_weight=pos_weight,
+        )
+
+    weights = class_weights.to(DEVICE) if class_weights is not None else None
+    return nn.CrossEntropyLoss(weight=weights, label_smoothing=label_smoothing)
+
+
+def logits_to_predictions(logits: torch.Tensor, n_classes: int) -> np.ndarray:
+    if n_classes == 2 and logits.shape[1] == 1:
+        return (torch.sigmoid(logits).squeeze(1) >= 0.5).long().cpu().numpy()
+
+    return logits.argmax(dim=1).cpu().numpy()
+
+
 def build_optimizer_and_scheduler(
     model: MEGImageModel,
     config: TrainingConfig,
@@ -1119,6 +1291,7 @@ def train_one_epoch(
     optimizer,
     criterion: nn.Module,
     device: torch.device,
+    n_classes: int,
     grad_clip: float = 1.0,
 ) -> Dict[str, float]:
     """
@@ -1159,7 +1332,7 @@ def train_one_epoch(
         optimizer.step()
 
         total_loss += loss.item()
-        preds = logits.argmax(dim=1).cpu().numpy()
+        preds = logits_to_predictions(logits, n_classes)
         all_preds.extend(preds)
         all_labels.extend(batch_y.cpu().numpy())
 
@@ -1176,6 +1349,7 @@ def evaluate(
     loader: DataLoader,
     criterion: nn.Module,
     device: torch.device,
+    n_classes: int,
 ) -> Dict[str, float]:
     """
     Evalúa el modelo en el conjunto de validación o test.
@@ -1196,7 +1370,7 @@ def evaluate(
         loss   = criterion(logits, batch_y)
 
         total_loss += loss.item()
-        preds = logits.argmax(dim=1).cpu().numpy()
+        preds = logits_to_predictions(logits, n_classes)
         all_preds.extend(preds)
         all_labels.extend(batch_y.cpu().numpy())
 
@@ -1223,10 +1397,8 @@ def train_model(
     model = model.to(DEVICE)
 
     # ── Función de pérdida ────────────────────────────────────────────────────
-    # Cross-entropy ponderada para manejar desbalanceo de clases
-    weights = class_weights.to(DEVICE) if class_weights is not None else None
-    criterion = nn.CrossEntropyLoss(weight=weights, label_smoothing=0.1)
-    # Label smoothing 0.1: reduce sobreconfianza, mejora calibración
+    # Speech usa BCEWithLogits con smoothing; phoneme mantiene CrossEntropy.
+    criterion = build_criterion(config.n_classes, class_weights, label_smoothing=0.1)
 
     # ── Optimizador y scheduler ───────────────────────────────────────────────
     optimizer, scheduler = build_optimizer_and_scheduler(
@@ -1255,11 +1427,12 @@ def train_model(
 
         # ── Entrenamiento ─────────────────────────────────────────────────────
         train_metrics = train_one_epoch(
-            model, train_loader, optimizer, criterion, DEVICE, config.grad_clip
+            model, train_loader, optimizer, criterion, DEVICE,
+            config.n_classes, config.grad_clip
         )
 
         # ── Validación ────────────────────────────────────────────────────────
-        val_metrics = evaluate(model, val_loader, criterion, DEVICE)
+        val_metrics = evaluate(model, val_loader, criterion, DEVICE, config.n_classes)
 
         # ── Scheduler step ────────────────────────────────────────────────────
         if scheduler is not None:
@@ -1312,6 +1485,7 @@ def run_experiment(
     batch_size: int = 32,
     class_weights: Optional[torch.Tensor] = None,
     output_dir: str = "./results",
+    representation: str = "sensor",
 ) -> Dict:
     """
     Ejecuta un experimento completo para una combinación backbone × estrategia.
@@ -1321,6 +1495,8 @@ def run_experiment(
                  y configuración del experimento
     """
     exp_name = f"{backbone}_{strategy}_{'pretrained' if pretrained else 'scratch'}"
+    if representation != "sensor":
+        exp_name = f"{representation}__{exp_name}"
 
     config = TrainingConfig(
         backbone=backbone,
@@ -1353,10 +1529,8 @@ def run_experiment(
     history = train_model(model, train_loader, val_loader, config, class_weights)
 
     # Evaluación final en test
-    criterion = nn.CrossEntropyLoss(
-        weight=class_weights.to(DEVICE) if class_weights is not None else None
-    )
-    test_metrics = evaluate(model, test_loader, criterion, DEVICE)
+    criterion = build_criterion(n_classes, class_weights, label_smoothing=0.0)
+    test_metrics = evaluate(model, test_loader, criterion, DEVICE, n_classes)
 
     print(f"\n[TEST] {exp_name}")
     print(f"  F1-macro:      {test_metrics['f1_macro']:.4f}")
@@ -1377,6 +1551,8 @@ def run_experiment(
         "backbone": backbone,
         "strategy": strategy,
         "pretrained": pretrained,
+        "representation": representation,
+        "n_meg_channels": n_meg_channels,
         "test_f1_macro": test_metrics["f1_macro"],
         "test_balanced_acc": test_metrics["balanced_acc"],
         "history": history,
@@ -1395,7 +1571,7 @@ def compare_strategies(results: List[Dict], output_dir: str = "./results"):
     print("\n" + "="*70)
     print("  COMPARATIVA DE ESTRATEGIAS DE TRANSFER LEARNING")
     print("="*70)
-    print(f"{'Experimento':<40} {'F1-macro':>10} {'Bal.Acc':>10}")
+    print(f"{'Experimento':<50} {'F1-macro':>10} {'Bal.Acc':>10}")
     print("-"*70)
 
     # Ordenar por F1-macro descendente
@@ -1403,8 +1579,9 @@ def compare_strategies(results: List[Dict], output_dir: str = "./results"):
 
     for r in results_sorted:
         pretrained_str = "ImageNet" if r["pretrained"] else "Random"
-        exp_label = f"{r['backbone']} + {r['strategy']} ({pretrained_str})"
-        print(f"{exp_label:<40} {r['test_f1_macro']:>10.4f} {r['test_balanced_acc']:>10.4f}")
+        repr_str = r.get("representation", "sensor")
+        exp_label = f"{repr_str}: {r['backbone']} + {r['strategy']} ({pretrained_str})"
+        print(f"{exp_label:<50} {r['test_f1_macro']:>10.4f} {r['test_balanced_acc']:>10.4f}")
 
     print("="*70)
 
@@ -1413,7 +1590,7 @@ def compare_strategies(results: List[Dict], output_dir: str = "./results"):
     colors = plt.cm.tab10(np.linspace(0, 1, len(results)))
 
     for r, color in zip(results, colors):
-        label = f"{r['backbone']} + {r['strategy']}"
+        label = f"{r.get('representation', 'sensor')}: {r['backbone']} + {r['strategy']}"
         axes[0].plot(r["history"]["val_f1"],    label=label, color=color)
         axes[1].plot(r["history"]["val_loss"],  label=label, color=color)
 
@@ -1435,6 +1612,289 @@ def compare_strategies(results: List[Dict], output_dir: str = "./results"):
     print(f"\n[INFO] Curvas de entrenamiento guardadas: {plot_path}")
 
     return results_sorted
+
+
+def run_best_source_retrain(
+    best_result: Dict,
+    train_pnpl,
+    val_pnpl,
+    test_pnpl,
+    preprocessor: MEGPreprocessor,
+    n_classes: int,
+    sensor_n_channels: int,
+    class_weights: Optional[torch.Tensor],
+    args,
+) -> Dict:
+    """
+    Repite el entrenamiento ganador usando una proyección lineal antes de la CWT.
+
+    Esta fase está pensada para filtros LCMV/DSS ya calculados fuera del script.
+    En MNE-Python, lo más práctico es exportar la matriz final ROI/source x sensor
+    y pasarla con --source_projection_path.
+    """
+    source_projector = LinearSourceProjector(
+        args.source_projection_path,
+        name=args.source_variant_name,
+    )
+    source_projector.validate_input_channels(sensor_n_channels)
+
+    print("\n[PASO 9] Reentrenando el mejor modelo con proyección fuente antes de CWT...")
+    print(f"  - Proyección: {args.source_projection_path}")
+    print(
+        f"  - Canales: {source_projector.n_inputs} sensores -> "
+        f"{source_projector.n_outputs} fuentes/ROIs"
+    )
+    print(
+        f"  - Config ganadora: {best_result['backbone']} | "
+        f"{best_result['strategy']} | "
+        f"{'ImageNet' if best_result['pretrained'] else 'RandomInit'}"
+    )
+
+    source_img_converter = MEGToImage(
+        sfreq=250.0,
+        n_freqs=args.n_freqs,
+        f_min=1.0,
+        f_max=125.0,
+        img_size=224,
+        wavelet="cmor1.5-1.0",
+        projection="pca",
+    )
+
+    source_train_loader, source_val_loader, source_test_loader = build_dataloaders(
+        train_pnpl,
+        val_pnpl,
+        test_pnpl,
+        preprocessor,
+        source_img_converter,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
+        signal_projector=source_projector,
+    )
+
+    return run_experiment(
+        backbone=best_result["backbone"],
+        strategy=best_result["strategy"],
+        train_loader=source_train_loader,
+        val_loader=source_val_loader,
+        test_loader=source_test_loader,
+        n_classes=n_classes,
+        n_meg_channels=source_projector.n_outputs,
+        pretrained=best_result["pretrained"],
+        n_epochs=args.n_epochs,
+        batch_size=args.batch_size,
+        class_weights=class_weights,
+        output_dir=args.output_dir,
+        representation=args.source_variant_name,
+    )
+
+
+def _load_sensor_xyz(sensor_xyz_path: str, n_channels: int) -> np.ndarray:
+    """Carga coordenadas xyz de sensores y valida que coincidan con el modelo."""
+    with open(sensor_xyz_path, "r", encoding="utf-8") as f:
+        coords = np.asarray(json.load(f), dtype=np.float32)
+
+    if coords.ndim != 2 or coords.shape[1] != 3:
+        raise ValueError(
+            f"sensor_xyz debe tener shape (n_channels, 3); recibido {coords.shape}"
+        )
+    if coords.shape[0] != n_channels:
+        raise ValueError(
+            f"sensor_xyz tiene {coords.shape[0]} sensores, pero SensorMixer usa "
+            f"{n_channels} canales"
+        )
+    return coords
+
+
+def _aggregate_sensor_weights(
+    weights: np.ndarray,
+    coords: np.ndarray,
+    decimals: int = 6,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, List[np.ndarray]]:
+    """
+    Agrupa canales MEG con la misma coordenada física.
+
+    LibriBrain usa 306 canales y muchas coordenadas se repiten en tripletes
+    para representar componentes/orientaciones del mismo sensor. Para interpretar
+    regiones, la importancia física se calcula como norma L2 de todos los pesos
+    que llegan a ese punto.
+    """
+    rounded = np.round(coords, decimals=decimals)
+    _, first_idx, inverse = np.unique(
+        rounded, axis=0, return_index=True, return_inverse=True
+    )
+    order = np.argsort(first_idx)
+
+    grouped_coords = []
+    grouped_rgb = []
+    grouped_importance = []
+    grouped_indices = []
+
+    for group_id in order:
+        idx = np.flatnonzero(inverse == group_id)
+        grouped_indices.append(idx)
+        grouped_coords.append(coords[idx].mean(axis=0))
+        grouped_rgb.append(weights[:, idx].mean(axis=1))
+        grouped_importance.append(float(np.linalg.norm(weights[:, idx])))
+
+    return (
+        np.asarray(grouped_coords, dtype=np.float32),
+        np.asarray(grouped_rgb, dtype=np.float32),
+        np.asarray(grouped_importance, dtype=np.float32),
+        grouped_indices,
+    )
+
+
+def _scatter_sensor_map(
+    ax,
+    xy: np.ndarray,
+    values: np.ndarray,
+    title: str,
+    xlabel: str,
+    ylabel: str,
+    cmap: str,
+    symmetric: bool = False,
+):
+    """Dibuja un mapa 2D de sensores con escalado estable de color."""
+    if symmetric:
+        vmax = float(np.nanmax(np.abs(values)))
+        vmin = -vmax
+    else:
+        vmin = float(np.nanmin(values))
+        vmax = float(np.nanmax(values))
+
+    if np.isclose(vmin, vmax):
+        vmin -= 1.0
+        vmax += 1.0
+
+    sizes = 35.0 + 180.0 * (
+        (np.abs(values) - np.nanmin(np.abs(values)))
+        / (np.ptp(np.abs(values)) + 1e-8)
+    )
+    sc = ax.scatter(
+        xy[:, 0],
+        xy[:, 1],
+        c=values,
+        s=sizes,
+        cmap=cmap,
+        vmin=vmin,
+        vmax=vmax,
+        edgecolors="black",
+        linewidths=0.25,
+        alpha=0.9,
+    )
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_aspect("equal", adjustable="box")
+    ax.grid(True, alpha=0.2)
+    return sc
+
+
+def visualize_sensor_mixer_weights(
+    model: nn.Module,
+    sensor_xyz_path: str,
+    output_dir: str,
+    experiment_name: str,
+    top_k: int = 20,
+) -> Dict[str, str]:
+    """
+    Proyecta los pesos aprendidos de SensorMixer al espacio físico de sensores.
+
+    Guarda:
+      - sensor_mixer_importance.png: importancia L2 agregada por sensor físico.
+      - sensor_mixer_rgb_weights.png: mapas firmados para las 3 salidas RGB.
+      - sensor_mixer_top_sensors.csv: ranking de sensores más informativos.
+    """
+    if not hasattr(model, "sensor_mixer") or not hasattr(model.sensor_mixer, "conv"):
+        raise ValueError("El modelo no contiene un módulo sensor_mixer.conv")
+
+    weight_tensor = model.sensor_mixer.conv.weight.detach().cpu()
+    weights = weight_tensor.squeeze(-1).squeeze(-1).numpy()  # (3, n_channels)
+    if weights.ndim != 2:
+        raise ValueError(f"Pesos SensorMixer inesperados: shape {weights.shape}")
+
+    n_output_channels, n_channels = weights.shape
+    coords = _load_sensor_xyz(sensor_xyz_path, n_channels)
+    grouped_coords, grouped_rgb, importance, grouped_indices = _aggregate_sensor_weights(
+        weights, coords
+    )
+
+    out_dir = Path(output_dir) / "sensor_mixer"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    safe_exp_name = experiment_name.replace("/", "_").replace(" ", "_")
+
+    csv_path = out_dir / f"{safe_exp_name}_top_sensors.csv"
+    rank = np.argsort(importance)[::-1]
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            "rank", "sensor_group", "channel_indices", "x", "y", "z",
+            "importance_l2", "weight_out0", "weight_out1", "weight_out2",
+        ])
+        for row_rank, sensor_idx in enumerate(rank[:top_k], start=1):
+            rgb = grouped_rgb[sensor_idx]
+            padded_rgb = np.pad(rgb, (0, max(0, 3 - len(rgb))))[:3]
+            writer.writerow([
+                row_rank,
+                int(sensor_idx),
+                " ".join(map(str, grouped_indices[sensor_idx].tolist())),
+                float(grouped_coords[sensor_idx, 0]),
+                float(grouped_coords[sensor_idx, 1]),
+                float(grouped_coords[sensor_idx, 2]),
+                float(importance[sensor_idx]),
+                float(padded_rgb[0]),
+                float(padded_rgb[1]),
+                float(padded_rgb[2]),
+            ])
+
+    fig, axes = plt.subplots(1, 3, figsize=(16, 4.8))
+    views = [
+        ((0, 1), "Vista axial", "x izquierda-derecha", "y anterior-posterior"),
+        ((0, 2), "Vista coronal", "x izquierda-derecha", "z inferior-superior"),
+        ((1, 2), "Vista sagital", "y anterior-posterior", "z inferior-superior"),
+    ]
+    for ax, (dims, title, xlabel, ylabel) in zip(axes, views):
+        sc = _scatter_sensor_map(
+            ax,
+            grouped_coords[:, dims],
+            importance,
+            title,
+            xlabel,
+            ylabel,
+            cmap="viridis",
+            symmetric=False,
+        )
+    fig.suptitle(f"SensorMixer: importancia L2 por sensor - {experiment_name}")
+    fig.colorbar(sc, ax=axes.ravel().tolist(), shrink=0.85, label="||pesos||2")
+    importance_path = out_dir / f"{safe_exp_name}_importance.png"
+    fig.savefig(importance_path, dpi=180, bbox_inches="tight")
+    plt.close(fig)
+
+    fig, axes = plt.subplots(1, n_output_channels, figsize=(5.2 * n_output_channels, 4.8))
+    if n_output_channels == 1:
+        axes = [axes]
+    for out_idx, ax in enumerate(axes):
+        sc = _scatter_sensor_map(
+            ax,
+            grouped_coords[:, [0, 1]],
+            grouped_rgb[:, out_idx],
+            f"Salida {out_idx}",
+            "x izquierda-derecha",
+            "y anterior-posterior",
+            cmap="coolwarm",
+            symmetric=True,
+        )
+    fig.suptitle(f"SensorMixer: pesos firmados por salida - {experiment_name}")
+    fig.colorbar(sc, ax=np.asarray(axes).ravel().tolist(), shrink=0.85, label="peso medio")
+    rgb_path = out_dir / f"{safe_exp_name}_rgb_weights.png"
+    fig.savefig(rgb_path, dpi=180, bbox_inches="tight")
+    plt.close(fig)
+
+    return {
+        "importance_png": str(importance_path),
+        "rgb_weights_png": str(rgb_path),
+        "top_sensors_csv": str(csv_path),
+    }
 
 
 # ==============================================================================
@@ -1462,8 +1922,22 @@ def parse_args():
     parser.add_argument("--output_dir", type=str, default="./results")
     parser.add_argument("--n_epochs",   type=int, default=30)
     parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--num_workers", type=int, default=4,
+                        help="Workers de DataLoader")
     parser.add_argument("--n_freqs",    type=int, default=96,
                         help="Bins de frecuencia para CWT (96 como en ISBI 2026)")
+    parser.add_argument("--source_retrain_best", action="store_true",
+                        help="Al final, repetir el mejor entrenamiento con proyección fuente antes de CWT")
+    parser.add_argument("--source_projection_path", type=str, default=None,
+                        help="Matriz W sensor->fuente/ROI (.npy/.npz/.pt/.json) para la segunda pasada")
+    parser.add_argument("--source_variant_name", type=str, default="source_lcmv",
+                        help="Prefijo/nombre de la variante fuente en resultados")
+    parser.add_argument("--sensor_xyz_path", type=str, default="./libribrain/sensor_xyz.json",
+                        help="Coordenadas xyz de sensores para visualizar SensorMixer")
+    parser.add_argument("--top_sensor_k", type=int, default=20,
+                        help="Número de sensores físicos a guardar en el ranking CSV")
+    parser.add_argument("--no_sensor_mixer_viz", action="store_true",
+                        help="No generar mapas de pesos de SensorMixer al final")
     return parser.parse_args()
 
 def get_labels_fast(dataset) -> np.ndarray:
@@ -1473,14 +1947,25 @@ def get_labels_fast(dataset) -> np.ndarray:
             dataset.phoneme_to_id[s[-1].rsplit('_', 1)[0]]
             for s in dataset.samples
         ])
-    else:
-        raise NotImplementedError(
-            f"get_labels_fast no implementado para {type(dataset).__name__}. "
-            "Inspeccionar dataset.samples[0] y añadir el caso correspondiente."
-        )
+
+    if hasattr(dataset, 'samples'):
+        labels = np.array([reduce_label_to_scalar(s[-1]) for s in dataset.samples])
+        if np.isin(labels, [0, 1]).all():
+            return labels
+
+    raise NotImplementedError(
+        f"get_labels_fast no implementado para {type(dataset).__name__}. "
+        "Inspeccionar dataset.samples[0] y añadir el caso correspondiente."
+    )
 
 def main():
     args = parse_args()
+    run_source_retrain = args.source_retrain_best or args.source_projection_path is not None
+    if run_source_retrain and args.source_projection_path is None:
+        raise ValueError(
+            "--source_retrain_best requiere --source_projection_path con una matriz "
+            "W sensor->fuente/ROI."
+        )
 
     print("\n" + "="*60)
     print("  MEG TRANSFER LEARNING — LibriBrain Dataset")
@@ -1529,15 +2014,19 @@ def main():
         train_pnpl, val_pnpl, test_pnpl,
         preprocessor, img_converter,
         batch_size=args.batch_size,
-        num_workers=4,
+        num_workers=args.num_workers,
     )
 
     # ── PASO 5: Pesos de clase para loss ponderada ────────────────────────────
-    print("\n[PASO 5] Calculando pesos de clase (ISNS: 1/sqrt(n_c))...")
+    print("\n[PASO 5] Calculando pesos de clase...")
     # Extraer etiquetas del conjunto de entrenamiento para calcular pesos
-    train_labels = get_labels_fast(train_pnpl)  
-    class_weights = compute_class_weights_isns(train_labels, n_classes)
-    print(f"  Pesos calculados para {n_classes} clases")
+    train_labels = get_labels_fast(train_pnpl)
+    if n_classes == 2:
+        class_weights = compute_binary_pos_weight(train_labels)
+        print(f"  pos_weight BCE speech: {class_weights.item():.4f}")
+    else:
+        class_weights = compute_class_weights_isns(train_labels, n_classes)
+        print(f"  Pesos ISNS calculados para {n_classes} clases")
 
     # ── PASO 6: Definir experimentos ──────────────────────────────────────────
     print("\n[PASO 6] Configurando experimentos...")
@@ -1609,6 +2098,51 @@ def main():
     print(f"  F1-macro:    {best['test_f1_macro']:.4f}")
     print(f"  Bal. Acc:    {best['test_balanced_acc']:.4f}")
     print(f"{'='*60}\n")
+
+    source_result = None
+    if run_source_retrain:
+        source_result = run_best_source_retrain(
+            best_result=best,
+            train_pnpl=train_pnpl,
+            val_pnpl=val_pnpl,
+            test_pnpl=test_pnpl,
+            preprocessor=preprocessor,
+            n_classes=n_classes,
+            sensor_n_channels=n_channels,
+            class_weights=class_weights,
+            args=args,
+        )
+        all_results.append(source_result)
+        print("\n[COMPARACIÓN SENSOR VS FUENTE]")
+        print(
+            f"  Sensor best: {best['test_f1_macro']:.4f} F1 | "
+            f"{best['test_balanced_acc']:.4f} Bal.Acc"
+        )
+        print(
+            f"  {args.source_variant_name}: {source_result['test_f1_macro']:.4f} F1 | "
+            f"{source_result['test_balanced_acc']:.4f} Bal.Acc"
+        )
+
+    if not args.no_sensor_mixer_viz:
+        print("[PASO 10] Visualizando pesos de SensorMixer...")
+        try:
+            viz_paths = visualize_sensor_mixer_weights(
+                model=best["model"],
+                sensor_xyz_path=args.sensor_xyz_path,
+                output_dir=args.output_dir,
+                experiment_name=best["experiment"],
+                top_k=args.top_sensor_k,
+            )
+            print("  Mapas SensorMixer guardados:")
+            for label, path in viz_paths.items():
+                print(f"    - {label}: {path}")
+            print(
+                "  Nota: en la ruta PCA actual, MEGImageModel.forward() no usa "
+                "SensorMixer; para interpretar regiones, entrena/evalúa la variante "
+                "end-to-end donde la conv 1×1 recibe escalogramas raw."
+            )
+        except Exception as exc:
+            warnings.warn(f"No se pudo visualizar SensorMixer: {exc}")
 
 
 if __name__ == "__main__":
