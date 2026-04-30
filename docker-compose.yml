@@ -42,6 +42,7 @@ x-meg-base: &meg-base
 
   volumes:
     - ./:/workspace:rw
+    - scrabrain_uv_venv:/workspace/.venv:rw
     - ./libribrain_data:/workspace/libribrain_data:rw
     - ./checkpoints:/workspace/checkpoints:rw
     - ./results:/workspace/results:rw
@@ -49,12 +50,14 @@ x-meg-base: &meg-base
     - ./hf_cache:/workspace/cache:rw
 
   environment:
-    - HF_TOKEN=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
+    - HF_TOKEN=${HF_TOKEN}
     - HF_DATASET=pnpl/LibriBrain
     - HF_HOME=/workspace/cache/huggingface
     - XDG_CACHE_HOME=/workspace/cache
     - MPLCONFIGDIR=/workspace/cache/matplotlib
     - PNPL_CACHE_DIR=/workspace/cache/pnpl
+    - UV_PROJECT_ENVIRONMENT=/workspace/.venv
+    - VIRTUAL_ENV=/workspace/.venv
     - UID=${UID:-1000}
     - GID=${GID:-1000}
 
@@ -125,11 +128,14 @@ services:
               capabilities: [gpu]
 
     environment:
-      - HF_TOKEN=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
+      - HF_TOKEN=${HF_TOKEN}
+      - HF_DATASET=pnpl/LibriBrain
       - HF_HOME=/workspace/cache/huggingface
       - XDG_CACHE_HOME=/workspace/cache
       - MPLCONFIGDIR=/workspace/cache/matplotlib
       - PNPL_CACHE_DIR=/workspace/cache/pnpl
+      - UV_PROJECT_ENVIRONMENT=/workspace/.venv
+      - VIRTUAL_ENV=/workspace/.venv
       - UID=${UID:-1000}
       - GID=${GID:-1000}
       - MASTER_ADDR=localhost
@@ -162,7 +168,29 @@ services:
 
 
   # ============================================================================
-  # SERVICIO 3: Monitor de entrenamiento
+  # SERVICIO 3: Shell interactiva para depuración
+  # ============================================================================
+  dev_shell:
+    <<: *meg-base
+    container_name: meg_dev_shell
+    entrypoint: []
+    command: ["tail", "-f", "/dev/null"]
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+    network_mode: host
+    ipc: host
+    restart: "no"
+
+
+  # ============================================================================
+  # SERVICIO 4: Monitor de entrenamiento
   # ============================================================================
   # Dashboard web en tiempo real que muestra:
   #   - Estado de cada experimento del sweep (pending/running/done/failed)
@@ -248,3 +276,6 @@ services:
 
     # ── El monitor NO depende del training para arrancar ──────────────────────
     # Puedes levantarlo antes, durante o después del sweep.
+
+volumes:
+  scrabrain_uv_venv:

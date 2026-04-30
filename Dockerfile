@@ -2,7 +2,7 @@
 # Dockerfile — MEG Transfer Learning con PyTorch + NVIDIA RTX 6000
 # ==============================================================================
 #
-# Base: imagen oficial PyTorch con CUDA 12.1 y cuDNN 8 (compatible RTX 6000 Ada)
+# Base: imagen oficial PyTorch con CUDA 12.8 y cuDNN 9 (compatible RTX 6000 Ada)
 # Para Quadro RTX 6000 (Turing, CUDA 11.x) cambiar a:
 #   pytorch/pytorch:2.1.0-cuda11.8-cudnn8-runtime
 #
@@ -18,6 +18,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    UV_PROJECT_ENVIRONMENT=/workspace/.venv \
+    VIRTUAL_ENV=/workspace/.venv \
+    PATH="/workspace/.venv/bin:${PATH}" \
     # Optimizaciones CUDA
     CUDA_LAUNCH_BLOCKING=0 \
     TORCH_CUDA_ARCH_LIST="12.0" \
@@ -41,22 +44,25 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# ── Instalar uv ───────────────────────────────────────────────────────────────
+RUN pip install --no-cache-dir uv==0.11.8
+
 # ── Crear usuario no-root (SEGURIDAD: nunca ejecutar como root en producción) ──
 # UID/GID 1000 para coincidir con usuario típico del host (evita problemas de permisos)
 
 # ── Directorio de trabajo ──────────────────────────────────────────────────────
 WORKDIR ${WORKDIR_PATH}
 
-# ── Copiar requirements primero (cachear capa si no cambian) ───────────────────
-COPY requirements.txt .
+# ── Copiar metadata primero (cachear capa si no cambian) ──────────────────────
+COPY pyproject.toml uv.lock ./
 
-# ── Instalar dependencias Python ───────────────────────────────────────────────
-# Se instalan como root, luego se cede a meguser
-RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
+# ── Instalar dependencias Python con uv ────────────────────────────────────────
+# La venv ve site-packages de la imagen base para reutilizar PyTorch + CUDA.
+RUN uv venv --system-site-packages "${UV_PROJECT_ENVIRONMENT}" && \
+    uv sync --frozen --no-dev --inexact --no-install-project
 
 # ── Copiar código del proyecto ─────────────────────────────────────────────────
-# Se copia al final para no invalidar la caché de pip en cada cambio de código
+# Se copia al final para no invalidar la caché de uv en cada cambio de código
 COPY . .
 
 RUN useradd -m -u 1000 meguser

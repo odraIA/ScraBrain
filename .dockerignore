@@ -11,6 +11,7 @@ tensorboard/
 .gitignore
 .vscode/
 .idea/
+.venv/
 __pycache__/
 *.pyc
 *.pyo
