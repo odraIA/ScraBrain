@@ -143,6 +143,9 @@ ENV/
 env.bak/
 venv.bak/
 
+# Large local converted datasets
+converted_libribrain_data/
+
 # Spyder project settings
 .spyderproject
 .spyproject
@@ -207,6 +210,8 @@ __marimo__/
 
 data/
 libribrain_data/
+sherlock_data/
+alter_data/
 checkpoints/
 __pycache__/
 *.pyc

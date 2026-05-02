@@ -26,6 +26,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader, DistributedSampler
 from typing import Tuple, Optional
+from functools import partial
+
+from megxl_adapters.collate import megxl_collate
+from megxl_adapters.datasets import LibriBrainRawWrapper
+from megxl_adapters.sensor_mask import apply_sensor_mask
 
 
 # ==============================================================================
@@ -286,6 +291,23 @@ def zscore_scalogram(scalogram: torch.Tensor) -> torch.Tensor:
     return (scalogram - mean) / std
 
 
+def apply_cwt_and_normalize(
+    cwt_layer: CWTLayer,
+    raw: torch.Tensor,
+    sensor_mask: Optional[torch.Tensor] = None,
+) -> torch.Tensor:
+    """
+    Apply MEG-XL-style sensor masking around CWT + z-score.
+
+    The mask is optional, so the existing fixed-306-channel LibriBrain path is
+    unchanged when sensor_mask is None.
+    """
+    raw = apply_sensor_mask(raw, sensor_mask)
+    scalogram = cwt_layer(raw)
+    scalogram = zscore_scalogram(scalogram)
+    return apply_sensor_mask(scalogram, sensor_mask)
+
+
 # ==============================================================================
 # 4. FUNCIÓN DE CONSTRUCCIÓN DE DATALOADERS
 # ==============================================================================
@@ -367,6 +389,95 @@ def build_raw_dataloaders(
         print(f"  Train:      {len(train_ds):,} samples → {len(train_loader):,} batches/rank")
         print(f"  Validation: {len(val_ds):,} samples → {len(val_loader):,} batches/rank")
         print(f"  Test:       {len(test_ds):,} samples → {len(test_loader):,} batches/rank")
+        print(f"  Eval batch/rank: {eval_batch_size} | Eval workers/rank: {eval_num_workers}")
+
+    return train_loader, val_loader, test_loader, train_sampler
+
+
+def build_masked_raw_dataloaders(
+    train_pnpl,
+    val_pnpl,
+    test_pnpl,
+    preprocessor,
+    max_channels: int = 306,
+    task: str = "phoneme",
+    batch_size: int = 256,
+    num_workers: int = 12,
+    eval_batch_size: Optional[int] = None,
+    eval_num_workers: Optional[int] = None,
+    distributed: bool = False,
+    rank: int = 0,
+    world_size: int = 1,
+) -> Tuple[DataLoader, DataLoader, DataLoader]:
+    """
+    Construye DataLoaders raw que devuelven dicts con meg/sensor_mask/label.
+    """
+    train_ds = LibriBrainRawWrapper(
+        train_pnpl, preprocessor=preprocessor, task=task, augment=True
+    )
+    val_ds = LibriBrainRawWrapper(
+        val_pnpl, preprocessor=preprocessor, task=task, augment=False
+    )
+    test_ds = LibriBrainRawWrapper(
+        test_pnpl, preprocessor=preprocessor, task=task, augment=False
+    )
+
+    eval_batch_size = batch_size if eval_batch_size is None else eval_batch_size
+    eval_num_workers = min(num_workers, 2) if eval_num_workers is None else eval_num_workers
+    collate_fn = partial(megxl_collate, max_channels=max_channels)
+
+    train_sampler = None
+    val_sampler = None
+    test_sampler = None
+    if distributed:
+        train_sampler = DistributedSampler(
+            train_ds, num_replicas=world_size, rank=rank, shuffle=True
+        )
+        val_sampler = DistributedSampler(
+            val_ds, num_replicas=world_size, rank=rank, shuffle=False, drop_last=False
+        )
+        test_sampler = DistributedSampler(
+            test_ds, num_replicas=world_size, rank=rank, shuffle=False, drop_last=False
+        )
+
+    train_loader = DataLoader(
+        train_ds,
+        batch_size=batch_size,
+        shuffle=(train_sampler is None),
+        sampler=train_sampler,
+        num_workers=num_workers,
+        pin_memory=True,
+        drop_last=True,
+        persistent_workers=(num_workers > 0),
+        collate_fn=collate_fn,
+    )
+    val_loader = DataLoader(
+        val_ds,
+        batch_size=eval_batch_size,
+        shuffle=False,
+        sampler=val_sampler,
+        num_workers=eval_num_workers,
+        pin_memory=True,
+        persistent_workers=(eval_num_workers > 0),
+        collate_fn=collate_fn,
+    )
+    test_loader = DataLoader(
+        test_ds,
+        batch_size=eval_batch_size,
+        shuffle=False,
+        sampler=test_sampler,
+        num_workers=eval_num_workers,
+        pin_memory=True,
+        persistent_workers=(eval_num_workers > 0),
+        collate_fn=collate_fn,
+    )
+
+    if rank == 0:
+        print("[INFO] DataLoaders MEG raw con sensor_mask:")
+        print(f"  max_channels: {max_channels}")
+        print(f"  Train:      {len(train_ds):,} samples -> {len(train_loader):,} batches/rank")
+        print(f"  Validation: {len(val_ds):,} samples -> {len(val_loader):,} batches/rank")
+        print(f"  Test:       {len(test_ds):,} samples -> {len(test_loader):,} batches/rank")
         print(f"  Eval batch/rank: {eval_batch_size} | Eval workers/rank: {eval_num_workers}")
 
     return train_loader, val_loader, test_loader, train_sampler

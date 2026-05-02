@@ -178,13 +178,36 @@ def load_libribrain(config: LibriBrainConfig):
         n_classes: número de clases para la tarea elegida
         n_channels: número de canales MEG (306 para LibriBrain)
     """
+    Path(config.data_path).mkdir(parents=True, exist_ok=True)
+
+    from megxl_adapters.converted_libribrain import (
+        ConvertedLibriBrainDataset,
+        has_converted_manifest,
+    )
+
+    if has_converted_manifest(config.data_path):
+        print(
+            f"[INFO] Cargando dataset convertido tipo LibriBrain – "
+            f"tarea: {config.task}, partición: {config.partition}"
+        )
+        dataset = ConvertedLibriBrainDataset(
+            data_path=config.data_path,
+            task=config.task,
+            partition=config.partition,
+        )
+        n_classes = 2 if config.task == "speech" else 39
+        n_channels = dataset.n_channels
+        print(
+            f"[INFO] Dataset convertido cargado: {len(dataset)} samples, "
+            f"{n_classes} clases, hasta {n_channels} canales"
+        )
+        return dataset, n_classes, n_channels
+
     if not PNPL_AVAILABLE:
         raise RuntimeError(
             "pnpl no está disponible. Instalar con:\n"
             "  pip install git+https://github.com/neural-processing-lab/frozen-pnpl"
         )
-
-    Path(config.data_path).mkdir(parents=True, exist_ok=True)
 
     print(f"[INFO] Cargando LibriBrain – tarea: {config.task}, partición: {config.partition}")
 
@@ -1219,14 +1242,26 @@ class MEGImageModelEndToEnd(nn.Module):
             self._set_frozen_backbone_bn_eval()
         return self
 
-    def forward(self, scalograms: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        scalograms: torch.Tensor,
+        sensor_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
         """
         Args:
             scalograms: (batch, n_channels, n_freqs, T) — escalogramas raw
+            sensor_mask: optional (batch, n_channels) boolean mask. True marks
+                real sensors and False marks padded channels.
 
         Returns:
             logits: (batch, n_classes)
         """
+        if sensor_mask is not None:
+            mask = sensor_mask.to(device=scalograms.device, dtype=scalograms.dtype)
+            if mask.ndim == 1:
+                mask = mask.unsqueeze(0).expand(scalograms.shape[0], -1)
+            scalograms = scalograms * mask[:, :, None, None]
+
         # Proyección sensor->RGB: conv learnable, media gris o PCA fija.
         x = self.sensor_mixer(scalograms)  # (batch, 3, n_freqs, T)
 
@@ -1271,6 +1306,9 @@ class TrainingConfig:
     dropout_rate: float = 0.5
     sensor_projection: str = "conv"     # conv | mean | pca
     pca_max_fit_samples: int = 65_536
+    use_sensor_mask: bool = False
+    max_channels: int = 306
+    pretrained_ckpt: str = "none"
 
     # ── Optimización ──────────────────────────────────────────────────────────
     lr_head: float = 1e-3               # LR para SensorMixer + classification head

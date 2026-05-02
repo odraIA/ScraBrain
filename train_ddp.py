@@ -66,7 +66,15 @@ from meg_transfer_learning_libribrain import (
     DEVICE,
 )
 
-from meg_gpu_cwt import CWTLayer, MEGRawDataset, build_raw_dataloaders, zscore_scalogram
+from meg_gpu_cwt import (
+    CWTLayer,
+    MEGRawDataset,
+    build_masked_raw_dataloaders,
+    build_raw_dataloaders,
+    zscore_scalogram,
+)
+from megxl_adapters.checkpoints import load_pretrained_weights
+from megxl_adapters.sensor_mask import apply_sensor_mask
 
 
 # ==============================================================================
@@ -88,6 +96,13 @@ def _apply_source_projection(
     """Aplica W @ sensors en batch antes de la CWT."""
     if source_projection is None:
         return batch_x
+    if source_projection.shape[1] != batch_x.shape[1]:
+        raise ValueError(
+            f"source_projection espera {source_projection.shape[1]} canales, "
+            f"pero el batch tiene {batch_x.shape[1]}. Si usas --use_sensor_mask "
+            "con padding multi-dataset, desactiva source_projection o usa una "
+            "proyección compatible con --max_channels."
+        )
     return torch.einsum("oc,bct->bot", source_projection, batch_x)
 
 
@@ -95,6 +110,7 @@ def _apply_cwt_and_normalize(
     cwt_layer,
     batch_x: torch.Tensor,
     source_projection: Optional[torch.Tensor] = None,
+    sensor_mask: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     """
     Aplica CWT + z-score en GPU. Sin gradientes (el CWT no es diferenciable
@@ -109,10 +125,33 @@ def _apply_cwt_and_normalize(
         scalogram : (B, 306, n_freqs, T) float32, z-score normalizado
     """
     with torch.no_grad():
+        batch_x = apply_sensor_mask(batch_x, sensor_mask)
         batch_x = _apply_source_projection(batch_x, source_projection)
         scalogram = cwt_layer(batch_x)           # (B, 306, n_freqs, T)
         scalogram = zscore_scalogram(scalogram)  # normalización por banda
+        if source_projection is None:
+            scalogram = apply_sensor_mask(scalogram, sensor_mask)
     return scalogram
+
+
+def _move_batch_to_device(
+    batch,
+    device: torch.device,
+) -> tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
+    """Accept the legacy tuple batch and the MEG-XL dict batch."""
+    if isinstance(batch, dict):
+        batch_x = batch["meg"]
+        batch_y = batch["label"]
+        sensor_mask = batch.get("sensor_mask")
+    else:
+        batch_x, batch_y = batch
+        sensor_mask = None
+
+    batch_x = batch_x.to(device, non_blocking=True)
+    batch_y = batch_y.to(device, non_blocking=True)
+    if sensor_mask is not None:
+        sensor_mask = sensor_mask.to(device, non_blocking=True)
+    return batch_x, batch_y, sensor_mask
 
 
 def _gather_numpy_concat(local_array: np.ndarray) -> np.ndarray:
@@ -230,23 +269,23 @@ def train_one_epoch_raw(
 
     is_main = (not dist.is_initialized()) or dist.get_rank() == 0
 
-    for batch_idx, (batch_x, batch_y) in enumerate(
+    for batch_idx, batch in enumerate(
         tqdm(loader, desc="Train", leave=False, disable=not is_main)
     ):
-        batch_x = batch_x.to(device, non_blocking=True)  # (B, 306, T)
-        batch_y = batch_y.to(device, non_blocking=True)
+        batch_x, batch_y, sensor_mask = _move_batch_to_device(batch, device)
+        model_sensor_mask = sensor_mask if source_projection is None else None
 
         if batch_idx % 50 == 0 and is_main:
             print(f"  [batch {batch_idx}/{len(loader)}]", flush=True)
 
         # ── CWT en GPU (sin gradientes) ────────────────────────────────────────
         scalogram = _apply_cwt_and_normalize(
-            cwt_layer, batch_x, source_projection
+            cwt_layer, batch_x, source_projection, sensor_mask
         )  # (B, C, F, T)
 
         # ── Forward ───────────────────────────────────────────────────────────
         optimizer.zero_grad()
-        logits = model(scalogram)
+        logits = model(scalogram, sensor_mask=model_sensor_mask)
         loss, probs, preds = _loss_probs_preds_from_logits(logits, batch_y, criterion)
 
         # ── Backward ──────────────────────────────────────────────────────────
@@ -301,12 +340,14 @@ def evaluate_raw(
     all_probs  = []
     is_main = (not dist.is_initialized()) or dist.get_rank() == 0
 
-    for batch_x, batch_y in tqdm(loader, desc="Eval", leave=False, disable=not is_main):
-        batch_x = batch_x.to(device, non_blocking=True)
-        batch_y = batch_y.to(device, non_blocking=True)
+    for batch in tqdm(loader, desc="Eval", leave=False, disable=not is_main):
+        batch_x, batch_y, sensor_mask = _move_batch_to_device(batch, device)
+        model_sensor_mask = sensor_mask if source_projection is None else None
 
-        scalogram = _apply_cwt_and_normalize(cwt_layer, batch_x, source_projection)
-        logits    = model(scalogram)
+        scalogram = _apply_cwt_and_normalize(
+            cwt_layer, batch_x, source_projection, sensor_mask
+        )
+        logits = model(scalogram, sensor_mask=model_sensor_mask)
         loss, probs, preds = _loss_probs_preds_from_logits(logits, batch_y, criterion)
 
         total_loss += float(loss.item()) * int(batch_y.size(0))
@@ -482,6 +523,8 @@ class CheckpointManager:
             "scheduler_state_dict": scheduler.state_dict() if scheduler else None,
             "metrics": metrics,
             "config": vars(config) if hasattr(config, "__dict__") else {},
+            "use_sensor_mask": getattr(config, "use_sensor_mask", False),
+            "max_channels": getattr(config, "max_channels", None),
             "timestamp": datetime.now().isoformat(),
             "torch_version": torch.__version__,
         }
@@ -821,21 +864,42 @@ def train_ddp(args):
         print(f"\n[PASO 2] Construyendo DataLoaders distribuidos")
         print(f"  Batch por GPU: {args.batch_size} | Batch global: {args.batch_size * world_size}")
         print(f"  CWT frecuencias: {args.n_freqs}")
+        print(f"  sensor_mask: {args.use_sensor_mask} | max_channels: {args.max_channels}")
 
-    train_loader, val_loader, test_loader, train_sampler = build_raw_dataloaders(
-        train_pnpl, val_pnpl, test_pnpl,
-        preprocessor=preprocessor,
-        batch_size=args.batch_size,
-        num_workers=args.num_workers,
-        eval_batch_size=args.eval_batch_size,
-        eval_num_workers=args.eval_num_workers,
-        distributed=True,
-        rank=rank,
-        world_size=dist.get_world_size(),
-    )
+    if args.use_sensor_mask:
+        train_loader, val_loader, test_loader, train_sampler = build_masked_raw_dataloaders(
+            train_pnpl, val_pnpl, test_pnpl,
+            preprocessor=preprocessor,
+            max_channels=args.max_channels,
+            task=args.task,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            eval_batch_size=args.eval_batch_size,
+            eval_num_workers=args.eval_num_workers,
+            distributed=True,
+            rank=rank,
+            world_size=dist.get_world_size(),
+        )
+    else:
+        train_loader, val_loader, test_loader, train_sampler = build_raw_dataloaders(
+            train_pnpl, val_pnpl, test_pnpl,
+            preprocessor=preprocessor,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            eval_batch_size=args.eval_batch_size,
+            eval_num_workers=args.eval_num_workers,
+            distributed=True,
+            rank=rank,
+            world_size=dist.get_world_size(),
+        )
 
     source_projection = None
-    n_model_channels = n_channels
+    if args.use_sensor_mask and args.max_channels < n_channels:
+        raise ValueError(
+            f"--max_channels={args.max_channels} es menor que los {n_channels} "
+            "canales de LibriBrain. Usa al menos 306 para LibriBrain."
+        )
+    n_model_channels = args.max_channels if args.use_sensor_mask else n_channels
     representation = "sensor"
     if args.source_projection_path:
         projector = LinearSourceProjector(
@@ -843,6 +907,11 @@ def train_ddp(args):
             name=args.source_variant_name,
         )
         projector.validate_input_channels(n_channels)
+        if args.use_sensor_mask and args.max_channels != n_channels:
+            raise ValueError(
+                "source_projection_path en este flujo requiere que --max_channels "
+                f"coincida con los canales de LibriBrain ({n_channels})."
+            )
         source_projection = torch.from_numpy(projector.matrix).to(device=device)
         n_model_channels = projector.n_outputs
         representation = args.source_variant_name
@@ -888,14 +957,16 @@ def train_ddp(args):
     if is_main:
         print(
             f"\n[PASO 3] Construyendo modelo: {args.backbone} | "
-            f"{args.strategy} | sensor_projection={args.sensor_projection}"
+            f"{args.strategy} | sensor_projection={args.sensor_projection} | "
+            f"n_model_channels={n_model_channels}"
         )
 
     if rank == 0:
         if is_main:
             print(
                 f"\n[PASO 3] Construyendo modelo: {args.backbone} | "
-                f"{args.strategy} | sensor_projection={args.sensor_projection}"
+                f"{args.strategy} | sensor_projection={args.sensor_projection} | "
+                f"n_model_channels={n_model_channels}"
             )
         # Forzar descarga (no cuesta nada si ya está cacheado)
         import torchvision.models as tvm
@@ -935,6 +1006,18 @@ def train_ddp(args):
         sensor_projection=args.sensor_projection,
         pca_max_fit_samples=args.pca_max_fit_samples,
     ).to(device)
+
+    if args.pretrained_ckpt and args.pretrained_ckpt != "none":
+        load_pretrained_weights(
+            model,
+            args.pretrained_ckpt,
+            strict=args.strict_pretrained_load,
+            backbone_only=args.pretrain_backbone_only,
+            map_location=device,
+            verbose=is_main,
+        )
+        dist.barrier()
+
     model = DDP(model, device_ids=[local_rank])
 
     if is_main:
@@ -950,6 +1033,9 @@ def train_ddp(args):
         n_classes=n_classes,
         sensor_projection=args.sensor_projection,
         pca_max_fit_samples=args.pca_max_fit_samples,
+        use_sensor_mask=args.use_sensor_mask,
+        max_channels=args.max_channels,
+        pretrained_ckpt=args.pretrained_ckpt,
         n_epochs=args.n_epochs,
         batch_size=args.batch_size,
         output_dir=args.output_dir,
@@ -1159,6 +1245,9 @@ def train_ddp(args):
                 "pca_max_fit_samples": args.pca_max_fit_samples,
                 "source_projection_path": args.source_projection_path,
                 "n_meg_channels": n_model_channels,
+                "use_sensor_mask": args.use_sensor_mask,
+                "max_channels": args.max_channels,
+                "pretrained_ckpt": args.pretrained_ckpt,
                 "n_freqs": args.n_freqs,
                 "batch_size_per_gpu": args.batch_size,
                 "test_f1_macro": test_metrics["f1_macro"],
@@ -1181,6 +1270,17 @@ def train_ddp(args):
 # ==============================================================================
 # ARGUMENTOS DE LÍNEA DE COMANDOS
 # ==============================================================================
+
+def str2bool(value):
+    if isinstance(value, bool):
+        return value
+    value = str(value).lower()
+    if value in {"true", "1", "yes", "y", "on"}:
+        return True
+    if value in {"false", "0", "no", "n", "off"}:
+        return False
+    raise argparse.ArgumentTypeError(f"Valor booleano inválido: {value}")
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -1214,6 +1314,16 @@ def parse_args():
                         ))
     parser.add_argument("--pca_max_fit_samples", type=int, default=65536,
                         help="Máximo de puntos tiempo-frecuencia usados para ajustar PCA-3.")
+    parser.add_argument("--use_sensor_mask", type=str2bool, nargs="?", const=True, default=False,
+                        help="Activar padding de canales y sensor_mask para batches MEG-XL.")
+    parser.add_argument("--max_channels", type=int, default=306,
+                        help="Número de canales tras padding cuando --use_sensor_mask true.")
+    parser.add_argument("--pretrained_ckpt", default="none",
+                        help="'none' o path a checkpoint preentrenado compatible.")
+    parser.add_argument("--pretrain_backbone_only", type=str2bool, nargs="?", const=True, default=False,
+                        help="Si true, carga solo claves backbone.* desde --pretrained_ckpt.")
+    parser.add_argument("--strict_pretrained_load", type=str2bool, nargs="?", const=True, default=False,
+                        help="Si true, exige coincidencia estricta al cargar --pretrained_ckpt.")
 
     # Checkpointing
     parser.add_argument("--checkpoint_dir",   default="./checkpoints")

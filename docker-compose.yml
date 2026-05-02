@@ -172,6 +172,55 @@ services:
 
 
   # ============================================================================
+  # SERVICIO 2B: Pretraining MEG-XL-style con sensor_mask
+  # ============================================================================
+  megxl_pretrain_job:
+    <<: *meg-base
+    container_name: megxl_pretrain_job
+    entrypoint: ["python"]
+
+    depends_on:
+      precompute_stats:
+        condition: service_completed_successfully
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: ${TRAIN_GPUS:-1}
+              capabilities: [gpu]
+
+    environment:
+      - HF_TOKEN=${HF_TOKEN}
+      - HF_DATASET=pnpl/LibriBrain
+      - HF_HOME=/workspace/cache/huggingface
+      - XDG_CACHE_HOME=/workspace/cache
+      - MPLCONFIGDIR=/workspace/cache/matplotlib
+      - PNPL_CACHE_DIR=/workspace/cache/pnpl
+      - UV_PROJECT_ENVIRONMENT=/workspace/.venv
+      - VIRTUAL_ENV=/workspace/.venv
+      - UID=${UID:-1000}
+      - GID=${GID:-1000}
+      - CUDA_VISIBLE_DEVICES=${TRAIN_CUDA_VISIBLE_DEVICES:-0}
+
+    command: >
+      /workspace/train_megxl_pretrain.py
+      --datasets libribrain
+      --task phoneme
+      --max_channels ${MEGXL_MAX_CHANNELS:-306}
+      --batch_size ${MEGXL_BATCH_SIZE:-128}
+      --epochs ${MEGXL_EPOCHS:-5}
+      --num_workers ${TRAIN_NUM_WORKERS:-12}
+      --data_path /workspace/libribrain_data
+      --output /workspace/checkpoints/megxl_pretrain.pt
+
+    network_mode: host
+    ipc: host
+    restart: "no"
+
+
+  # ============================================================================
   # SERVICIO 3: Shell interactiva para depuración
   # ============================================================================
   dev_shell:
