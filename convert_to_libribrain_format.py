@@ -205,6 +205,11 @@ def discover_sherlock_runs(root: Path) -> list[SourceRun]:
         match = re.search(r"(sub-[^_/]+)_(ses-[^_/]+)_task-compr_meg\.ds$", raw_path.name)
         if not match:
             continue
+        missing_meg4 = missing_sherlock_meg4_files(raw_path)
+        if missing_meg4:
+            missing = ", ".join(path.name for path in missing_meg4)
+            print(f"[WARN] Skipping incomplete Sherlock MEG4 run {raw_path}: missing {missing}")
+            continue
         subject = match.group(1).removeprefix("sub-")
         session = match.group(2).removeprefix("ses-")
         events_path = raw_path.with_name(raw_path.name.replace("_meg.ds", "_events.tsv"))
@@ -224,6 +229,12 @@ def discover_sherlock_runs(root: Path) -> list[SourceRun]:
             )
         )
     return runs
+
+
+def missing_sherlock_meg4_files(raw_path: Path) -> list[Path]:
+    stem = raw_path.name.removesuffix(".ds")
+    required = [raw_path / f"{stem}.{suffix}" for suffix in ("meg4", "hc", "infods")]
+    return [path for path in required if not path.exists()]
 
 
 def convert_run(run: SourceRun, out_dir: Path, args: argparse.Namespace) -> ConvertedRun:
@@ -297,7 +308,10 @@ def read_raw(run: SourceRun):
     if run.dataset == "alter":
         raw = mne.io.read_raw_kit(str(run.raw_path), preload=False, verbose="ERROR")
     elif run.dataset == "sherlock":
-        raw = mne.io.read_raw_ctf(str(run.raw_path), preload=False, verbose="ERROR")
+        if has_ctf_res4(run.raw_path):
+            raw = mne.io.read_raw_ctf(str(run.raw_path), preload=False, verbose="ERROR")
+        else:
+            return read_sherlock_meg4_raw(run)
     else:
         raise ValueError(f"Unknown dataset: {run.dataset}")
 
@@ -316,6 +330,79 @@ def read_raw(run: SourceRun):
         raise RuntimeError(f"No MEG channels found in {run.raw_path}")
     raw.pick(picks)
     return raw
+
+
+def has_ctf_res4(raw_path: Path) -> bool:
+    stem = raw_path.name.removesuffix(".ds")
+    return (raw_path / f"{stem}.res4").exists()
+
+
+class SherlockMeg4Raw:
+    def __init__(
+        self,
+        data: np.memmap,
+        picks: np.ndarray,
+        sfreq: float,
+        ch_names: list[str],
+    ) -> None:
+        self._data = data
+        self._picks = picks
+        self.info = {"sfreq": sfreq}
+        self.ch_names = ch_names
+        self.n_times = data.shape[1]
+
+    def get_data(self, start: int, stop: int) -> np.ndarray:
+        return np.asarray(self._data[self._picks, start:stop], dtype=np.float32)
+
+
+def read_sherlock_meg4_raw(run: SourceRun) -> SherlockMeg4Raw:
+    if run.channels_path is None:
+        raise RuntimeError(f"Sherlock MEG4 fallback needs a channels.tsv sidecar for {run.raw_path}")
+
+    stem = run.raw_path.name.removesuffix(".ds")
+    meg4_path = run.raw_path / f"{stem}.meg4"
+    meg_json_path = run.raw_path.with_name(run.raw_path.name.replace("_meg.ds", "_meg.json"))
+    channels = read_tsv(run.channels_path)
+    with meg_json_path.open("r", encoding="utf-8") as f:
+        metadata = json.load(f)
+
+    sfreq = float(metadata["SamplingFrequency"])
+    n_channels = len(channels)
+    payload_bytes = meg4_path.stat().st_size - 8
+    if payload_bytes <= 0 or payload_bytes % 4 != 0:
+        raise RuntimeError(f"Unexpected MEG4 payload size in {meg4_path}")
+
+    n_values = payload_bytes // 4
+    if n_values % n_channels != 0:
+        raise RuntimeError(
+            f"MEG4 payload in {meg4_path} has {n_values} int32 values, "
+            f"which is not divisible by {n_channels} channels from {run.channels_path}"
+        )
+    n_times = n_values // n_channels
+
+    expected_duration = to_float(metadata.get("RecordingDuration"))
+    if expected_duration is not None:
+        expected_times = int(round(expected_duration * sfreq))
+        if expected_times != n_times:
+            raise RuntimeError(
+                f"MEG4 sample count mismatch in {meg4_path}: binary has {n_times}, "
+                f"metadata expects {expected_times}"
+            )
+
+    meg_picks = np.asarray(
+        [idx for idx, row in enumerate(channels) if row.get("type") == "meggrad"],
+        dtype=np.int64,
+    )
+    if len(meg_picks) == 0:
+        raise RuntimeError(f"No meggrad channels found in {run.channels_path}")
+
+    ch_names = [channels[idx]["name"] for idx in meg_picks]
+    data = np.memmap(meg4_path, dtype=">i4", mode="r", offset=8, shape=(n_channels, n_times))
+    print(
+        f"[WARN] Reading Sherlock MEG4 without .res4 calibration/geometry: "
+        f"{len(meg_picks)}/{n_channels} meggrad channels from {meg4_path}"
+    )
+    return SherlockMeg4Raw(data=data, picks=meg_picks, sfreq=sfreq, ch_names=ch_names)
 
 
 def write_h5_from_raw(
