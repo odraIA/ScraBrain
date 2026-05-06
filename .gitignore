@@ -211,6 +211,7 @@ __marimo__/
 data/
 libribrain_data/
 sherlock_data/
+sherlock_data2/
 alter_data/
 checkpoints/
 __pycache__/
