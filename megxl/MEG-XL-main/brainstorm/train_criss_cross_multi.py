@@ -396,6 +396,8 @@ def main(cfg: DictConfig):
         "val_check_interval": cfg.trainer.val_check_interval,
         "deterministic": "warn" if hasattr(cfg, "seed") else False,
     }
+    if cfg.trainer.get("strategy", None) is not None:
+        trainer_kwargs["strategy"] = cfg.trainer.strategy
 
     if num_epochs is not None:
         trainer_kwargs["max_epochs"] = num_epochs
@@ -407,6 +409,8 @@ def main(cfg: DictConfig):
     print(f"✓ Trainer configured")
     print(f"  Accelerator: {cfg.trainer.accelerator}")
     print(f"  Devices: {cfg.trainer.devices}")
+    if cfg.trainer.get("strategy", None) is not None:
+        print(f"  Strategy: {cfg.trainer.strategy}")
     print(f"  Precision: {cfg.trainer.precision}")
     print(f"  Gradient clipping: {cfg.training.gradient_clip_val}")
     if num_epochs is not None:

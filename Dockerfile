@@ -1,90 +1,21 @@
-# ==============================================================================
-# Dockerfile — MEG Transfer Learning con PyTorch + NVIDIA RTX 6000
-# ==============================================================================
-#
-# Base: imagen oficial PyTorch con CUDA 12.8 y cuDNN 9 (compatible RTX 6000 Ada)
-# Para Quadro RTX 6000 (Turing, CUDA 11.x) cambiar a:
-#   pytorch/pytorch:2.1.0-cuda11.8-cudnn8-runtime
-#
-FROM pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime
+FROM nvidia/cuda:12.6.3-cudnn-devel-ubuntu24.04
 
-# ── Metadatos ──────────────────────────────────────────────────────────────────
-LABEL maintainer="rdiaper"
-LABEL description="MEG Transfer Learning — LibriBrain"
-LABEL version="1.0"
+WORKDIR /app
 
-# ── Variables de entorno ───────────────────────────────────────────────────────
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    UV_PROJECT_ENVIRONMENT=/workspace/.venv \
-    VIRTUAL_ENV=/workspace/.venv \
-    PATH="/workspace/.venv/bin:${PATH}" \
-    # Optimizaciones CUDA
-    CUDA_LAUNCH_BLOCKING=0 \
-    TORCH_CUDA_ARCH_LIST="12.0" \
-    # Para RTX 6000 Ada: sm_89. Para Quadro RTX 6000 (Turing): "7.5"
-    # Desactivar tokenizers paralelos (evita deadlocks con DataLoader)
-    TOKENIZERS_PARALLELISM=false \
-    # Directorio de trabajo dentro del contenedor
-    WORKDIR_PATH=/workspace
-
-# ── Instalar dependencias del sistema ─────────────────────────────────────────
-# Mínimas: sin GUI, sin librerías X11 innecesarias
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        git \
-        wget \
-        curl \
-        htop \
-        tmux \
-        vim \
-        libhdf5-dev \
-        libgomp1 \
-    && apt-get clean \
+RUN apt-get update && apt-get install -y \
+    python3.12 python3.12-venv curl git build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# ── Instalar uv ───────────────────────────────────────────────────────────────
-RUN pip install --no-cache-dir uv==0.11.8
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:${PATH}"
 
-# ── Crear usuario no-root (SEGURIDAD: nunca ejecutar como root en producción) ──
-# UID/GID 1000 para coincidir con usuario típico del host (evita problemas de permisos)
+COPY requirements.txt .
+RUN uv venv --python python3.12 /app/.venv
+ENV PATH="/app/.venv/bin:${PATH}"
 
-# ── Directorio de trabajo ──────────────────────────────────────────────────────
-WORKDIR ${WORKDIR_PATH}
+RUN uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
+RUN uv pip install -r requirements.txt
 
-# ── Copiar metadata primero (cachear capa si no cambian) ──────────────────────
-COPY pyproject.toml uv.lock ./
-
-# ── Instalar dependencias Python con uv ────────────────────────────────────────
-# La venv ve site-packages de la imagen base para reutilizar PyTorch + CUDA.
-RUN uv venv --system-site-packages "${UV_PROJECT_ENVIRONMENT}" && \
-    uv sync --frozen --no-dev --inexact --no-install-project
-
-# ── Copiar código del proyecto ─────────────────────────────────────────────────
-# Se copia al final para no invalidar la caché de uv en cada cambio de código
 COPY . .
 
-RUN useradd -m -u 1000 meguser
-# ── Permisos correctos ─────────────────────────────────────────────────────────
-RUN chown -R meguser:meguser ${WORKDIR_PATH}
-
-# ── Crear directorios de trabajo con permisos adecuados ───────────────────────
-RUN mkdir -p \
-    ${WORKDIR_PATH}/checkpoints \
-    ${WORKDIR_PATH}/results \
-    ${WORKDIR_PATH}/logs \
-    ${WORKDIR_PATH}/libribrain_data \
-    && chown -R meguser:meguser ${WORKDIR_PATH}
-
-# ── Cambiar a usuario no-root ─────────────────────────────────────────────────
-USER meguser
-
-# ── Health check: verificar que GPU es accesible ──────────────────────────────
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD python -c "import torch; exit(0 if torch.cuda.is_available() else 1)"
-
-# ── Punto de entrada por defecto ───────────────────────────────────────────────
-# torchrun gestiona el lanzamiento DDP automáticamente
-ENTRYPOINT ["torchrun", "--nproc_per_node=2", "--nnodes=1"]
-CMD ["train_ddp.py", "--help"]
+CMD ["python", "brainstorm/train_criss_cross_multi.py", "--config-name=train_criss_cross_multi_50hz_med"]

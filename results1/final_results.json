@@ -1,9 +1,0 @@
-{
-  "backbone": "resnet18",
-  "strategy": "partial_ft",
-  "task": "phoneme",
-  "test_f1_macro": 0.004791417113691994,
-  "test_balanced_acc": 0.02564102564102564,
-  "best_val_f1": 0.004823253679685747,
-  "timestamp": "2026-04-15T19:37:30.950003"
-}

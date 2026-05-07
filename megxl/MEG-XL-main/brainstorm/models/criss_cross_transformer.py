@@ -252,7 +252,7 @@ class CrissCrossTransformerModule(pl.LightningModule):
         ori_emb = self.orientation_projector(ori_fourier)  # [B, C, latent_dim]
         embeddings = embeddings + ori_emb.unsqueeze(2)  # [B, C, T', latent_dim]
 
-        # Add sensor type embeddings
+        # Add sensor type embeddings (ALFONS añadir EEG?)
         type_emb = self.sensor_type_layer(sensor_type.long())  # [B, C, latent_dim]
         embeddings = embeddings + type_emb.unsqueeze(2)  # [B, C, T', latent_dim]
 

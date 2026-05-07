@@ -68,6 +68,7 @@ model:
   num_layers: 8
   num_heads: 8
   vocab_size: 256
+  use_gradient_checkpointing: true  # Reduce activation memory; especially useful with FSDP on 2 GPUs
 
   # Criss-Cross specific parameters
   mask_duration: 3.0  # Temporal mask duration in seconds
@@ -111,7 +112,8 @@ checkpoint:
 # Trainer settings
 trainer:
   accelerator: "gpu"
-  devices: 1
+  devices: 2
+  strategy: "fsdp"  # Shard model/optimizer states across both GPUs; DDP would replicate them
   precision: "bf16-mixed"  # Use "32" for full precision, "16-mixed" for fp16
   accumulate_grad_batches: 1
   val_check_interval: 500  # Validate every 1000 training steps
