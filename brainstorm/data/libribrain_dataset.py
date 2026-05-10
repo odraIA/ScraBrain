@@ -10,7 +10,8 @@ import warnings
 from .utils import norm_sensor_positions
 
 from .preprocessing import (
-    load_libribrain_sensors,
+    load_libribrain_sensor_metadata,
+    get_libribrain_task_dirs,
     preprocess_libribrain_h5,
     cache_preprocessed,
     load_cached,
@@ -107,7 +108,7 @@ class LibriBrainMEGDataset(Dataset):
         self.sessions = sessions
         self.tasks = tasks
 
-        # Load sensor information from JSON (shared across all recordings)
+        # Load shared sensor information.
         self._load_sensor_info()
 
         # Discover all recordings
@@ -131,47 +132,24 @@ class LibriBrainMEGDataset(Dataset):
 
     def _load_sensor_info(self) -> None:
         """
-        Load sensor information from the shared JSON file.
-
-        LibriBrain stores all sensor information in a single JSON file at the
-        dataset root, rather than embedding it in each recording.
+        Load shared LibriBrain sensor metadata.
         """
-        sensor_json_path = self.data_root / "meg_sensors_information.json"
-
-        if not sensor_json_path.exists():
-            raise FileNotFoundError(
-                f"Sensor information file not found: {sensor_json_path}. "
-                "LibriBrain requires meg_sensors_information.json at the dataset root."
-            )
-
-        self.sensor_xyzdir_dict, self.sensor_types_dict = load_libribrain_sensors(
-            str(sensor_json_path)
+        self.sensor_xyzdir_dict, self.sensor_types_dict = load_libribrain_sensor_metadata(
+            self.data_root
         )
 
         print(f"Loaded sensor info for {len(self.sensor_xyzdir_dict)} channels")
 
     def _get_available_tasks(self) -> List[str]:
         """
-        Scan the serialized directory for available task directories.
+        Scan supported LibriBrain layouts for available task directories.
 
         Returns
         -------
         tasks : List[str]
             List of task names (e.g., ["Sherlock1", "Sherlock2", ...])
         """
-        serialized_dir = self.data_root / "serialized"
-        if not serialized_dir.exists():
-            return []
-
-        tasks = []
-        for task_dir in sorted(serialized_dir.iterdir()):
-            if task_dir.is_dir() and not task_dir.name.startswith('.'):
-                # Check if it has the expected structure
-                derivatives_dir = task_dir / "derivatives" / "serialised"
-                if derivatives_dir.exists():
-                    tasks.append(task_dir.name)
-
-        return tasks
+        return sorted(get_libribrain_task_dirs(self.data_root).keys())
 
     def _parse_filename(self, filename: str) -> Dict[str, str]:
         """
@@ -220,13 +198,20 @@ class LibriBrainMEGDataset(Dataset):
         else:
             tasks_to_check = self._get_available_tasks()
 
+        task_dirs = get_libribrain_task_dirs(self.data_root)
+
         if len(tasks_to_check) == 0:
-            warnings.warn(f"No tasks found in {self.data_root}/serialized/")
+            warnings.warn(f"No tasks found in {self.data_root}")
             return recordings
 
         # Iterate through task directories
         for task in tasks_to_check:
-            task_dir = self.data_root / "serialized" / task / "derivatives" / "serialised"
+            task_base_dir = task_dirs.get(task)
+            if task_base_dir is None:
+                warnings.warn(f"Task directory not found for {task} under {self.data_root}")
+                continue
+
+            task_dir = task_base_dir / "derivatives" / "serialised"
 
             if not task_dir.exists():
                 warnings.warn(f"Task directory not found: {task_dir}")

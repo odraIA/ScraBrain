@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional, Callable, Tuple
 import hashlib
 import json
+import warnings
 
 
 def load_libribrain_sensors(
@@ -74,6 +75,155 @@ def load_libribrain_sensors(
             sensor_types_dict[ch_name] = 0  # Gradiometer
 
     return sensor_xyzdir_dict, sensor_types_dict
+
+
+def _read_libribrain_channels_tsv(channels_path: Path) -> list[str]:
+    """Read LibriBrain channel names from a BIDS-style channels.tsv file."""
+    with open(channels_path, "r") as f:
+        header = f.readline().rstrip("\n").split("\t")
+        try:
+            name_idx = header.index("name")
+        except ValueError as exc:
+            raise ValueError(f"Missing 'name' column in {channels_path}") from exc
+
+        channel_names = []
+        for line in f:
+            if not line.strip():
+                continue
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) > name_idx:
+                channel_names.append(parts[name_idx])
+
+    return channel_names
+
+
+def _find_libribrain_reference_h5(data_root: Path) -> Optional[Path]:
+    """Find one serialized LibriBrain HDF5 file in either supported layout."""
+    patterns = [
+        "serialized/*/derivatives/serialised/*.h5",
+        "*/derivatives/serialised/*.h5",
+    ]
+
+    for pattern in patterns:
+        matches = sorted(data_root.glob(pattern))
+        if matches:
+            return matches[0]
+
+    return None
+
+
+def _load_libribrain_channel_names(data_root: Path) -> list[str]:
+    """Load channel names from metadata/channels.tsv, falling back to HDF5 attrs."""
+    channels_path = data_root / "metadata" / "channels.tsv"
+    if channels_path.exists():
+        return _read_libribrain_channels_tsv(channels_path)
+
+    reference_h5 = _find_libribrain_reference_h5(data_root)
+    if reference_h5 is None:
+        raise FileNotFoundError(
+            f"Could not infer LibriBrain channel order under {data_root}. "
+            "Expected metadata/channels.tsv or at least one serialized HDF5 file."
+        )
+
+    with h5py.File(reference_h5, "r") as h5_file:
+        return h5_file.attrs["channel_names"].split(", ")
+
+
+def load_libribrain_sensor_metadata(
+    data_root: str | Path,
+) -> Tuple[Dict[str, np.ndarray], Dict[str, int]]:
+    """
+    Load LibriBrain sensor metadata from either legacy or current dataset layouts.
+
+    Older local conversions may provide ``meg_sensors_information.json`` with
+    full MNE-style locations and coil types. The current Hugging Face dataset
+    exposes lightweight metadata as ``metadata/sensor_xyz.json`` and
+    ``metadata/channels.tsv``.
+    """
+    data_root = Path(data_root)
+
+    sensor_info_candidates = [
+        data_root / "meg_sensors_information.json",
+        data_root / "metadata" / "meg_sensors_information.json",
+    ]
+    for sensor_json_path in sensor_info_candidates:
+        if sensor_json_path.exists():
+            return load_libribrain_sensors(str(sensor_json_path))
+
+    sensor_xyz_candidates = [
+        data_root / "metadata" / "sensor_xyz.json",
+        data_root / "sensor_xyz.json",
+    ]
+    for sensor_xyz_path in sensor_xyz_candidates:
+        if not sensor_xyz_path.exists():
+            continue
+
+        with open(sensor_xyz_path, "r") as f:
+            sensor_xyz = np.asarray(json.load(f), dtype=np.float32)
+
+        if sensor_xyz.ndim != 2 or sensor_xyz.shape[1] != 3:
+            raise ValueError(
+                f"Expected {sensor_xyz_path} to contain an array shaped "
+                f"(n_channels, 3), got {sensor_xyz.shape}."
+            )
+
+        channel_names = _load_libribrain_channel_names(data_root)
+        if len(channel_names) != len(sensor_xyz):
+            meg_channel_names = [name for name in channel_names if name.startswith("MEG")]
+            if len(meg_channel_names) == len(sensor_xyz):
+                channel_names = meg_channel_names
+            else:
+                raise ValueError(
+                    f"Channel count mismatch: {sensor_xyz_path} has "
+                    f"{len(sensor_xyz)} positions but channel metadata has "
+                    f"{len(channel_names)} names ({len(meg_channel_names)} MEG channels)."
+                )
+
+        sensor_xyzdir_dict = {}
+        sensor_types_dict = {}
+        for ch_name, position in zip(channel_names, sensor_xyz):
+            norm = np.linalg.norm(position)
+            direction = position / norm if norm > 0 else np.zeros(3, dtype=np.float32)
+            sensor_xyzdir_dict[ch_name] = np.concatenate([position, direction])
+            sensor_types_dict[ch_name] = 1 if ch_name.endswith("1") else 0
+
+        warnings.warn(
+            f"Loaded LibriBrain sensor positions from {sensor_xyz_path}. "
+            "Orientation vectors were approximated from sensor positions because "
+            "full meg_sensors_information.json metadata was not available.",
+            RuntimeWarning,
+        )
+        return sensor_xyzdir_dict, sensor_types_dict
+
+    expected = ", ".join(str(path) for path in sensor_info_candidates + sensor_xyz_candidates)
+    raise FileNotFoundError(
+        f"LibriBrain sensor metadata not found under {data_root}. "
+        f"Expected one of: {expected}."
+    )
+
+
+def get_libribrain_task_dirs(data_root: str | Path) -> Dict[str, Path]:
+    """
+    Return available LibriBrain task directories for both known layouts.
+
+    Supported layouts:
+    - ``<root>/serialized/Sherlock1/derivatives/serialised``
+    - ``<root>/Sherlock1/derivatives/serialised``
+    """
+    data_root = Path(data_root)
+    task_dirs: Dict[str, Path] = {}
+
+    for base_dir in (data_root / "serialized", data_root):
+        if not base_dir.exists():
+            continue
+        for task_dir in sorted(base_dir.iterdir()):
+            if task_dir.name.startswith(".") or not task_dir.is_dir():
+                continue
+            serialised_dir = task_dir / "derivatives" / "serialised"
+            if serialised_dir.exists():
+                task_dirs.setdefault(task_dir.name, task_dir)
+
+    return task_dirs
 
 
 def preprocess_libribrain_h5(
@@ -724,4 +874,3 @@ if __name__ == "__main__":
     print(f"  ✓ Different filter names produce different hashes: {hash4 != hash5}")
 
     print("\n✅ All tests passed!")
-

@@ -37,6 +37,64 @@ services=(eval_libribrain eval_libribrain_linear_probe)
 launch_monitor=1
 validate_eval_inputs=1
 
+download_file() {
+  local url="$1"
+  local dest="$2"
+
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL "$url" -o "$dest"
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 - "$url" "$dest" <<'PY'
+import sys
+from urllib.request import urlopen
+
+url, dest = sys.argv[1], sys.argv[2]
+with urlopen(url, timeout=60) as response:
+    data = response.read()
+with open(dest, "wb") as f:
+    f.write(data)
+PY
+  else
+    return 1
+  fi
+}
+
+ensure_libribrain_metadata() {
+  local libribrain_host_root="$1"
+  local metadata_dir="$libribrain_host_root/metadata"
+
+  if [[ -e "$libribrain_host_root/meg_sensors_information.json" ]] ||
+     [[ -e "$metadata_dir/meg_sensors_information.json" ]] ||
+     [[ -e "$metadata_dir/sensor_xyz.json" && -e "$metadata_dir/channels.tsv" ]] ||
+     [[ -e "$libribrain_host_root/sensor_xyz.json" ]]; then
+    return 0
+  fi
+
+  if [[ ! -w "$libribrain_host_root" ]]; then
+    echo "LibriBrain sensor metadata not found under: $libribrain_host_root" >&2
+    echo "Expected metadata/sensor_xyz.json and metadata/channels.tsv, or meg_sensors_information.json." >&2
+    echo "The dataset directory is not writable, so I cannot download the metadata automatically." >&2
+    exit 1
+  fi
+
+  mkdir -p "$metadata_dir"
+  echo "LibriBrain sensor metadata not found; downloading metadata/sensor_xyz.json and metadata/channels.tsv..."
+
+  if ! download_file \
+    "https://huggingface.co/datasets/pnpl/LibriBrain/raw/main/metadata/sensor_xyz.json" \
+    "$metadata_dir/sensor_xyz.json"; then
+    echo "Failed to download LibriBrain sensor_xyz.json." >&2
+    exit 1
+  fi
+
+  if ! download_file \
+    "https://huggingface.co/datasets/pnpl/LibriBrain/raw/main/metadata/channels.tsv" \
+    "$metadata_dir/channels.tsv"; then
+    echo "Failed to download LibriBrain channels.tsv." >&2
+    exit 1
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --no-build)
@@ -114,6 +172,30 @@ if [[ "$validate_eval_inputs" -eq 1 ]]; then
     echo "Set DATASETS_DIR=/path/to/datasets so it contains libribrain/." >&2
     exit 1
   fi
+
+  libribrain_host_root="$LIBRIBRAIN_ROOT"
+  case "$LIBRIBRAIN_ROOT" in
+    ./datasets/libribrain)
+      libribrain_host_root="${DATASETS_DIR%/}/libribrain"
+      ;;
+    /workspace/datasets/libribrain)
+      libribrain_host_root="${DATASETS_DIR%/}/libribrain"
+      ;;
+    ./datasets/*)
+      libribrain_host_root="${DATASETS_DIR%/}/${LIBRIBRAIN_ROOT#./datasets/}"
+      ;;
+    /workspace/datasets/*)
+      libribrain_host_root="${DATASETS_DIR%/}/${LIBRIBRAIN_ROOT#/workspace/datasets/}"
+      ;;
+  esac
+
+  if [[ ! -d "$libribrain_host_root" ]]; then
+    echo "LibriBrain dataset root not found on host: $libribrain_host_root" >&2
+    echo "Set DATASETS_DIR=/path/to/datasets so it contains libribrain/." >&2
+    exit 1
+  fi
+
+  ensure_libribrain_metadata "$libribrain_host_root"
 fi
 
 if [[ "$build" -eq 1 ]]; then
