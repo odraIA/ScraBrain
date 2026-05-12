@@ -24,7 +24,7 @@ data:
   dataset_type: "gwilliams"
 
   # Dataset root directory
-  root: "/path/to/gwilliams2022"
+  root: "./datasets/gwilliams"
   cache_dir: "./data/cache"
 
   # Max channel dimension (KIT/Ricoh system has 208 MEG channels)

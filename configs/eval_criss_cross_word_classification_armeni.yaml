@@ -1,4 +1,4 @@
-# CrissCross Word Classification Evaluation Configuration
+# CrissCross Word Classification Evaluation Configuration - Armeni Dataset
 
 # Model checkpoints
 model:
@@ -25,8 +25,11 @@ data:
   dataset_type: "armeni"
 
   # Dataset root directory
-  root: "/path/to/armeni2022"
+  root: "./datasets/armeni/di.dccn.DSC_3011085.05_995"
   cache_dir: "./data/cache"
+
+  # Max channel dimension (CTF system has 306 MEG channels)
+  max_channel_dim: 306
 
   # Subjects to include (all 3 subjects)
   subjects:
@@ -140,9 +143,9 @@ evaluation:
 # Logging settings
 logging:
   wandb_project: "brainstorm-eval"
-  experiment_name: "criss-cross-word-classification-1ses-50Hz"
+  experiment_name: "criss-cross-word-classification-armeni-50Hz"
   log_every_n_steps: 10
-  save_dir: "./logs/word_classification"
+  save_dir: "./logs/word_classification_armeni"
 
 # System settings
 device: "cuda"

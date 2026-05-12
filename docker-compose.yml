@@ -4,6 +4,8 @@ x-megxl-eval-env: &megxl-eval-env
   HF_HOME: /workspace/hf_cache
   HF_TOKEN: ${HF_TOKEN:-}
   HYDRA_FULL_ERROR: "1"
+  ARMENI_ROOT: ${ARMENI_ROOT:-./datasets/armeni/di.dccn.DSC_3011085.05_995}
+  GWILLIAMS_ROOT: ${GWILLIAMS_ROOT:-./datasets/gwilliams}
   LIBRIBRAIN_ROOT: ${LIBRIBRAIN_ROOT:-./datasets/libribrain}
   MPLCONFIGDIR: /workspace/hf_cache/matplotlib
   OMP_NUM_THREADS: ${OMP_NUM_THREADS:-8}
@@ -82,6 +84,46 @@ services:
           devices:
             - driver: nvidia
               device_ids: ["${EVAL_GPU:-0}"]
+              capabilities: [gpu]
+
+  eval_armeni:
+    <<: *megxl-eval-base
+    container_name: scrabrain_eval_armeni
+    environment:
+      <<: *megxl-eval-env
+      NVIDIA_VISIBLE_DEVICES: ${ARMENI_GPU:-0}
+    command: >
+      bash -lc 'uv run --no-sync python -m brainstorm.evaluate_criss_cross_word_classification
+      --config-name=eval_criss_cross_word_classification_armeni
+      model.criss_cross_checkpoint="$${CRISS_CROSS_CHECKPOINT}"
+      data.root="$${ARMENI_ROOT}"
+      hydra.run.dir="./logs/hydra/eval_armeni/$$(date +%Y%m%d_%H%M%S)"'
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${ARMENI_GPU:-0}"]
+              capabilities: [gpu]
+
+  eval_gwilliams:
+    <<: *megxl-eval-base
+    container_name: scrabrain_eval_gwilliams
+    environment:
+      <<: *megxl-eval-env
+      NVIDIA_VISIBLE_DEVICES: ${GWILLIAMS_GPU:-0}
+    command: >
+      bash -lc 'uv run --no-sync python -m brainstorm.evaluate_criss_cross_word_classification
+      --config-name=eval_criss_cross_word_classification_gwilliams
+      model.criss_cross_checkpoint="$${CRISS_CROSS_CHECKPOINT}"
+      data.root="$${GWILLIAMS_ROOT}"
+      hydra.run.dir="./logs/hydra/eval_gwilliams/$$(date +%Y%m%d_%H%M%S)"'
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${GWILLIAMS_GPU:-0}"]
               capabilities: [gpu]
 
   eval_libribrain_linear_probe:

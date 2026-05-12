@@ -52,6 +52,7 @@ from brainstorm.neuro_tokenizers.biocodec.model import BioCodecModel
 from brainstorm.data.armeni_word_aligned_dataset import ArmeniWordAlignedDataset
 from brainstorm.data.gwilliams_word_aligned_dataset import GwilliamsWordAlignedDataset
 from brainstorm.data.libribrain_word_aligned_dataset import LibriBrainWordAlignedDataset
+from brainstorm.eval_metrics_history import append_epoch_metrics_history
 from brainstorm.losses.contrastive import SigLipLoss
 
 logger = logging.getLogger(__name__)
@@ -1130,6 +1131,7 @@ def train_and_evaluate(
     best_test_metrics_at_best_val = {}  # Track test metrics at best validation
     best_val_epoch = 0  # Track which epoch had best validation
     start_epoch = 0
+    previous_val_primary_acc = None
 
     # Resume from checkpoint if specified
     resume_checkpoint = cfg.training.get('resume_checkpoint', None)
@@ -1223,6 +1225,16 @@ def train_and_evaluate(
         # Get primary retrieval set size for early stopping (largest in list)
         primary_retrieval_size = cfg.evaluation.retrieval_set_sizes[-1]
         k = cfg.evaluation.k
+        primary_metric_key = f'balanced_top{k}_accuracy_retrieval{primary_retrieval_size}'
+        val_primary_acc = val_metrics.get(primary_metric_key, 0)
+        primary_delta = (
+            None if previous_val_primary_acc is None
+            else val_primary_acc - previous_val_primary_acc
+        )
+        previous_best_val_acc = best_val_top10_acc
+        primary_margin_over_best = val_primary_acc - previous_best_val_acc
+        improved_this_epoch = val_primary_acc > previous_best_val_acc + cfg.training.min_delta
+        primary_gain_over_best = primary_margin_over_best if improved_this_epoch else 0.0
 
         logger.info(f"  Val loss: {val_metrics['loss']:.4f}")
         for ret_size in cfg.evaluation.retrieval_set_sizes:
@@ -1238,9 +1250,15 @@ def train_and_evaluate(
         log_dict = {
             'epoch': epoch + 1,
             'train/loss': train_loss,
+            'val/primary_metric_value': val_primary_acc,
+            'val/primary_metric_margin_over_previous_best': primary_margin_over_best,
+            'val/primary_metric_gain_over_previous_best': primary_gain_over_best,
+            'val/primary_metric_improved': int(improved_this_epoch),
             **{f'val/{metric_k}': v for metric_k, v in val_metrics.items()},
             **{f'test_during_train/{metric_k}': v for metric_k, v in test_metrics.items()}
         }
+        if primary_delta is not None:
+            log_dict['val/primary_metric_delta_from_previous_epoch'] = primary_delta
 
         # Log best test metrics at best validation (tracks test performance at best val checkpoint so far)
         if best_test_metrics_at_best_val:
@@ -1250,14 +1268,10 @@ def train_and_evaluate(
         wandb.log(log_dict)
 
         # Use primary retrieval set's balanced accuracy for early stopping
-        primary_metric_key = f'balanced_top{k}_accuracy_retrieval{primary_retrieval_size}'
-        val_primary_acc = val_metrics.get(primary_metric_key, 0)
-
-        # Scheduler step
         scheduler.step(val_primary_acc)
 
         # Early stopping and checkpointing
-        if val_primary_acc > best_val_top10_acc + cfg.training.min_delta:
+        if improved_this_epoch:
             best_val_top10_acc = val_primary_acc
             patience_counter = 0
             best_test_metrics_at_best_val = test_metrics.copy()  # Update best test metrics
@@ -1299,6 +1313,32 @@ def train_and_evaluate(
             'best_test_metrics_at_best_val': best_test_metrics_at_best_val,
             'config': OmegaConf.to_container(cfg, resolve=True)
         }, latest_checkpoint_path)
+
+        history_row = {
+            'epoch': epoch + 1,
+            'primary_metric': primary_metric_key,
+            'train/loss': train_loss,
+            'val/primary_metric_value': val_primary_acc,
+            'val/primary_metric_delta_from_previous_epoch': primary_delta,
+            'val/primary_metric_margin_over_previous_best': primary_margin_over_best,
+            'val/primary_metric_gain_over_previous_best': primary_gain_over_best,
+            'val/primary_metric_improved': improved_this_epoch,
+            'val/best_primary_metric': best_val_top10_acc,
+            'val/best_epoch': best_val_epoch,
+            'training/patience_counter': patience_counter,
+            'training/early_stopped': patience_counter >= cfg.training.patience,
+            **{f'optimizer/lr_group_{i}': group['lr'] for i, group in enumerate(optimizer.param_groups)},
+            **{f'val/{metric_k}': v for metric_k, v in val_metrics.items()},
+            **{f'test_during_train/{metric_k}': v for metric_k, v in test_metrics.items()},
+            **{f'test_at_best_val/{metric_k}': v for metric_k, v in best_test_metrics_at_best_val.items()},
+        }
+        csv_path, jsonl_path = append_epoch_metrics_history(
+            cfg.logging.save_dir,
+            history_row,
+            reset=(epoch == start_epoch and start_epoch == 0),
+        )
+        logger.info(f"  Metrics history updated: {csv_path} and {jsonl_path}")
+        previous_val_primary_acc = val_primary_acc
 
         if patience_counter >= cfg.training.patience:
             logger.info(f"Early stopping at epoch {epoch + 1}")
