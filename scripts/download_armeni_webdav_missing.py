@@ -48,7 +48,7 @@ class WebDavClient:
     ):
         self.timeout = timeout
         self.opener = urllib.request.build_opener()
-        if username is not None:
+        if username:
             password_mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
             password_mgr.add_password(None, auth_root, username, password or "")
             self.opener.add_handler(urllib.request.HTTPBasicAuthHandler(password_mgr))
@@ -250,11 +250,18 @@ def relative_file_name(ds_url: str, href: str) -> str:
 
 
 def resolve_credentials(args: argparse.Namespace) -> tuple[str | None, str | None]:
-    username = args.username or os.environ.get("RDR_USERNAME") or os.environ.get("WEBDAV_USERNAME")
-    password = args.password or os.environ.get("RDR_PASSWORD") or os.environ.get("WEBDAV_PASSWORD")
+    username = first_non_empty(args.username, os.environ.get("RDR_USERNAME"), os.environ.get("WEBDAV_USERNAME"))
+    password = first_non_empty(args.password, os.environ.get("RDR_PASSWORD"), os.environ.get("WEBDAV_PASSWORD"))
     if username and password is None:
         password = getpass.getpass(f"Password for {username}: ")
     return username, password
+
+
+def first_non_empty(*values: str | None) -> str | None:
+    for value in values:
+        if value:
+            return value
+    return None
 
 
 def parse_args() -> argparse.Namespace:
@@ -277,7 +284,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--required-only",
         action="store_true",
-        help="Download only .res4 and .meg4 files instead of every file in each .ds directory.",
+        default=True,
+        help="Download only .res4 and .meg4 files. This is the default.",
+    )
+    parser.add_argument(
+        "--all-files",
+        action="store_false",
+        dest="required_only",
+        help="Download every file in each .ds directory instead of only .res4 and .meg4.",
     )
     return parser.parse_args()
 
@@ -341,7 +355,20 @@ def main() -> int:
             if args.dry_run:
                 print(f"would get {local_path} ({format_bytes(entry.size)})", flush=True)
             else:
-                client.download(url, local_path, entry.size, overwrite=args.overwrite)
+                try:
+                    client.download(url, local_path, entry.size, overwrite=args.overwrite)
+                except urllib.error.HTTPError as exc:
+                    if exc.code == 401:
+                        print(
+                            "\nWebDAV returned HTTP 401 while downloading a file. "
+                            "The repository is listing metadata but requires credentials for file downloads.\n"
+                            "Relaunch with credentials, for example:\n"
+                            "  RDR_USERNAME='<user>' RDR_PASSWORD='<password>' "
+                            "bash run_armeni_webdav_download.sh --replace\n",
+                            file=sys.stderr,
+                        )
+                        return 1
+                    raise
 
     if args.dry_run:
         print(f"Dry run: {total_files} file(s), about {format_bytes(total_bytes)} missing.", flush=True)

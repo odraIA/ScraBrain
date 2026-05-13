@@ -11,7 +11,8 @@ container keeps running if this terminal closes.
 Options:
   --build          Build scrabrain-megxl:latest before launching.
   --dry-run        List missing files without downloading.
-  --required-only  Download only .meg4 and .res4 files.
+  --required-only  Download only .meg4 and .res4 files (default).
+  --all-files      Download every file in each .ds directory.
   --replace        Remove an existing downloader container with the same name.
   --logs           Follow logs after launching.
   -h, --help       Show this help.
@@ -33,7 +34,8 @@ USAGE
 
 build=0
 dry_run=0
-required_only=0
+required_only=1
+all_files=0
 replace=0
 follow_logs=0
 extra_args=()
@@ -50,6 +52,12 @@ while [[ $# -gt 0 ]]; do
       ;;
     --required-only)
       required_only=1
+      all_files=0
+      shift
+      ;;
+    --all-files)
+      required_only=0
+      all_files=1
       shift
       ;;
     --replace)
@@ -151,6 +159,10 @@ fi
 
 if [[ "$required_only" -eq 1 ]]; then
   download_args+=("--required-only")
+fi
+
+if [[ "$all_files" -eq 1 ]]; then
+  download_args+=("--all-files")
 fi
 
 download_args+=("${extra_args[@]}")
