@@ -691,14 +691,15 @@ def _apply_robust_scaling(
     sensor_types: np.ndarray
 ) -> np.ndarray:
     """
-    Apply RobustScaler separately to magnetometers and gradiometers.
+    Apply RobustScaler separately to each sensor type.
 
     Parameters
     ----------
     chunk : np.ndarray
         MEG data chunk of shape (n_channels, n_samples)
     sensor_types : np.ndarray
-        Sensor types of shape (n_channels,) where 1=magnetometer, 0=gradiometer
+        Sensor types of shape (n_channels,) where 0=gradiometer,
+        1=magnetometer, and optional additional values such as 2=EEG
 
     Returns
     -------
@@ -707,16 +708,11 @@ def _apply_robust_scaling(
     """
     from sklearn.preprocessing import RobustScaler
 
-    mag_mask = sensor_types == 1
-    grad_mask = sensor_types == 0
-
-    if np.any(mag_mask):
-        mag_scaler = RobustScaler()
-        chunk[mag_mask, :] = mag_scaler.fit_transform(chunk[mag_mask, :].T).T
-
-    if np.any(grad_mask):
-        grad_scaler = RobustScaler()
-        chunk[grad_mask, :] = grad_scaler.fit_transform(chunk[grad_mask, :].T).T
+    for sensor_type in np.unique(sensor_types):
+        type_mask = sensor_types == sensor_type
+        if np.any(type_mask):
+            scaler = RobustScaler()
+            chunk[type_mask, :] = scaler.fit_transform(chunk[type_mask, :].T).T
 
     return chunk
 

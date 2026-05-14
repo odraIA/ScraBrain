@@ -29,6 +29,13 @@ data:
   # ZuCo 2.0 NR uses 105 EEG channels.
   max_channel_dim: 105
 
+  # Channel type used for ZuCo EEG channels.
+  # Options:
+  # - "meg" / "mag": reuse the pretrained magnetometer/MEG type embedding
+  # - "eeg": add a third EEG type embedding (0=GRAD, 1=MAG, 2=EEG)
+  # - "grad": previous behavior, reuse the gradiometer type embedding
+  eeg_sensor_type: "eeg"
+
   # Subjects included in the downloaded ZuCo 2.0 Natural Reading task.
   subjects:
     - "YAC"

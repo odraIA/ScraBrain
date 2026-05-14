@@ -107,6 +107,40 @@ def get_default_max_channel_dim(dataset_type: str) -> int:
     return defaults.get(dataset_type, 306)
 
 
+def resolve_sensor_type_id(sensor_type: str) -> int:
+    aliases = {
+        "grad": 0,
+        "gradiometer": 0,
+        "mag": 1,
+        "meg": 1,
+        "magnetometer": 1,
+        "eeg": 2,
+    }
+    key = str(sensor_type).strip().lower()
+    if key not in aliases:
+        raise ValueError(
+            f"Unknown sensor type {sensor_type!r}. "
+            f"Expected one of: {sorted(aliases.keys())}"
+        )
+    return aliases[key]
+
+
+def get_num_sensor_types_for_config(cfg: DictConfig) -> int:
+    num_sensor_types = int(cfg.model.get("num_sensor_types", 2))
+    if cfg.data.get("dataset_type", "armeni") == "zuco":
+        eeg_sensor_type = cfg.data.get("eeg_sensor_type", "grad")
+        num_sensor_types = max(num_sensor_types, resolve_sensor_type_id(eeg_sensor_type) + 1)
+    return num_sensor_types
+
+
+def get_dataset_extra_kwargs(dataset_type: str, cfg: DictConfig) -> Dict[str, Any]:
+    if dataset_type == "zuco":
+        return {
+            "eeg_sensor_type": cfg.data.get("eeg_sensor_type", "grad"),
+        }
+    return {}
+
+
 # ============================================================================
 # Model Components
 # ============================================================================
@@ -534,7 +568,8 @@ def load_tokenizer(ckpt_path: str, device: str = "cpu") -> BioCodecModel:
 def load_criss_cross_model(
     checkpoint_path: str,
     tokenizer: BioCodecModel,
-    device: str = "cuda"
+    device: str = "cuda",
+    num_sensor_types: Optional[int] = None,
 ) -> CrissCrossTransformerModule:
     """
     Load CrissCrossTransformer from checkpoint.
@@ -553,7 +588,9 @@ def load_criss_cross_model(
     checkpoint = torch.load(checkpoint_path, map_location=device)
 
     # Extract hyperparameters
-    hparams = checkpoint['hyper_parameters']
+    hparams = dict(checkpoint['hyper_parameters'])
+    if num_sensor_types is not None:
+        hparams['num_sensor_types'] = num_sensor_types
 
     # Create model instance with saved hyperparameters
     model = CrissCrossTransformerModule(
@@ -579,6 +616,26 @@ def load_criss_cross_model(
 
     logger.info(f"  Skipping {len(skipped_rope_keys)} RoPE rotation buffers (deterministic, will be recomputed)")
 
+    sensor_type_key = 'sensor_type_layer.weight'
+    if sensor_type_key in filtered_state_dict:
+        checkpoint_weight = filtered_state_dict[sensor_type_key]
+        model_weight = model.state_dict()[sensor_type_key]
+        if checkpoint_weight.shape != model_weight.shape:
+            checkpoint_weight = checkpoint_weight.to(model_weight.device)
+            if checkpoint_weight.shape[1] != model_weight.shape[1]:
+                raise ValueError(
+                    f"Cannot resize {sensor_type_key}: checkpoint shape "
+                    f"{tuple(checkpoint_weight.shape)} vs model shape {tuple(model_weight.shape)}"
+                )
+            resized_weight = model_weight.clone()
+            rows_to_copy = min(checkpoint_weight.shape[0], model_weight.shape[0])
+            resized_weight[:rows_to_copy] = checkpoint_weight[:rows_to_copy]
+            filtered_state_dict[sensor_type_key] = resized_weight
+            logger.info(
+                f"  Resized {sensor_type_key}: copied {rows_to_copy} pretrained rows, "
+                f"using initialized weights for {model_weight.shape[0] - rows_to_copy} new rows"
+            )
+
     # Load all weights except RoPE
     missing_keys, unexpected_keys = model.load_state_dict(filtered_state_dict, strict=False)
 
@@ -603,7 +660,8 @@ def load_criss_cross_model(
 def initialize_criss_cross_from_scratch(
     checkpoint_path: str,
     tokenizer: BioCodecModel,
-    device: str = "cuda"
+    device: str = "cuda",
+    num_sensor_types: Optional[int] = None,
 ) -> CrissCrossTransformerModule:
     """
     Initialize CrissCross with random weights using architecture from checkpoint.
@@ -624,7 +682,9 @@ def initialize_criss_cross_from_scratch(
 
     # Load checkpoint to extract hyperparameters
     checkpoint = torch.load(checkpoint_path, map_location=device)
-    hparams = checkpoint['hyper_parameters']
+    hparams = dict(checkpoint['hyper_parameters'])
+    if num_sensor_types is not None:
+        hparams['num_sensor_types'] = num_sensor_types
 
     # Create model instance with saved hyperparameters but random weights
     model = CrissCrossTransformerModule(
@@ -1431,19 +1491,23 @@ def main(cfg: DictConfig):
     tokenizer = load_tokenizer(cfg.model.tokenizer_checkpoint, cfg.device)
 
     # 2. Load or initialize CrissCross model
+    num_sensor_types = get_num_sensor_types_for_config(cfg)
+    logger.info(f"Using {num_sensor_types} sensor type embeddings")
     if cfg.model.train_from_scratch:
         logger.info("Training mode: FROM SCRATCH (random initialization)")
         criss_cross_model = initialize_criss_cross_from_scratch(
             cfg.model.criss_cross_checkpoint,  # Still needed for architecture
             tokenizer,
-            cfg.device
+            cfg.device,
+            num_sensor_types=num_sensor_types
         )
     else:
         logger.info("Training mode: FINE-TUNING (pretrained checkpoint)")
         criss_cross_model = load_criss_cross_model(
             cfg.model.criss_cross_checkpoint,
             tokenizer,
-            cfg.device
+            cfg.device,
+            num_sensor_types=num_sensor_types
         )
 
     # 3. Build vocabulary - will be done after dataset creation for both split modes
@@ -1460,10 +1524,13 @@ def main(cfg: DictConfig):
     dataset_type = cfg.data.get('dataset_type', 'armeni')
     DatasetClass = get_dataset_class(dataset_type)
     max_channel_dim = cfg.data.get('max_channel_dim', get_default_max_channel_dim(dataset_type))
+    dataset_extra_kwargs = get_dataset_extra_kwargs(dataset_type, cfg)
 
     logger.info(f"Using dataset type: {dataset_type}")
     logger.info(f"Dataset class: {DatasetClass.__name__}")
     logger.info(f"Max channel dim: {max_channel_dim}")
+    if dataset_extra_kwargs:
+        logger.info(f"Dataset extra kwargs: {dataset_extra_kwargs}")
 
     if cfg.data.get('use_hashed_split', False):
         logger.info("Using hashed sentence-based split...")
@@ -1482,7 +1549,8 @@ def main(cfg: DictConfig):
             l_freq=cfg.data.l_freq,
             h_freq=cfg.data.h_freq,
             target_sfreq=cfg.data.target_sfreq,
-            max_channel_dim=max_channel_dim
+            max_channel_dim=max_channel_dim,
+            **dataset_extra_kwargs
         )
 
         logger.info(f"Total segments across all sessions: {len(full_dataset)}")
@@ -1623,7 +1691,8 @@ def main(cfg: DictConfig):
             l_freq=cfg.data.l_freq,
             h_freq=cfg.data.h_freq,
             target_sfreq=cfg.data.target_sfreq,
-            max_channel_dim=max_channel_dim
+            max_channel_dim=max_channel_dim,
+            **dataset_extra_kwargs
         )
 
         print("Original training dataset size:", len(train_dataset))
@@ -1656,7 +1725,8 @@ def main(cfg: DictConfig):
             l_freq=cfg.data.l_freq,
             h_freq=cfg.data.h_freq,
             target_sfreq=cfg.data.target_sfreq,
-            max_channel_dim=max_channel_dim
+            max_channel_dim=max_channel_dim,
+            **dataset_extra_kwargs
         )
 
         test_dataset = DatasetClass(
@@ -1672,7 +1742,8 @@ def main(cfg: DictConfig):
             l_freq=cfg.data.l_freq,
             h_freq=cfg.data.h_freq,
             target_sfreq=cfg.data.target_sfreq,
-            max_channel_dim=max_channel_dim
+            max_channel_dim=max_channel_dim,
+            **dataset_extra_kwargs
         )
 
         # Build vocabulary from ALL datasets using ALL unique words

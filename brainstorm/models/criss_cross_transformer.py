@@ -62,6 +62,7 @@ class CrissCrossTransformerModule(pl.LightningModule):
         num_subsegments_to_mask: int = 1,
         sampling_rate: int = 250,
         fourier_pos_dim: int = 250,
+        num_sensor_types: int = 2,
     ):
         super().__init__()
         self.save_hyperparameters(ignore=['tokenizer'])
@@ -88,6 +89,7 @@ class CrissCrossTransformerModule(pl.LightningModule):
         self.mask_duration = mask_duration
         self.num_subsegments_to_mask = num_subsegments_to_mask
         self.sampling_rate = sampling_rate
+        self.num_sensor_types = num_sensor_types
 
         # Calculate mask length in encoded timesteps
         # BioCodec downsampling ratio is 12 (ratios=[3, 2, 2])
@@ -120,8 +122,8 @@ class CrissCrossTransformerModule(pl.LightningModule):
         self.orientation_fourier_emb = GaussianFourierEmb3D(embed_dim=fourier_pos_dim, scale=1.0)
         self.orientation_projector = nn.Linear(fourier_pos_dim, latent_dim)
 
-        # Sensor type embedding: binary GRAD (0) or MAG (1)
-        self.sensor_type_layer = nn.Embedding(2, latent_dim)
+        # Sensor type embedding: 0=GRAD, 1=MAG, optionally 2=EEG.
+        self.sensor_type_layer = nn.Embedding(num_sensor_types, latent_dim)
 
         # Single learnable mask token for all levels
         self.mask_token = nn.Parameter(torch.randn(latent_dim))
@@ -210,7 +212,7 @@ class CrissCrossTransformerModule(pl.LightningModule):
             codes: [B, C, Q, T'] discrete RVQ codes
             sensor_xyz: [B, C, 3] sensor XYZ coordinates (normalized, batched)
             sensor_abc: [B, C, 3] sensor orientation vectors (batched)
-            sensor_type: [B, C] sensor types, 0=GRAD, 1=MAG (batched)
+            sensor_type: [B, C] sensor types, 0=GRAD, 1=MAG, optionally 2=EEG (batched)
 
         Returns:
             embeddings: [B, C, T', latent_dim] embeddings
@@ -418,7 +420,7 @@ class CrissCrossTransformerModule(pl.LightningModule):
             raw_meg: [B, C, T] raw MEG signals (T = segment_duration * sampling_rate)
             sensor_xyz: [B, C, 3] sensor XYZ coordinates (normalized, batched)
             sensor_abc: [B, C, 3] sensor orientation vectors (batched)
-            sensor_type: [B, C] sensor types, 0=GRAD, 1=MAG (batched)
+            sensor_type: [B, C] sensor types, 0=GRAD, 1=MAG, optionally 2=EEG (batched)
             sensor_mask: [B, C] boolean mask for valid sensors (optional)
             apply_mask: whether to apply masking (True for training)
             collect_timing: whether to collect timing information (for profiling)

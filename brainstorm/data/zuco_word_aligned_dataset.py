@@ -57,6 +57,7 @@ class ZuCoWordAlignedDataset(Dataset):
         max_channel_dim: Optional[int] = None,
         baseline_duration: float = 0.5,
         clip_range: tuple = (-5, 5),
+        eeg_sensor_type: str = "grad",
     ):
         self.data_root = self._resolve_data_root(Path(data_root))
         self.preprocessed_root = self.data_root / "task1 - NR" / "Preprocessed"
@@ -75,6 +76,8 @@ class ZuCoWordAlignedDataset(Dataset):
         self.target_sfreq = target_sfreq
         self.channel_filter = channel_filter
         self.max_channel_dim = max_channel_dim
+        self.eeg_sensor_type = eeg_sensor_type
+        self.eeg_sensor_type_id = self._resolve_eeg_sensor_type(eeg_sensor_type)
 
         self.subjects = [self._normalize_subject(s) for s in subjects] if subjects is not None else None
         self.sessions = [self._normalize_session(s) for s in sessions] if sessions is not None else None
@@ -118,6 +121,24 @@ class ZuCoWordAlignedDataset(Dataset):
     def _normalize_subject(subject: str) -> str:
         text = str(subject).strip()
         return text.upper().replace("SUB-", "")
+
+    @staticmethod
+    def _resolve_eeg_sensor_type(sensor_type: str) -> int:
+        aliases = {
+            "grad": 0,
+            "gradiometer": 0,
+            "mag": 1,
+            "meg": 1,
+            "magnetometer": 1,
+            "eeg": 2,
+        }
+        key = str(sensor_type).strip().lower()
+        if key not in aliases:
+            raise ValueError(
+                f"Unknown eeg_sensor_type={sensor_type!r}. "
+                f"Expected one of: {sorted(aliases.keys())}"
+            )
+        return aliases[key]
 
     def _discover_recordings(self) -> List[Dict[str, Any]]:
         recordings: List[Dict[str, Any]] = []
@@ -182,7 +203,11 @@ class ZuCoWordAlignedDataset(Dataset):
             rec["n_samples"] = int(h5_file["EEG/pnts"][0, 0])
             rec["channel_names"] = self._read_channel_names(h5_file)
             rec["sensor_xyzdir"] = self._read_sensor_xyzdir(h5_file)
-            rec["sensor_types"] = np.zeros(len(rec["channel_names"]), dtype=np.int64)
+            rec["sensor_types"] = np.full(
+                len(rec["channel_names"]),
+                self.eeg_sensor_type_id,
+                dtype=np.int64,
+            )
             self.file_handles.append(h5_file)
 
     def _read_channel_names(self, h5_file: h5py.File) -> List[str]:
