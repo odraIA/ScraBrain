@@ -1,0 +1,17 @@
+[2026-05-13 15:10:17,401][__main__][INFO] - Loading BioCodec tokenizer from: ./brainstorm/neuro_tokenizers/biocodec_ckpt.pt
+[2026-05-13 15:10:17,806][__main__][INFO] -   BioCodec tokenizer loaded successfully
+[2026-05-13 15:10:17,807][__main__][INFO] - Training mode: FINE-TUNING (pretrained checkpoint)
+[2026-05-13 15:10:17,807][__main__][INFO] - Loading CrissCross model from: ./checkpoints/baseline/meg-xl-med.ckpt
+[2026-05-13 15:10:18,090][__main__][INFO] -   Skipping 8 RoPE rotation buffers (deterministic, will be recomputed)
+[2026-05-13 15:10:18,104][__main__][INFO] -   Missing keys: 8 (RoPE buffers)
+[2026-05-13 15:10:18,104][__main__][INFO] -   Successfully loaded checkpoint (RoPE will auto-expand to 625 on first forward pass)
+[2026-05-13 15:10:18,147][__main__][INFO] -   Latent dim: 512
+[2026-05-13 15:10:18,147][__main__][INFO] -   Num layers: 8
+[2026-05-13 15:10:18,148][__main__][INFO] -   Num heads: 8
+[2026-05-13 15:10:18,148][__main__][INFO] -   Loaded with strict=False (RoPE will auto-expand for sequence length)
+[2026-05-13 15:10:18,149][__main__][INFO] - 
+Creating datasets...
+[2026-05-13 15:10:18,149][__main__][INFO] - Using dataset type: armeni
+[2026-05-13 15:10:18,149][__main__][INFO] - Dataset class: ArmeniWordAlignedDataset
+[2026-05-13 15:10:18,149][__main__][INFO] - Max channel dim: 306
+[2026-05-13 15:10:18,149][__main__][INFO] - Using hashed sentence-based split...
