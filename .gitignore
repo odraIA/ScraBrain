@@ -207,14 +207,18 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
-
-datasets/
-checkpoints/
-wandb/
-hf_cache/
 __pycache__/
 *.pyc
 .codex
 .agents
 
 .DS_Store
+
+
+# MEG-XL
+datasets/
+checkpoints/
+wandb/
+hf_cache/
+data/
+embeddings_cache/
