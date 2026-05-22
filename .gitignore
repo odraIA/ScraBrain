@@ -217,3 +217,5 @@ checkpoints/
 __pycache__/
 *.pyc
 .codex
+
+datasets/
