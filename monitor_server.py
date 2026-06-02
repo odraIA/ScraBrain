@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 ================================================================================
-  monitor_server.py — Dashboard de monitorización del sweep MEG
+  monitor_server.py — Dashboard de monitorización de entrenamientos/evaluaciones MEG
 ================================================================================
   Servidor HTTP autocontenido (stdlib pura, sin dependencias).
   Sirve un dashboard en tiempo real leyendo los mismos volúmenes que el training.
@@ -16,8 +16,8 @@
     http://<ip-servidor>:8080
 
   API JSON (para scripting):
-    GET /api/status          → estado global del sweep
-    GET /api/log?exp=<name>  → últimas líneas del log de un experimento
+    GET /api/status          → estado global de ejecuciones detectadas
+    GET /api/log?exp=<name>  → últimas líneas del log de una ejecución
 ================================================================================
 """
 
@@ -26,6 +26,7 @@ import glob
 import json
 import os
 import re
+import socket
 import subprocess
 import sys
 import time
@@ -41,6 +42,14 @@ RESULTS_DIR  = BASE_DIR / "results"
 CKPT_DIR     = BASE_DIR / "checkpoints"
 PLAN_FILE    = BASE_DIR / ".sweep_plan.json"
 REFRESH_SECS = 8
+DOCKER_SOCKET = Path(os.environ.get("DOCKER_SOCKET", "/var/run/docker.sock"))
+GENERIC_SCAN_ROOT_NAMES = ("logs", "checkpoints", "outputs", "multirun")
+GENERIC_RUN_MARKERS = (
+    "final_results.txt",
+    "checkpoint_best.pt",
+    "checkpoint_latest.pt",
+    ".hydra/config.yaml",
+)
 
 # Espacio clásico (fallback cuando no hay sweep_mode explícito)
 TASKS      = ["phoneme", "speech"]
@@ -132,6 +141,64 @@ def _normalize_plan_precompute_entries(plan: dict, stage_key: str) -> dict[str, 
 
 def _strip_ansi(text: str) -> str:
     return re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", text)
+
+
+def _safe_stat_mtime(path: Path | None) -> float | None:
+    if path is None or not path.exists():
+        return None
+    try:
+        return path.stat().st_mtime
+    except Exception:
+        return None
+
+
+def _safe_read_text(path: Path | None, max_bytes: int | None = None) -> str:
+    if path is None or not path.exists():
+        return ""
+    try:
+        if max_bytes is None:
+            return path.read_text(encoding="utf-8", errors="replace")
+        with path.open("rb") as f:
+            return f.read(max_bytes).decode("utf-8", errors="replace")
+    except Exception:
+        return ""
+
+
+def _clean_scalar(value: str | None) -> str | None:
+    if value is None:
+        return None
+    value = value.strip()
+    if not value or value.lower() in {"null", "none"}:
+        return None
+    if "#" in value:
+        value = value.split("#", 1)[0].strip()
+    return value.strip("\"'")
+
+
+def _extract_yaml_section_value(text: str, section: str, key: str) -> str | None:
+    in_section = False
+    for raw_line in text.splitlines():
+        if not raw_line.strip() or raw_line.lstrip().startswith("#"):
+            continue
+        if not raw_line.startswith((" ", "\t")):
+            in_section = raw_line.rstrip().startswith(f"{section}:")
+            continue
+        if not in_section:
+            continue
+        match = re.match(rf"\s+{re.escape(key)}:\s*(.+?)\s*$", raw_line)
+        if match:
+            return _clean_scalar(match.group(1))
+    return None
+
+
+def _resolve_workspace_path(raw_path: str | None) -> Path | None:
+    cleaned = _clean_scalar(raw_path)
+    if cleaned is None:
+        return None
+    path = Path(cleaned)
+    if path.is_absolute():
+        return path
+    return BASE_DIR / path
 
 
 EXP_HEADER_RE = re.compile(r"━━━ \[\d+/\d+\] (.+?) ━━━")
@@ -340,6 +407,8 @@ def get_sweep_context() -> dict:
     sweep_log_path = _get_active_sweep_log_path(plan)
     coordinator_log_path = _get_active_coordinator_log_path(plan)
     run_started_at = _get_active_run_started_at(plan, sweep_log_path, coordinator_log_path)
+    compose_containers = get_compose_container_statuses()
+    megxl_runs = discover_generic_megxl_runs(compose_containers)
     return {
         "plan": plan,
         "run_ts": _infer_active_run_ts(plan),
@@ -350,6 +419,8 @@ def get_sweep_context() -> dict:
         "log_statuses": _parse_sweep_log_statuses(sweep_log_path),
         "sweep_log_path": sweep_log_path,
         "coordinator_log_path": coordinator_log_path,
+        "compose_containers": compose_containers,
+        "megxl_runs": megxl_runs,
     }
 
 
@@ -376,15 +447,449 @@ def _artifact_age_min(path: Path) -> float | None:
         return None
 
 
-def discover_experiments() -> list[str]:
+def _decode_http_chunked(body: bytes) -> bytes:
+    decoded = bytearray()
+    pos = 0
+    while pos < len(body):
+        line_end = body.find(b"\r\n", pos)
+        if line_end < 0:
+            return body
+        size_text = body[pos:line_end].split(b";", 1)[0].strip()
+        try:
+            size = int(size_text, 16)
+        except Exception:
+            return body
+        pos = line_end + 2
+        if size == 0:
+            break
+        decoded.extend(body[pos:pos + size])
+        pos += size + 2
+    return bytes(decoded)
+
+
+def _docker_socket_request(path: str, timeout: float = 3.0) -> bytes:
+    if not DOCKER_SOCKET.exists():
+        return b""
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+            sock.settimeout(timeout)
+            sock.connect(str(DOCKER_SOCKET))
+            request = (
+                f"GET {path} HTTP/1.1\r\n"
+                "Host: docker\r\n"
+                "Connection: close\r\n"
+                "\r\n"
+            ).encode("ascii")
+            sock.sendall(request)
+            chunks = []
+            while True:
+                chunk = sock.recv(65536)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+    except Exception:
+        return b""
+
+    raw = b"".join(chunks)
+    header_end = raw.find(b"\r\n\r\n")
+    if header_end < 0:
+        return b""
+    headers = raw[:header_end].decode("iso-8859-1", errors="replace").lower()
+    body = raw[header_end + 4:]
+    if "transfer-encoding: chunked" in headers:
+        body = _decode_http_chunked(body)
+    return body
+
+
+def _docker_socket_json(path: str):
+    body = _docker_socket_request(path)
+    if not body:
+        return None
+    try:
+        return json.loads(body.decode("utf-8", errors="replace"))
+    except Exception:
+        return None
+
+
+def _decode_docker_log_stream(body: bytes) -> str:
+    if not body:
+        return ""
+
+    # Docker's non-TTY log endpoint multiplexes stdout/stderr with 8-byte frames.
+    if len(body) >= 8 and body[0] in (1, 2) and body[1:4] == b"\x00\x00\x00":
+        decoded = bytearray()
+        pos = 0
+        while pos + 8 <= len(body):
+            size = int.from_bytes(body[pos + 4:pos + 8], "big")
+            pos += 8
+            decoded.extend(body[pos:pos + size])
+            pos += size
+        body = bytes(decoded)
+
+    return _strip_ansi(body.decode("utf-8", errors="replace"))
+
+
+def _docker_socket_container_logs(container_id: str | None, lines: int = 80) -> str:
+    if not container_id:
+        return ""
+    body = _docker_socket_request(
+        f"/containers/{container_id}/logs?stdout=1&stderr=1&timestamps=0&tail={int(lines)}",
+        timeout=5.0,
+    )
+    return _decode_docker_log_stream(body)
+
+
+def _compose_statuses_from_docker_socket() -> dict[str, dict]:
+    containers = _docker_socket_json("/containers/json?all=1")
+    if not isinstance(containers, list):
+        return {}
+
+    statuses: dict[str, dict] = {}
+    for item in containers:
+        if not isinstance(item, dict):
+            continue
+        labels = item.get("Labels") if isinstance(item.get("Labels"), dict) else {}
+        service = labels.get("com.docker.compose.service")
+        if not service:
+            continue
+
+        names = item.get("Names") if isinstance(item.get("Names"), list) else []
+        container_name = names[0].lstrip("/") if names else item.get("Id", "")[:12]
+        container_id = item.get("Id")
+        inspect = _docker_socket_json(f"/containers/{container_id}/json") if container_id else None
+        state_obj = inspect.get("State", {}) if isinstance(inspect, dict) else {}
+        exit_code = state_obj.get("ExitCode")
+
+        statuses[str(service)] = {
+            "service": str(service),
+            "container": str(container_name),
+            "container_id": str(container_id or ""),
+            "state": str(item.get("State") or state_obj.get("Status") or "").lower(),
+            "status_text": str(item.get("Status") or ""),
+            "exit_code": str(exit_code) if exit_code is not None else None,
+        }
+    return statuses
+
+
+def get_compose_container_statuses() -> dict[str, dict]:
+    """
+    Best-effort Docker Compose state. The monitor also works without Docker
+    access, using filesystem artifacts only.
+    """
+    socket_statuses = _compose_statuses_from_docker_socket()
+    if socket_statuses:
+        return socket_statuses
+
+    try:
+        out = subprocess.check_output(
+            ["docker", "compose", "ps", "--format", "json"],
+            cwd=str(BASE_DIR),
+            timeout=4,
+            stderr=subprocess.DEVNULL,
+        ).decode("utf-8", errors="replace").strip()
+    except Exception:
+        return {}
+
+    if not out:
+        return {}
+
+    rows = []
+    try:
+        parsed = json.loads(out)
+        rows = parsed if isinstance(parsed, list) else [parsed]
+    except Exception:
+        for line in out.splitlines():
+            try:
+                rows.append(json.loads(line))
+            except Exception:
+                continue
+
+    statuses: dict[str, dict] = {}
+    for item in rows:
+        if not isinstance(item, dict):
+            continue
+        service = item.get("Service") or item.get("service")
+        name = item.get("Name") or item.get("name")
+        key = str(service or name or "").strip()
+        if not key:
+            continue
+        state = str(item.get("State") or item.get("state") or item.get("Status") or "").lower()
+        exit_code = item.get("ExitCode")
+        statuses[key] = {
+            "service": str(service or key),
+            "container": str(name or ""),
+            "state": state,
+            "status_text": str(item.get("Status") or item.get("status") or ""),
+            "exit_code": str(exit_code) if exit_code is not None else None,
+        }
+    return statuses
+
+
+def _compose_declared_eval_services() -> dict[str, dict]:
+    """
+    Parse the local compose file just enough to map services to Hydra configs.
+    This avoids hard-coding LibriBrain-specific service names.
+    """
+    compose_path = BASE_DIR / "docker-compose.yml"
+    text = _safe_read_text(compose_path)
+    if not text:
+        return {}
+
+    in_services = False
+    current_name: str | None = None
+    current_lines: list[str] = []
+    blocks: list[tuple[str, str]] = []
+
+    def flush_current() -> None:
+        nonlocal current_name, current_lines
+        if current_name is not None:
+            blocks.append((current_name, "\n".join(current_lines)))
+        current_name = None
+        current_lines = []
+
+    for line in text.splitlines():
+        if not in_services:
+            in_services = line.strip() == "services:"
+            continue
+
+        if line and not line.startswith(" "):
+            flush_current()
+            break
+
+        service_match = re.match(r"^  ([A-Za-z0-9_.-]+):\s*$", line)
+        if service_match:
+            flush_current()
+            current_name = service_match.group(1)
+            continue
+
+        if current_name is not None:
+            current_lines.append(line)
+
+    flush_current()
+
+    services: dict[str, dict] = {}
+    for service, block in blocks:
+        if service.startswith("x-"):
+            continue
+        if "monitor_server.py" in block:
+            continue
+
+        config_match = re.search(r"--config-name[=\s]+([A-Za-z0-9_.-]+)", block)
+        module_match = re.search(r"python\s+-m\s+([A-Za-z0-9_.-]+)", block)
+        if not config_match and "evaluate" not in block and "megxl" not in block.lower():
+            continue
+
+        entry = {
+            "service": service,
+            "config_name": config_match.group(1) if config_match else None,
+            "module": module_match.group(1) if module_match else None,
+        }
+        services[service] = entry
+    return services
+
+
+def _read_config_metadata(config_name: str | None) -> dict:
+    if not config_name:
+        return {}
+    config_path = BASE_DIR / "configs" / f"{config_name}.yaml"
+    text = _safe_read_text(config_path)
+    if not text:
+        return {"config_path": str(config_path)}
+    return {
+        "config_path": str(config_path),
+        "experiment_name": _extract_yaml_section_value(text, "logging", "experiment_name"),
+        "save_dir": _resolve_workspace_path(_extract_yaml_section_value(text, "logging", "save_dir")),
+        "checkpoint_dir": _resolve_workspace_path(_extract_yaml_section_value(text, "logging", "checkpoint_dir")),
+        "dataset_type": _extract_yaml_section_value(text, "data", "dataset_type"),
+        "wandb_project": _extract_yaml_section_value(text, "logging", "wandb_project"),
+    }
+
+
+def _merge_run(registry: dict[str, dict], name: str | None, **updates) -> None:
+    if not name:
+        return
+    clean_name = str(name).strip()
+    if not clean_name:
+        return
+    run = registry.setdefault(clean_name, {"exp": clean_name, "kind": "megxl_eval"})
+    for key, value in updates.items():
+        if value is not None and value != "":
+            run[key] = value
+
+
+def _find_run_name_by_save_dir(registry: dict[str, dict], save_dir: Path) -> str | None:
+    return _find_run_name_by_path_key(registry, "save_dir", save_dir)
+
+
+def _find_run_name_by_checkpoint_dir(registry: dict[str, dict], checkpoint_dir: Path) -> str | None:
+    return _find_run_name_by_path_key(registry, "checkpoint_dir", checkpoint_dir)
+
+
+def _find_run_name_by_path_key(registry: dict[str, dict], key: str, path: Path) -> str | None:
+    try:
+        target = path.resolve()
+    except Exception:
+        target = path
+    for name, run in registry.items():
+        candidate = run.get(key)
+        if not isinstance(candidate, Path):
+            continue
+        try:
+            if candidate.resolve() == target:
+                return name
+        except Exception:
+            if candidate == path:
+                return name
+    return None
+
+
+def _find_newest_log_in_dir(path: Path | None) -> Path | None:
+    if path is None or not path.exists() or not path.is_dir():
+        return None
+    logs = sorted(path.glob("*.log"), key=lambda p: p.stat().st_mtime, reverse=True)
+    return logs[0] if logs else None
+
+
+def _iter_existing_scan_roots() -> list[Path]:
+    roots = []
+    for name in GENERIC_SCAN_ROOT_NAMES:
+        path = BASE_DIR / name
+        if path.exists():
+            roots.append(path)
+    return roots
+
+
+def discover_generic_megxl_runs(compose_containers: dict[str, dict] | None = None) -> dict[str, dict]:
+    """
+    Discover MEG-XL evaluations from several generic sources:
+      - services in docker-compose.yml that launch a Hydra config
+      - Docker Compose runtime state
+      - Hydra run directories containing .hydra/config.yaml
+      - save dirs with final_results.txt / checkpoint_*.pt
+    """
+    registry: dict[str, dict] = {}
+    compose_containers = compose_containers or {}
+
+    declared_services = _compose_declared_eval_services()
+    for service, service_meta in declared_services.items():
+        cfg_meta = _read_config_metadata(service_meta.get("config_name"))
+        exp_name = cfg_meta.get("experiment_name") or service
+        save_dir = cfg_meta.get("save_dir")
+        checkpoint_dir = cfg_meta.get("checkpoint_dir") or save_dir
+        _merge_run(
+            registry,
+            exp_name,
+            service_name=service,
+            display_name=exp_name,
+            config_name=service_meta.get("config_name"),
+            config_path=cfg_meta.get("config_path"),
+            save_dir=save_dir,
+            checkpoint_dir=checkpoint_dir,
+            final_results=(save_dir / "final_results.txt") if isinstance(save_dir, Path) else None,
+            checkpoint_latest=(checkpoint_dir / "checkpoint_latest.pt") if isinstance(checkpoint_dir, Path) else None,
+            checkpoint_best=(checkpoint_dir / "checkpoint_best.pt") if isinstance(checkpoint_dir, Path) else None,
+            dataset=cfg_meta.get("dataset_type"),
+            wandb_project=cfg_meta.get("wandb_project"),
+            container=compose_containers.get(service),
+        )
+
+    for service, container in compose_containers.items():
+        if service in declared_services:
+            continue
+        if not re.search(r"(eval|megxl|classification|probe)", service, re.I):
+            continue
+        _merge_run(
+            registry,
+            service,
+            service_name=service,
+            display_name=service,
+            container=container,
+        )
+
+    for root in _iter_existing_scan_roots():
+        for config_path in root.rglob(".hydra/config.yaml"):
+            run_dir = config_path.parent.parent
+            text = _safe_read_text(config_path)
+            exp_name = (
+                _extract_yaml_section_value(text, "logging", "experiment_name")
+                or run_dir.name
+            )
+            save_dir = _resolve_workspace_path(_extract_yaml_section_value(text, "logging", "save_dir"))
+            checkpoint_dir = _resolve_workspace_path(_extract_yaml_section_value(text, "logging", "checkpoint_dir")) or save_dir
+            _merge_run(
+                registry,
+                exp_name,
+                display_name=exp_name,
+                hydra_dir=run_dir,
+                hydra_log=_find_newest_log_in_dir(run_dir),
+                config_path=config_path,
+                save_dir=save_dir,
+                checkpoint_dir=checkpoint_dir,
+                final_results=(save_dir / "final_results.txt") if isinstance(save_dir, Path) else None,
+                checkpoint_latest=(checkpoint_dir / "checkpoint_latest.pt") if isinstance(checkpoint_dir, Path) else None,
+                checkpoint_best=(checkpoint_dir / "checkpoint_best.pt") if isinstance(checkpoint_dir, Path) else None,
+                dataset=_extract_yaml_section_value(text, "data", "dataset_type"),
+                wandb_project=_extract_yaml_section_value(text, "logging", "wandb_project"),
+            )
+
+    for root in _iter_existing_scan_roots():
+        for marker in GENERIC_RUN_MARKERS[:3]:
+            for path in root.rglob(marker):
+                artifact_dir = path.parent
+                if marker == "final_results.txt":
+                    exp_name = _find_run_name_by_save_dir(registry, artifact_dir) or artifact_dir.name
+                    run = registry.get(exp_name, {})
+                    checkpoint_dir = run.get("checkpoint_dir") or artifact_dir
+                    _merge_run(
+                        registry,
+                        exp_name,
+                        display_name=exp_name,
+                        save_dir=artifact_dir,
+                        checkpoint_dir=checkpoint_dir,
+                        final_results=artifact_dir / "final_results.txt",
+                        checkpoint_latest=(checkpoint_dir / "checkpoint_latest.pt") if isinstance(checkpoint_dir, Path) else None,
+                        checkpoint_best=(checkpoint_dir / "checkpoint_best.pt") if isinstance(checkpoint_dir, Path) else None,
+                    )
+                    continue
+
+                exp_name = (
+                    _find_run_name_by_checkpoint_dir(registry, artifact_dir)
+                    or _find_run_name_by_save_dir(registry, artifact_dir)
+                    or artifact_dir.name
+                )
+                run = registry.get(exp_name, {})
+                save_dir = run.get("save_dir")
+                checkpoint_dir = run.get("checkpoint_dir") or artifact_dir
+                _merge_run(
+                    registry,
+                    exp_name,
+                    display_name=exp_name,
+                    save_dir=save_dir,
+                    checkpoint_dir=checkpoint_dir,
+                    final_results=(save_dir / "final_results.txt") if isinstance(save_dir, Path) else None,
+                    checkpoint_latest=checkpoint_dir / "checkpoint_latest.pt",
+                    checkpoint_best=checkpoint_dir / "checkpoint_best.pt",
+                )
+
+    # Drop entries without any concrete runtime, config, or artifact evidence.
+    return {
+        name: run
+        for name, run in registry.items()
+        if any(run.get(k) for k in ("service_name", "config_path", "hydra_dir", "final_results", "checkpoint_latest", "checkpoint_best"))
+    }
+
+
+def discover_experiments(ctx: dict | None = None) -> list[str]:
     """
     Descubre experimentos automáticamente para soportar:
       - modo clásico: task__backbone__strategy
       - modo speech-image: speech_image__<exp_id>
+      - evaluaciones genéricas MEG-XL lanzadas con Docker/Hydra
     """
     plan = load_sweep_plan()
     planned_entries = _normalize_plan_experiment_entries(plan)
     planned_exps = set(planned_entries.keys())
+    generic_exps = set((ctx or {}).get("megxl_runs", {}).keys())
     recent_exps = set()
 
     for p in LOGS_DIR.glob("*.log"):
@@ -405,11 +910,11 @@ def discover_experiments() -> list[str]:
             recent_exps.add(p.parent.name)
 
     if planned_entries:
-        return sorted(planned_exps | recent_exps)
+        return sorted(planned_exps | recent_exps | generic_exps)
 
     mode = get_sweep_mode()
     if mode == "classic":
-        return sorted(set(CLASSIC_EXPS) | recent_exps)
+        return sorted(set(CLASSIC_EXPS) | recent_exps | generic_exps)
 
     # speech_image y otros modos: descubrir por sentinels, logs y results
     exps = set()
@@ -424,7 +929,7 @@ def discover_experiments() -> list[str]:
     for p in RESULTS_DIR.glob("*/final_results.json"):
         exps.add(p.parent.name)
 
-    return sorted(exps)
+    return sorted(exps | generic_exps)
 
 
 # ==============================================================================
@@ -679,12 +1184,185 @@ def get_gpu_info() -> list[dict]:
     return gpu_info
 
 
+def _parse_final_results_txt(path: Path | None) -> dict[str, float]:
+    metrics: dict[str, float] = {}
+    if path is None or not path.exists():
+        return metrics
+    text = _safe_read_text(path)
+    for line in text.splitlines():
+        match = re.match(r"\s*([A-Za-z0-9_./-]+)\s*:\s*([-+0-9.eE]+)\s*$", line)
+        if not match:
+            continue
+        try:
+            metrics[match.group(1)] = float(match.group(2))
+        except Exception:
+            continue
+    return metrics
+
+
+def _pick_primary_metric(metrics: dict[str, float]) -> tuple[str | None, float | None]:
+    if not metrics:
+        return None, None
+
+    for key in ("test_f1_macro", "f1_macro", "test_balanced_acc", "balanced_acc"):
+        if key in metrics:
+            return key, metrics[key]
+
+    def _retrieval_rank(item: tuple[str, float]) -> tuple[int, int, str]:
+        key, _ = item
+        retrieval = 0
+        match = re.search(r"retrieval(\d+)", key)
+        if match:
+            retrieval = int(match.group(1))
+        if key.startswith("balanced_") and "accuracy" in key:
+            priority = 4
+        elif "top" in key and "accuracy" in key:
+            priority = 3
+        elif "accuracy" in key:
+            priority = 2
+        else:
+            priority = 1
+        return priority, retrieval, key
+
+    candidates = [(k, v) for k, v in metrics.items() if "loss" not in k.lower()]
+    if not candidates:
+        return next(iter(metrics.items()))
+    candidates.sort(key=_retrieval_rank, reverse=True)
+    return candidates[0]
+
+
+def _read_checkpoint_summary(path: Path | None) -> dict:
+    """
+    Avoid importing torch in the monitor. We infer liveness from checkpoint mtimes
+    and leave metric extraction to final_results.txt / logs.
+    """
+    if path is None or not path.exists():
+        return {}
+    return {"mtime": _safe_stat_mtime(path)}
+
+
+def _container_status(container: dict | None) -> str | None:
+    if not container:
+        return None
+    state = str(container.get("state") or "").lower()
+    status_text = str(container.get("status_text") or "").lower()
+    exit_code = container.get("exit_code")
+    if "running" in state or "up" in status_text:
+        return "running"
+    if exit_code in {"0", 0}:
+        return "done"
+    if exit_code not in {None, "", "0", 0}:
+        return "failed"
+    if any(token in state for token in ("exited", "dead", "failed")):
+        return "failed"
+    return None
+
+
+def _get_docker_compose_log(service: str | None, lines: int = 80) -> str:
+    if not service:
+        return ""
+    socket_status = get_compose_container_statuses().get(service, {})
+    socket_log = _docker_socket_container_logs(socket_status.get("container_id"), lines=lines)
+    if socket_log.strip():
+        return socket_log
+
+    try:
+        out = subprocess.check_output(
+            ["docker", "compose", "logs", "--no-color", "--tail", str(lines), service],
+            cwd=str(BASE_DIR),
+            timeout=5,
+            stderr=subprocess.DEVNULL,
+        ).decode("utf-8", errors="replace")
+        return _strip_ansi(out)
+    except Exception:
+        return ""
+
+
+def _get_megxl_eval_status(exp: str, run: dict) -> dict:
+    final_results = run.get("final_results")
+    checkpoint_latest = run.get("checkpoint_latest")
+    checkpoint_best = run.get("checkpoint_best")
+    hydra_log = run.get("hydra_log") or _find_newest_log_in_dir(run.get("hydra_dir"))
+    container = run.get("container")
+    container_state = _container_status(container)
+
+    metrics = _parse_final_results_txt(final_results)
+    primary_name, primary_value = _pick_primary_metric(metrics)
+    latest_age = _artifact_age_min(checkpoint_latest) if isinstance(checkpoint_latest, Path) else None
+    hydra_log_age = _artifact_age_min(hydra_log) if isinstance(hydra_log, Path) else None
+
+    status = "pending"
+    if container_state == "running":
+        status = "running"
+    elif isinstance(final_results, Path) and final_results.exists():
+        status = "done"
+    elif container_state in {"done", "failed"}:
+        status = container_state if metrics or container_state == "failed" else "failed"
+    elif isinstance(checkpoint_latest, Path) and checkpoint_latest.exists():
+        status = "running" if latest_age is not None and latest_age < 30 else "failed"
+    elif isinstance(hydra_log, Path) and hydra_log.exists():
+        status = "running" if hydra_log_age is not None and hydra_log_age < 30 else "failed"
+
+    artifact_times = [
+        _safe_stat_mtime(p)
+        for p in (final_results, checkpoint_latest, checkpoint_best, hydra_log)
+        if isinstance(p, Path)
+    ]
+    artifact_times = [t for t in artifact_times if t is not None]
+    log_mtime = max(artifact_times) if artifact_times else None
+
+    start_candidates = []
+    for p in (run.get("hydra_dir"), checkpoint_latest, checkpoint_best, final_results, hydra_log):
+        if isinstance(p, Path) and p.exists():
+            try:
+                start_candidates.append(p.stat().st_ctime)
+            except Exception:
+                pass
+
+    elapsed_min = None
+    if start_candidates:
+        elapsed_min = int((time.time() - min(start_candidates)) / 60)
+
+    last_line = ""
+    if isinstance(hydra_log, Path):
+        last_line = _tail_last_line(hydra_log)
+    if not last_line and run.get("service_name"):
+        docker_tail = _get_docker_compose_log(run.get("service_name"), lines=5)
+        last_line = docker_tail.strip().splitlines()[-1][:180] if docker_tail.strip() else ""
+
+    primary_display = primary_name.replace("_", " ") if primary_name else None
+
+    return {
+        "exp": exp,
+        "display_name": run.get("display_name") or exp,
+        "kind": run.get("kind", "megxl_eval"),
+        "dataset": run.get("dataset"),
+        "service_name": run.get("service_name"),
+        "status": status,
+        "epoch_current": None,
+        "epoch_total": None,
+        "f1_macro": primary_value,
+        "balanced_acc": metrics.get("balanced_acc") or metrics.get("test_balanced_acc"),
+        "best_val_f1": None,
+        "primary_metric_name": primary_name,
+        "primary_metric_label": primary_display,
+        "primary_metric_value": primary_value,
+        "metrics": metrics,
+        "elapsed_min": elapsed_min,
+        "last_line": last_line,
+        "log_mtime": log_mtime,
+    }
+
+
 def get_exp_status(exp: str, ctx: dict | None = None) -> dict:
     """
     Determina el estado de un experimento a partir de los archivos en disco.
     Returns: dict con status, epoch_current, epoch_total, f1, bal_acc, elapsed_min
     """
     ctx = ctx or get_sweep_context()
+    if exp in ctx.get("megxl_runs", {}):
+        return _get_megxl_eval_status(exp, ctx["megxl_runs"][exp])
+
     plan_entry = ctx["experiments"].get(exp, {})
     log_override = ctx["log_statuses"].get("experiments", {}).get(exp, {})
     started_at = ctx["run_started_at"]
@@ -696,12 +1374,20 @@ def get_exp_status(exp: str, ctx: dict | None = None) -> dict:
 
     result = {
         "exp": exp,
+        "display_name": exp,
+        "kind": "sweep",
+        "dataset": None,
+        "service_name": None,
         "status": "pending",       # pending | running | done | failed | skipped
         "epoch_current": None,
         "epoch_total": None,
         "f1_macro": None,
         "balanced_acc": None,
         "best_val_f1": None,
+        "primary_metric_name": "test_f1_macro",
+        "primary_metric_label": "F1 macro",
+        "primary_metric_value": None,
+        "metrics": {},
         "elapsed_min": None,
         "last_line": "",
         "log_mtime": None,
@@ -773,6 +1459,8 @@ def get_exp_status(exp: str, ctx: dict | None = None) -> dict:
             result["f1_macro"]    = d.get("test_f1_macro")
             result["balanced_acc"] = d.get("test_balanced_acc")
             result["best_val_f1"] = d.get("best_val_f1")
+            result["primary_metric_value"] = result["f1_macro"]
+            result["metrics"] = d if isinstance(d, dict) else {}
         except Exception:
             pass
         return result
@@ -817,15 +1505,18 @@ def get_exp_status(exp: str, ctx: dict | None = None) -> dict:
 def get_sweep_status() -> dict:
     """Estado global del sweep."""
     ctx = get_sweep_context()
-    all_exps = discover_experiments()
+    all_exps = discover_experiments(ctx)
     exps = [get_exp_status(e, ctx=ctx) for e in all_exps]
     precompute = get_precompute_status(ctx=ctx)
     counts = {"done": 0, "running": 0, "failed": 0, "pending": 0, "skipped": 0}
     for e in exps:
         counts[e["status"]] += 1
 
-    completed = [e for e in exps if e["status"] == "done" and e["f1_macro"] is not None]
-    completed.sort(key=lambda x: x["f1_macro"] or 0, reverse=True)
+    completed = [
+        e for e in exps
+        if e["status"] == "done" and e.get("primary_metric_value") is not None
+    ]
+    completed.sort(key=lambda x: x.get("primary_metric_value") or 0, reverse=True)
 
     # Leer el log del sweep activo. Con `--detach` preferimos el sweep log y,
     # si todavía no tiene contenido útil, caemos al coordinator log.
@@ -843,12 +1534,28 @@ def get_sweep_status() -> dict:
         "sweep_tail": sweep_tail,
         "gpu_info": get_gpu_info(),
         "sweep_mode": get_sweep_mode(),
+        "generic_runs": len(ctx.get("megxl_runs", {})),
     }
 
 
 def get_exp_log(exp: str, lines: int = 80, ctx: dict | None = None) -> str:
     """Últimas N líneas del log de un experimento del sweep activo."""
     ctx = ctx or get_sweep_context()
+    generic_run = ctx.get("megxl_runs", {}).get(exp)
+    if generic_run:
+        service_log = _get_docker_compose_log(generic_run.get("service_name"), lines=lines)
+        if service_log.strip():
+            return service_log
+
+        hydra_log = generic_run.get("hydra_log") or _find_newest_log_in_dir(generic_run.get("hydra_dir"))
+        content = _read_recent_log(hydra_log, max_bytes=lines * 240, lines=lines)
+        if content.strip():
+            return content
+
+        final_results = generic_run.get("final_results")
+        if isinstance(final_results, Path) and final_results.exists():
+            return _safe_read_text(final_results)
+
     log_path = LOGS_DIR / f"{exp}.log"
     if log_path.exists() and _artifact_belongs_to_current_run(log_path, ctx["run_started_at"]):
         content = _read_recent_log(log_path, max_bytes=lines * 200, lines=lines)
@@ -871,7 +1578,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MEG Sweep Monitor</title>
+<title>MEG Monitor</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;800&display=swap');
 
@@ -1087,11 +1794,11 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     left: 0; top: 0; bottom: 0;
     width: 3px;
   }
-  .exp-card.done    ::before { background: var(--done); }
-  .exp-card.running ::before { background: var(--running); animation: pulse 1.5s infinite; }
-  .exp-card.failed  ::before { background: var(--failed); }
-  .exp-card.skipped ::before { background: var(--skipped); }
-  .exp-card.pending ::before { background: var(--pending); }
+  .exp-card.done::before { background: var(--done); }
+  .exp-card.running::before { background: var(--running); animation: pulse 1.5s infinite; }
+  .exp-card.failed::before { background: var(--failed); }
+  .exp-card.skipped::before { background: var(--skipped); }
+  .exp-card.pending::before { background: var(--pending); }
 
   .exp-name { font-size: 11px; font-weight: 600; margin-bottom: 6px; color: var(--text); }
   .exp-badge {
@@ -1230,7 +1937,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 <body>
 
 <header>
-  <div class="logo">MEG<span>·</span>SWEEP</div>
+  <div class="logo">MEG<span>·</span>MONITOR</div>
   <div class="header-meta">
     <span><span class="pulse"></span>Auto-refresh cada REFRESH_SECSs</span>
     <span id="last-update">—</span>
@@ -1287,7 +1994,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   <!-- Progress bar -->
   <div class="progress-wrap">
     <div class="progress-label">
-      <span>Progreso del sweep</span>
+      <span>Progreso de ejecuciones</span>
       <span id="progress-text">0 / 12</span>
     </div>
     <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
@@ -1303,7 +2010,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     <!-- Log viewer -->
     <div class="card">
       <div class="log-header">
-        <div class="card-title" style="margin-bottom:0">Log en tiempo real</div>
+        <div class="card-title" style="margin-bottom:0">Log</div>
         <select class="log-select" id="log-select" onchange="selectExp(this.value)">
           <option value="__sweep__">— sweep global —</option>
         </select>
@@ -1313,13 +2020,13 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 
     <!-- Leaderboard -->
     <div class="card">
-      <div class="card-title">Leaderboard (test F1-macro)</div>
+      <div class="card-title">Leaderboard (métrica principal)</div>
       <div id="leaderboard-wrap">
         <table>
           <thead>
             <tr>
-              <th>#</th><th>Experimento</th><th>Task</th>
-              <th>F1-macro</th><th>Bal. Acc</th><th>Best Val F1</th>
+              <th>#</th><th>Ejecución</th><th>Tipo</th>
+              <th>Métrica</th><th>Valor</th><th>Extra</th>
             </tr>
           </thead>
           <tbody id="leaderboard-body">
@@ -1338,10 +2045,20 @@ const REFRESH = REFRESH_SECS * 1000;
 let selectedExp = '__sweep__';
 let autoPickedRunningExp = false;
 
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function selectExp(exp) {
   selectedExp = exp;
   document.querySelectorAll('.exp-card').forEach(c => c.classList.remove('selected'));
-  const card = document.querySelector(`.exp-card[data-exp="${exp}"]`);
+  const card = Array.from(document.querySelectorAll('.exp-card'))
+    .find(c => c.dataset.exp === exp);
   if (card) card.classList.add('selected');
   fetchLog();
 }
@@ -1456,21 +2173,27 @@ function render(d) {
 
   grid.innerHTML = d.experiments.map(e => {
     const parts = e.exp.split('__');
-    const shortName = parts.slice(1).join(' · ');
-    const taskBadge = parts[0] === 'speech_image' ? 'speech' : parts[0];
+    const hasClassicName = parts.length >= 3;
+    const displayName = e.display_name || e.exp;
+    const shortName = hasClassicName ? parts.slice(1).join(' · ') : displayName;
+    const taskBadge = hasClassicName
+      ? (parts[0] === 'speech_image' ? 'speech' : parts[0])
+      : (e.dataset || e.kind || 'megxl');
     const epochInfo = e.epoch_current
       ? `<div class="exp-epoch">Epoch ${e.epoch_current}</div>
          <div class="epoch-bar"><div class="epoch-fill" style="width:${Math.round(e.epoch_current/50*100)}%"></div></div>`
       : '';
-    const metric = e.f1_macro != null
-      ? `<div class="exp-metric">F1 <strong>${e.f1_macro.toFixed(4)}</strong></div>`
+    const metricValue = e.primary_metric_value != null ? e.primary_metric_value : e.f1_macro;
+    const metricLabel = e.primary_metric_label || 'metric';
+    const metric = metricValue != null
+      ? `<div class="exp-metric">${esc(metricLabel)} <strong>${metricValue.toFixed(4)}</strong></div>`
       : e.best_val_f1 != null
         ? `<div class="exp-metric">Val F1 <strong>${e.best_val_f1.toFixed(4)}</strong></div>`
         : '';
     const running_icon = e.status === 'running' ? '<span class="spinner"></span>' : '';
     const sel = selectedExp === e.exp ? 'selected' : '';
-    return `<div class="exp-card ${e.status} ${sel}" data-exp="${e.exp}" onclick="selectExp('${e.exp}')">
-      <div class="exp-name">${running_icon}${taskBadge} · ${shortName}</div>
+    return `<div class="exp-card ${e.status} ${sel}" data-exp="${esc(e.exp)}" onclick="selectExp(this.dataset.exp)">
+      <div class="exp-name">${running_icon}${esc(taskBadge)} · ${esc(shortName)}</div>
       <span class="exp-badge badge-${e.status}">${e.status}</span>
       ${metric}
       ${epochInfo}
@@ -1478,11 +2201,11 @@ function render(d) {
   }).join('');
 
   // Populate select with new running/done experiments
-  d.experiments.forEach(e => {
+    d.experiments.forEach(e => {
     if (!prevOptions.has(e.exp) && ['running', 'done', 'failed'].includes(e.status)) {
       const opt = document.createElement('option');
       opt.value = e.exp;
-      opt.textContent = e.exp;
+      opt.textContent = e.display_name || e.exp;
       select.appendChild(opt);
     }
   });
@@ -1507,17 +2230,25 @@ function render(d) {
   } else {
     tbody.innerHTML = d.leaderboard.map((e, i) => {
       const parts = e.exp.split('__');
-      const task = parts[0] === 'speech_image' ? 'speech' : parts[0];
-      const name = parts.slice(1).join(' · ');
+      const hasClassicName = parts.length >= 3;
+      const task = hasClassicName
+        ? (parts[0] === 'speech_image' ? 'speech' : parts[0])
+        : (e.dataset || e.kind || 'megxl');
+      const name = hasClassicName ? parts.slice(1).join(' · ') : (e.display_name || e.exp);
       const rankCls = i === 0 ? 'rank-1' : 'rank';
       const taskCls = `task-${task}`;
+      const metricLabel = e.primary_metric_label || 'metric';
+      const metricValue = e.primary_metric_value != null ? e.primary_metric_value : e.f1_macro;
+      const extra = e.balanced_acc != null
+        ? `bal ${e.balanced_acc.toFixed(4)}`
+        : (e.service_name || '—');
       return `<tr>
         <td class="${rankCls}">${i === 0 ? '🥇' : i + 1}</td>
-        <td>${name}</td>
-        <td><span class="task-badge ${taskCls}">${task}</span></td>
-        <td class="metric-val">${(e.f1_macro || 0).toFixed(4)}</td>
-        <td>${(e.balanced_acc || 0).toFixed(4)}</td>
-        <td style="color:var(--muted)">${e.best_val_f1 != null ? e.best_val_f1.toFixed(4) : '—'}</td>
+        <td>${esc(name)}</td>
+        <td><span class="task-badge ${taskCls}">${esc(task)}</span></td>
+        <td>${esc(metricLabel)}</td>
+        <td class="metric-val">${(metricValue || 0).toFixed(4)}</td>
+        <td style="color:var(--muted)">${esc(extra)}</td>
       </tr>`;
     }).join('');
   }
@@ -1603,6 +2334,7 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     global BASE_DIR, LOGS_DIR, RESULTS_DIR, CKPT_DIR
     parser = argparse.ArgumentParser(description="MEG Sweep Monitor")
+    parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port",     type=int, default=8080)
     parser.add_argument("--base-dir", default=str(BASE_DIR))
     args = parser.parse_args()
@@ -1613,9 +2345,9 @@ def main():
     CKPT_DIR    = BASE_DIR / "checkpoints"
 
     print(f"[Monitor] Leyendo datos desde: {BASE_DIR}")
-    print(f"[Monitor] Dashboard disponible en: http://0.0.0.0:{args.port}")
+    print(f"[Monitor] Dashboard disponible en: http://{args.host}:{args.port}")
 
-    server = HTTPServer(("0.0.0.0", args.port), Handler)
+    server = HTTPServer((args.host, args.port), Handler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

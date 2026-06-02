@@ -1,0 +1,514 @@
+[2026-05-15 16:12:45,210][__main__][INFO] - Metrics/results directory: logs/word_classification_zuco_meg
+[2026-05-15 16:12:45,211][__main__][INFO] - Checkpoint directory: checkpoints/word_classification_zuco_meg
+[2026-05-15 16:12:45,862][__main__][INFO] - Loading BioCodec tokenizer from: ./brainstorm/neuro_tokenizers/biocodec_ckpt.pt
+[2026-05-15 16:12:46,277][__main__][INFO] -   BioCodec tokenizer loaded successfully
+[2026-05-15 16:12:46,279][__main__][INFO] - Using 2 sensor type embeddings
+[2026-05-15 16:12:46,279][__main__][INFO] - Training mode: FINE-TUNING (pretrained checkpoint)
+[2026-05-15 16:12:46,279][__main__][INFO] - Loading CrissCross model from: ./checkpoints/baseline/meg-xl-med.ckpt
+[2026-05-15 16:12:46,606][__main__][INFO] -   Skipping 8 RoPE rotation buffers (deterministic, will be recomputed)
+[2026-05-15 16:12:46,620][__main__][INFO] -   Missing keys: 8 (RoPE buffers)
+[2026-05-15 16:12:46,621][__main__][INFO] -   Successfully loaded checkpoint (RoPE will auto-expand to 625 on first forward pass)
+[2026-05-15 16:12:46,666][__main__][INFO] -   Latent dim: 512
+[2026-05-15 16:12:46,666][__main__][INFO] -   Num layers: 8
+[2026-05-15 16:12:46,666][__main__][INFO] -   Num heads: 8
+[2026-05-15 16:12:46,666][__main__][INFO] -   Loaded with strict=False (RoPE will auto-expand for sequence length)
+[2026-05-15 16:12:46,668][__main__][INFO] - 
+Creating datasets...
+[2026-05-15 16:12:46,668][__main__][INFO] - Using dataset type: zuco
+[2026-05-15 16:12:46,668][__main__][INFO] - Dataset class: ZuCoWordAlignedDataset
+[2026-05-15 16:12:46,668][__main__][INFO] - Max channel dim: 105
+[2026-05-15 16:12:46,668][__main__][INFO] - Dataset extra kwargs: {'eeg_sensor_type': 'meg'}
+[2026-05-15 16:12:46,669][__main__][INFO] - Using hashed sentence-based split...
+[2026-05-15 16:13:05,138][__main__][INFO] - Total segments across all sessions: 502
+[2026-05-15 16:13:05,138][__main__][INFO] - Assigning segments to splits based on sentence hashes...
+[2026-05-15 16:13:05,153][__main__][INFO] - Unique sentences: 502
+[2026-05-15 16:13:05,154][__main__][INFO] - Sentences appearing multiple times: 0
+[2026-05-15 16:13:05,154][__main__][INFO] - Split sizes before train subsampling:
+[2026-05-15 16:13:05,154][__main__][INFO] -   Train: 396 segments (78.9%)
+[2026-05-15 16:13:05,154][__main__][INFO] -   Val: 57 segments (11.4%)
+[2026-05-15 16:13:05,154][__main__][INFO] -   Test: 49 segments (9.8%)
+[2026-05-15 16:13:05,154][__main__][INFO] - 
+Subsampling training data to 25.0%...
+[2026-05-15 16:13:05,154][__main__][INFO] -   Original: 396 segments
+[2026-05-15 16:13:05,154][__main__][INFO] -   Subsampled: 99 segments
+[2026-05-15 16:13:05,155][__main__][INFO] - 
+Validating split integrity...
+[2026-05-15 16:13:05,155][__main__][INFO] - Split validation results:
+[2026-05-15 16:13:05,155][__main__][INFO] -   Unique train sentences: 396
+[2026-05-15 16:13:05,155][__main__][INFO] -   Unique val sentences: 57
+[2026-05-15 16:13:05,155][__main__][INFO] -   Unique test sentences: 49
+[2026-05-15 16:13:05,155][__main__][INFO] -   Train-Val overlap: 0 (should be 0)
+[2026-05-15 16:13:05,155][__main__][INFO] -   Train-Test overlap: 0 (should be 0)
+[2026-05-15 16:13:05,155][__main__][INFO] -   Val-Test overlap: 0 (should be 0)
+[2026-05-15 16:13:05,155][__main__][INFO] - 
+Building vocabulary from entire dataset (ALL words)...
+[2026-05-15 16:13:05,159][__main__][INFO] -   Total unique words (vocabulary size): 1712
+[2026-05-15 16:13:05,159][__main__][INFO] -   Most frequent word: 'the' (1507 occurrences)
+[2026-05-15 16:13:05,159][__main__][INFO] -   Least frequent word: 'science' (1 occurrences)
+[2026-05-15 16:13:05,160][__main__][INFO] - Generating T5 word embeddings for 1712 words...
+[2026-05-15 16:13:05,160][__main__][INFO] -   Using T5-large, layer 12
+[2026-05-15 16:13:05,160][__main__][INFO] -   Device: cuda
+[2026-05-15 16:13:05,353][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/t5-large/resolve/main/config.json "HTTP/1.1 200 OK"
+[2026-05-15 16:13:05,354][huggingface_hub.utils._http][WARNING] - Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+[2026-05-15 16:13:05,499][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/t5-large/resolve/main/model.safetensors "HTTP/1.1 302 Found"
+[2026-05-15 16:13:05,752][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/t5-large/resolve/main/tokenizer_config.json "HTTP/1.1 404 Not Found"
+[2026-05-15 16:13:05,880][httpx][INFO] - HTTP Request: GET https://huggingface.co/api/models/t5-large/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 307 Temporary Redirect"
+[2026-05-15 16:13:06,006][httpx][INFO] - HTTP Request: GET https://huggingface.co/api/models/google-t5/t5-large/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+[2026-05-15 16:13:06,131][httpx][INFO] - HTTP Request: GET https://huggingface.co/api/models/t5-large/tree/main?recursive=true&expand=false "HTTP/1.1 307 Temporary Redirect"
+[2026-05-15 16:13:06,259][httpx][INFO] - HTTP Request: GET https://huggingface.co/api/models/google-t5/t5-large/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+[2026-05-15 16:13:06,389][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/t5-large/resolve/main/spiece.model "HTTP/1.1 200 OK"
+[2026-05-15 16:13:07,079][__main__][INFO] -   Processing word 1/1712: 'the'
+[2026-05-15 16:13:07,516][__main__][INFO] -   Processing word 11/1712: 'on'
+[2026-05-15 16:13:07,599][__main__][INFO] -   Processing word 21/1712: 'president'
+[2026-05-15 16:13:07,681][__main__][INFO] -   Processing word 31/1712: 'after'
+[2026-05-15 16:13:07,765][__main__][INFO] -   Processing word 41/1712: 'this'
+[2026-05-15 16:13:07,848][__main__][INFO] -   Processing word 51/1712: 'second'
+[2026-05-15 16:13:07,936][__main__][INFO] -   Processing word 61/1712: 'may'
+[2026-05-15 16:13:08,021][__main__][INFO] -   Processing word 71/1712: 'their'
+[2026-05-15 16:13:08,104][__main__][INFO] -   Processing word 81/1712: 'game'
+[2026-05-15 16:13:08,186][__main__][INFO] -   Processing word 91/1712: 'james'
+[2026-05-15 16:13:08,269][__main__][INFO] -   Processing word 101/1712: 'england'
+[2026-05-15 16:13:08,352][__main__][INFO] -   Processing word 111/1712: 'age'
+[2026-05-15 16:13:08,434][__main__][INFO] -   Processing word 121/1712: 'seat'
+[2026-05-15 16:13:08,519][__main__][INFO] -   Processing word 131/1712: 'left'
+[2026-05-15 16:13:08,602][__main__][INFO] -   Processing word 141/1712: 'through'
+[2026-05-15 16:13:08,684][__main__][INFO] -   Processing word 151/1712: 'cadillac'
+[2026-05-15 16:13:08,768][__main__][INFO] -   Processing word 161/1712: 'december'
+[2026-05-15 16:13:08,851][__main__][INFO] -   Processing word 171/1712: 'returned'
+[2026-05-15 16:13:08,934][__main__][INFO] -   Processing word 181/1712: 'took'
+[2026-05-15 16:13:09,017][__main__][INFO] -   Processing word 191/1712: 'iii'
+[2026-05-15 16:13:09,100][__main__][INFO] -   Processing word 201/1712: 'b'
+[2026-05-15 16:13:09,183][__main__][INFO] -   Processing word 211/1712: 'career'
+[2026-05-15 16:13:09,266][__main__][INFO] -   Processing word 221/1712: 'christian'
+[2026-05-15 16:13:09,352][__main__][INFO] -   Processing word 231/1712: 'counsel'
+[2026-05-15 16:13:09,435][__main__][INFO] -   Processing word 241/1712: 'hall'
+[2026-05-15 16:13:09,518][__main__][INFO] -   Processing word 251/1712: 'jeb'
+[2026-05-15 16:13:09,601][__main__][INFO] -   Processing word 261/1712: 'bachelor's'
+[2026-05-15 16:13:09,684][__main__][INFO] -   Processing word 271/1712: 'brother'
+[2026-05-15 16:13:09,767][__main__][INFO] -   Processing word 281/1712: 'younger'
+[2026-05-15 16:13:09,850][__main__][INFO] -   Processing word 291/1712: 'birth'
+[2026-05-15 16:13:09,935][__main__][INFO] -   Processing word 301/1712: 'quarterback'
+[2026-05-15 16:13:10,018][__main__][INFO] -   Processing word 311/1712: 'nazi'
+[2026-05-15 16:13:10,101][__main__][INFO] -   Processing word 321/1712: 'never'
+[2026-05-15 16:13:10,184][__main__][INFO] -   Processing word 331/1712: 'deborah'
+[2026-05-15 16:13:10,267][__main__][INFO] -   Processing word 341/1712: 'usa'
+[2026-05-15 16:13:10,350][__main__][INFO] -   Processing word 351/1712: '1917'
+[2026-05-15 16:13:10,433][__main__][INFO] -   Processing word 361/1712: '1920'
+[2026-05-15 16:13:10,516][__main__][INFO] -   Processing word 371/1712: 'imprint'
+[2026-05-15 16:13:10,599][__main__][INFO] -   Processing word 381/1712: '1963'
+[2026-05-15 16:13:10,682][__main__][INFO] -   Processing word 391/1712: 'appointed'
+[2026-05-15 16:13:10,765][__main__][INFO] -   Processing word 401/1712: '2'
+[2026-05-15 16:13:10,848][__main__][INFO] -   Processing word 411/1712: 'brothers'
+[2026-05-15 16:13:10,931][__main__][INFO] -   Processing word 421/1712: 'appeared'
+[2026-05-15 16:13:11,014][__main__][INFO] -   Processing word 431/1712: 'mathematical'
+[2026-05-15 16:13:11,098][__main__][INFO] -   Processing word 441/1712: 'storytelling'
+[2026-05-15 16:13:11,182][__main__][INFO] -   Processing word 451/1712: 'rose'
+[2026-05-15 16:13:11,265][__main__][INFO] -   Processing word 461/1712: '28'
+[2026-05-15 16:13:11,348][__main__][INFO] -   Processing word 471/1712: 'steve'
+[2026-05-15 16:13:11,431][__main__][INFO] -   Processing word 481/1712: 'evelyn'
+[2026-05-15 16:13:11,514][__main__][INFO] -   Processing word 491/1712: 'ticker'
+[2026-05-15 16:13:11,597][__main__][INFO] -   Processing word 501/1712: 'pierce'
+[2026-05-15 16:13:11,680][__main__][INFO] -   Processing word 511/1712: 'poor'
+[2026-05-15 16:13:11,763][__main__][INFO] -   Processing word 521/1712: 'acting'
+[2026-05-15 16:13:11,846][__main__][INFO] -   Processing word 531/1712: 'part'
+[2026-05-15 16:13:11,931][__main__][INFO] -   Processing word 541/1712: 'lawanda'
+[2026-05-15 16:13:12,017][__main__][INFO] -   Processing word 551/1712: '1901'
+[2026-05-15 16:13:12,100][__main__][INFO] -   Processing word 561/1712: 'symptoms'
+[2026-05-15 16:13:12,184][__main__][INFO] -   Processing word 571/1712: 'bull'
+[2026-05-15 16:13:12,267][__main__][INFO] -   Processing word 581/1712: 'reign'
+[2026-05-15 16:13:12,350][__main__][INFO] -   Processing word 591/1712: 'roncalio'
+[2026-05-15 16:13:12,433][__main__][INFO] -   Processing word 601/1712: 'run'
+[2026-05-15 16:13:12,516][__main__][INFO] -   Processing word 611/1712: 'society'
+[2026-05-15 16:13:12,599][__main__][INFO] -   Processing word 621/1712: 'learn'
+[2026-05-15 16:13:12,682][__main__][INFO] -   Processing word 631/1712: 'congress'
+[2026-05-15 16:13:12,765][__main__][INFO] -   Processing word 641/1712: 'given'
+[2026-05-15 16:13:12,848][__main__][INFO] -   Processing word 651/1712: 'commanding'
+[2026-05-15 16:13:12,931][__main__][INFO] -   Processing word 661/1712: 'engines'
+[2026-05-15 16:13:13,014][__main__][INFO] -   Processing word 671/1712: 'touchdowns'
+[2026-05-15 16:13:13,097][__main__][INFO] -   Processing word 681/1712: 'cockleshell'
+[2026-05-15 16:13:13,180][__main__][INFO] -   Processing word 691/1712: 'raoul'
+[2026-05-15 16:13:13,263][__main__][INFO] -   Processing word 701/1712: 'laurance'
+[2026-05-15 16:13:13,346][__main__][INFO] -   Processing word 711/1712: 'good'
+[2026-05-15 16:13:13,430][__main__][INFO] -   Processing word 721/1712: 'improbably'
+[2026-05-15 16:13:13,513][__main__][INFO] -   Processing word 731/1712: 'physical'
+[2026-05-15 16:13:13,596][__main__][INFO] -   Processing word 741/1712: 'printer'
+[2026-05-15 16:13:13,679][__main__][INFO] -   Processing word 751/1712: 'pearl'
+[2026-05-15 16:13:13,762][__main__][INFO] -   Processing word 761/1712: 'recorded'
+[2026-05-15 16:13:13,846][__main__][INFO] -   Processing word 771/1712: 'said'
+[2026-05-15 16:13:13,929][__main__][INFO] -   Processing word 781/1712: '4'
+[2026-05-15 16:13:14,012][__main__][INFO] -   Processing word 791/1712: '1895'
+[2026-05-15 16:13:14,095][__main__][INFO] -   Processing word 801/1712: 'arlington'
+[2026-05-15 16:13:14,178][__main__][INFO] -   Processing word 811/1712: 'corporation'
+[2026-05-15 16:13:14,261][__main__][INFO] -   Processing word 821/1712: 'borderers'
+[2026-05-15 16:13:14,347][__main__][INFO] -   Processing word 831/1712: 'memoirs'
+[2026-05-15 16:13:14,430][__main__][INFO] -   Processing word 841/1712: 'personal'
+[2026-05-15 16:13:14,516][__main__][INFO] -   Processing word 851/1712: 'journalist'
+[2026-05-15 16:13:14,599][__main__][INFO] -   Processing word 861/1712: 'ireland'
+[2026-05-15 16:13:14,682][__main__][INFO] -   Processing word 871/1712: 'albums'
+[2026-05-15 16:13:14,765][__main__][INFO] -   Processing word 881/1712: 'parents'
+[2026-05-15 16:13:14,848][__main__][INFO] -   Processing word 891/1712: 'big'
+[2026-05-15 16:13:14,931][__main__][INFO] -   Processing word 901/1712: 'newhart'
+[2026-05-15 16:13:15,014][__main__][INFO] -   Processing word 911/1712: 'african-american'
+[2026-05-15 16:13:15,097][__main__][INFO] -   Processing word 921/1712: 'elementary'
+[2026-05-15 16:13:15,181][__main__][INFO] -   Processing word 931/1712: 'moseley'
+[2026-05-15 16:13:15,264][__main__][INFO] -   Processing word 941/1712: 'cecil'
+[2026-05-15 16:13:15,347][__main__][INFO] -   Processing word 951/1712: 'word'
+[2026-05-15 16:13:15,430][__main__][INFO] -   Processing word 961/1712: 'form'
+[2026-05-15 16:13:15,519][__main__][INFO] -   Processing word 971/1712: 'gabrielle-ange'
+[2026-05-15 16:13:15,604][__main__][INFO] -   Processing word 981/1712: 'own'
+[2026-05-15 16:13:15,688][__main__][INFO] -   Processing word 991/1712: 'kansas'
+[2026-05-15 16:13:15,772][__main__][INFO] -   Processing word 1001/1712: 'theory'
+[2026-05-15 16:13:15,856][__main__][INFO] -   Processing word 1011/1712: 'germany'
+[2026-05-15 16:13:15,939][__main__][INFO] -   Processing word 1021/1712: 'byron'
+[2026-05-15 16:13:16,023][__main__][INFO] -   Processing word 1031/1712: 'african'
+[2026-05-15 16:13:16,106][__main__][INFO] -   Processing word 1041/1712: 'cock'
+[2026-05-15 16:13:16,190][__main__][INFO] -   Processing word 1051/1712: 'stood'
+[2026-05-15 16:13:16,274][__main__][INFO] -   Processing word 1061/1712: 'erdo'
+[2026-05-15 16:13:16,359][__main__][INFO] -   Processing word 1071/1712: 'decay'
+[2026-05-15 16:13:16,442][__main__][INFO] -   Processing word 1081/1712: 'supportive'
+[2026-05-15 16:13:16,531][__main__][INFO] -   Processing word 1091/1712: 'international'
+[2026-05-15 16:13:16,615][__main__][INFO] -   Processing word 1101/1712: 'seventeen'
+[2026-05-15 16:13:16,699][__main__][INFO] -   Processing word 1111/1712: 'shriver'
+[2026-05-15 16:13:16,784][__main__][INFO] -   Processing word 1121/1712: 'band'
+[2026-05-15 16:13:16,867][__main__][INFO] -   Processing word 1131/1712: 'cars'
+[2026-05-15 16:13:16,950][__main__][INFO] -   Processing word 1141/1712: 'guilfoyle'
+[2026-05-15 16:13:17,034][__main__][INFO] -   Processing word 1151/1712: '19'
+[2026-05-15 16:13:17,117][__main__][INFO] -   Processing word 1161/1712: 'plagued'
+[2026-05-15 16:13:17,200][__main__][INFO] -   Processing word 1171/1712: 'residence'
+[2026-05-15 16:13:17,283][__main__][INFO] -   Processing word 1181/1712: 'franklins'
+[2026-05-15 16:13:17,366][__main__][INFO] -   Processing word 1191/1712: 'people'
+[2026-05-15 16:13:17,450][__main__][INFO] -   Processing word 1201/1712: 'respect'
+[2026-05-15 16:13:17,533][__main__][INFO] -   Processing word 1211/1712: 'grades'
+[2026-05-15 16:13:17,616][__main__][INFO] -   Processing word 1221/1712: 'position'
+[2026-05-15 16:13:17,699][__main__][INFO] -   Processing word 1231/1712: 'unknown'
+[2026-05-15 16:13:17,782][__main__][INFO] -   Processing word 1241/1712: 'improve'
+[2026-05-15 16:13:17,866][__main__][INFO] -   Processing word 1251/1712: 'maysville'
+[2026-05-15 16:13:17,951][__main__][INFO] -   Processing word 1261/1712: '2005-04-12'
+[2026-05-15 16:13:18,034][__main__][INFO] -   Processing word 1271/1712: 'include'
+[2026-05-15 16:13:18,118][__main__][INFO] -   Processing word 1281/1712: 'johnny'
+[2026-05-15 16:13:18,204][__main__][INFO] -   Processing word 1291/1712: 'schooling'
+[2026-05-15 16:13:18,287][__main__][INFO] -   Processing word 1301/1712: 'island'
+[2026-05-15 16:13:18,371][__main__][INFO] -   Processing word 1311/1712: '25'
+[2026-05-15 16:13:18,454][__main__][INFO] -   Processing word 1321/1712: 'extensively'
+[2026-05-15 16:13:18,537][__main__][INFO] -   Processing word 1331/1712: 'burial'
+[2026-05-15 16:13:18,621][__main__][INFO] -   Processing word 1341/1712: 'paranoia'
+[2026-05-15 16:13:18,704][__main__][INFO] -   Processing word 1351/1712: '1802'
+[2026-05-15 16:13:18,787][__main__][INFO] -   Processing word 1361/1712: 'junior'
+[2026-05-15 16:13:18,870][__main__][INFO] -   Processing word 1371/1712: 'commands'
+[2026-05-15 16:13:18,954][__main__][INFO] -   Processing word 1381/1712: 'consort'
+[2026-05-15 16:13:19,037][__main__][INFO] -   Processing word 1391/1712: 'rivers'
+[2026-05-15 16:13:19,120][__main__][INFO] -   Processing word 1401/1712: 'urban'
+[2026-05-15 16:13:19,204][__main__][INFO] -   Processing word 1411/1712: 'works'
+[2026-05-15 16:13:19,287][__main__][INFO] -   Processing word 1421/1712: 'civilisation'
+[2026-05-15 16:13:19,370][__main__][INFO] -   Processing word 1431/1712: 'enterprise'
+[2026-05-15 16:13:19,453][__main__][INFO] -   Processing word 1441/1712: 'starter'
+[2026-05-15 16:13:19,536][__main__][INFO] -   Processing word 1451/1712: 'barrymore's'
+[2026-05-15 16:13:19,619][__main__][INFO] -   Processing word 1461/1712: 'disapproving'
+[2026-05-15 16:13:19,703][__main__][INFO] -   Processing word 1471/1712: 'lorre'
+[2026-05-15 16:13:19,786][__main__][INFO] -   Processing word 1481/1712: 'protested'
+[2026-05-15 16:13:19,871][__main__][INFO] -   Processing word 1491/1712: '1952-54'
+[2026-05-15 16:13:19,954][__main__][INFO] -   Processing word 1501/1712: 'ben'
+[2026-05-15 16:13:20,038][__main__][INFO] -   Processing word 1511/1712: 'maker'
+[2026-05-15 16:13:20,121][__main__][INFO] -   Processing word 1521/1712: 'elder'
+[2026-05-15 16:13:20,204][__main__][INFO] -   Processing word 1531/1712: 'old'
+[2026-05-15 16:13:20,287][__main__][INFO] -   Processing word 1541/1712: 'resigned'
+[2026-05-15 16:13:20,371][__main__][INFO] -   Processing word 1551/1712: 'difficulties'
+[2026-05-15 16:13:20,454][__main__][INFO] -   Processing word 1561/1712: 'little'
+[2026-05-15 16:13:20,537][__main__][INFO] -   Processing word 1571/1712: '1834'
+[2026-05-15 16:13:20,621][__main__][INFO] -   Processing word 1581/1712: 'river'
+[2026-05-15 16:13:20,704][__main__][INFO] -   Processing word 1591/1712: 'ghosts'
+[2026-05-15 16:13:20,788][__main__][INFO] -   Processing word 1601/1712: 'number'
+[2026-05-15 16:13:20,871][__main__][INFO] -   Processing word 1611/1712: 'bouvier'
+[2026-05-15 16:13:20,954][__main__][INFO] -   Processing word 1621/1712: 'apprentice'
+[2026-05-15 16:13:21,037][__main__][INFO] -   Processing word 1631/1712: 'texas'
+[2026-05-15 16:13:21,121][__main__][INFO] -   Processing word 1641/1712: 'adams'
+[2026-05-15 16:13:21,204][__main__][INFO] -   Processing word 1651/1712: 'buddy'
+[2026-05-15 16:13:21,287][__main__][INFO] -   Processing word 1661/1712: 'immigrant'
+[2026-05-15 16:13:21,370][__main__][INFO] -   Processing word 1671/1712: '1953's'
+[2026-05-15 16:13:21,454][__main__][INFO] -   Processing word 1681/1712: 'koch'
+[2026-05-15 16:13:21,540][__main__][INFO] -   Processing word 1691/1712: '1940s'
+[2026-05-15 16:13:21,623][__main__][INFO] -   Processing word 1701/1712: 'eagles'
+[2026-05-15 16:13:21,707][__main__][INFO] -   Processing word 1711/1712: 'sel'
+[2026-05-15 16:13:21,716][__main__][INFO] -   Processing word 1712/1712: 'science'
+[2026-05-15 16:13:21,755][__main__][INFO] -   Generated embeddings shape: torch.Size([1712, 1024])
+[2026-05-15 16:13:21,755][__main__][INFO] -   Saving to cache: embeddings_cache/word_embeddings_zuco_1712_layer12_d84d361b.pt
+[2026-05-15 16:13:21,762][__main__][INFO] - 
+Final dataset sizes:
+[2026-05-15 16:13:21,762][__main__][INFO] -   Train: 99 segments
+[2026-05-15 16:13:21,763][__main__][INFO] -   Val: 57 segments
+[2026-05-15 16:13:21,763][__main__][INFO] -   Test: 49 segments
+[2026-05-15 16:13:22,308][__main__][INFO] - 
+Word MLP:
+[2026-05-15 16:13:22,309][__main__][INFO] -   Input dim: 53760
+[2026-05-15 16:13:22,310][__main__][INFO] -   Hidden dim: 2048
+[2026-05-15 16:13:22,310][__main__][INFO] -   Output dim: 1024
+[2026-05-15 16:13:22,311][__main__][INFO] - Optimizer: criss_cross_lr=1e-05, word_mlp_lr=0.001
+[2026-05-15 16:13:22,313][__main__][INFO] - 
+Epoch 1/50
+[2026-05-15 16:15:04,996][__main__][INFO] -   Train loss: 4.9763
+[2026-05-15 16:16:12,533][__main__][INFO] -   Val loss: 4.8971
+[2026-05-15 16:16:12,533][__main__][INFO] -   [Retrieval 50] Val top-10: 0.1791, balanced: 0.2000 (n=1139)
+[2026-05-15 16:16:12,533][__main__][INFO] -   [Retrieval 50] Test top-10: 0.1945, balanced: 0.2000
+[2026-05-15 16:16:12,533][__main__][INFO] -   [Retrieval 250] Val top-10: 0.0156, balanced: 0.0429 (n=1672)
+[2026-05-15 16:16:12,533][__main__][INFO] -   [Retrieval 250] Test top-10: 0.0204, balanced: 0.0431
+[2026-05-15 16:16:14,801][__main__][INFO] -   Saved best model (val balanced: 0.0429, test top-10@250: 0.0204)
+[2026-05-15 16:16:17,078][__main__][INFO] -   Metrics history updated: logs/word_classification_zuco_meg/metrics_history.csv and logs/word_classification_zuco_meg/metrics_history.jsonl
+[2026-05-15 16:16:17,078][__main__][INFO] - 
+Epoch 2/50
+[2026-05-15 16:17:59,528][__main__][INFO] -   Train loss: 4.8957
+[2026-05-15 16:19:07,083][__main__][INFO] -   Val loss: 4.8989
+[2026-05-15 16:19:07,083][__main__][INFO] -   [Retrieval 50] Val top-10: 0.1896, balanced: 0.2139 (n=1139)
+[2026-05-15 16:19:07,083][__main__][INFO] -   [Retrieval 50] Test top-10: 0.2087, balanced: 0.2137
+[2026-05-15 16:19:07,083][__main__][INFO] -   [Retrieval 250] Val top-10: 0.0215, balanced: 0.0412 (n=1672)
+[2026-05-15 16:19:07,083][__main__][INFO] -   [Retrieval 250] Test top-10: 0.0265, balanced: 0.0378
+[2026-05-15 16:19:10,028][__main__][INFO] -   Metrics history updated: logs/word_classification_zuco_meg/metrics_history.csv and logs/word_classification_zuco_meg/metrics_history.jsonl
+[2026-05-15 16:19:10,028][__main__][INFO] - 
+Epoch 3/50
+[2026-05-15 16:20:52,571][__main__][INFO] -   Train loss: 4.8870
+[2026-05-15 16:22:00,224][__main__][INFO] -   Val loss: 4.9045
+[2026-05-15 16:22:00,225][__main__][INFO] -   [Retrieval 50] Val top-10: 0.1765, balanced: 0.1781 (n=1139)
+[2026-05-15 16:22:00,225][__main__][INFO] -   [Retrieval 50] Test top-10: 0.2087, balanced: 0.2181
+[2026-05-15 16:22:00,225][__main__][INFO] -   [Retrieval 250] Val top-10: 0.0293, balanced: 0.0294 (n=1672)
+[2026-05-15 16:22:00,225][__main__][INFO] -   [Retrieval 250] Test top-10: 0.0429, balanced: 0.0495
+[2026-05-15 16:22:03,150][__main__][INFO] -   Metrics history updated: logs/word_classification_zuco_meg/metrics_history.csv and logs/word_classification_zuco_meg/metrics_history.jsonl
+[2026-05-15 16:22:03,151][__main__][INFO] - 
+Epoch 4/50
+[2026-05-15 16:23:45,674][__main__][INFO] -   Train loss: 4.8369
+[2026-05-15 16:24:53,324][__main__][INFO] -   Val loss: 4.9474
+[2026-05-15 16:24:53,325][__main__][INFO] -   [Retrieval 50] Val top-10: 0.1791, balanced: 0.1982 (n=1139)
+[2026-05-15 16:24:53,325][__main__][INFO] -   [Retrieval 50] Test top-10: 0.1814, balanced: 0.2096
+[2026-05-15 16:24:53,325][__main__][INFO] -   [Retrieval 250] Val top-10: 0.0472, balanced: 0.0530 (n=1672)
+[2026-05-15 16:24:53,325][__main__][INFO] -   [Retrieval 250] Test top-10: 0.0524, balanced: 0.0413
+[2026-05-15 16:24:56,239][__main__][INFO] -   Saved best model (val balanced: 0.0530, test top-10@250: 0.0524)
+[2026-05-15 16:24:59,230][__main__][INFO] -   Metrics history updated: logs/word_classification_zuco_meg/metrics_history.csv and logs/word_classification_zuco_meg/metrics_history.jsonl
+[2026-05-15 16:24:59,231][__main__][INFO] - 
+Epoch 5/50
+[2026-05-15 16:26:41,756][__main__][INFO] -   Train loss: 4.6661
+[2026-05-15 16:27:50,088][__main__][INFO] -   Val loss: 5.0427
+[2026-05-15 16:27:50,089][__main__][INFO] -   [Retrieval 50] Val top-10: 0.1949, balanced: 0.1779 (n=1139)
+[2026-05-15 16:27:50,089][__main__][INFO] -   [Retrieval 50] Test top-10: 0.2229, balanced: 0.1927
+[2026-05-15 16:27:50,089][__main__][INFO] -   [Retrieval 250] Val top-10: 0.0837, balanced: 0.0516 (n=1672)
+[2026-05-15 16:27:50,089][__main__][INFO] -   [Retrieval 250] Test top-10: 0.0912, balanced: 0.0429
+[2026-05-15 16:27:53,156][__main__][INFO] -   Metrics history updated: logs/word_classification_zuco_meg/metrics_history.csv and logs/word_classification_zuco_meg/metrics_history.jsonl
+[2026-05-15 16:27:53,156][__main__][INFO] - 
+Epoch 6/50
+[2026-05-15 16:29:35,954][__main__][INFO] -   Train loss: 4.4112
+[2026-05-15 16:30:44,085][__main__][INFO] -   Val loss: 5.0984
+[2026-05-15 16:30:44,086][__main__][INFO] -   [Retrieval 50] Val top-10: 0.2151, balanced: 0.1774 (n=1139)
+[2026-05-15 16:30:44,086][__main__][INFO] -   [Retrieval 50] Test top-10: 0.2300, balanced: 0.1984
+[2026-05-15 16:30:44,086][__main__][INFO] -   [Retrieval 250] Val top-10: 0.0867, balanced: 0.0549 (n=1672)
+[2026-05-15 16:30:44,086][__main__][INFO] -   [Retrieval 250] Test top-10: 0.0830, balanced: 0.0381
+[2026-05-15 16:30:46,971][__main__][INFO] -   Saved best model (val balanced: 0.0549, test top-10@250: 0.0830)
+[2026-05-15 16:30:50,065][__main__][INFO] -   Metrics history updated: logs/word_classification_zuco_meg/metrics_history.csv and logs/word_classification_zuco_meg/metrics_history.jsonl
+[2026-05-15 16:30:50,066][__main__][INFO] - 
+Epoch 7/50
+[2026-05-15 16:32:33,063][__main__][INFO] -   Train loss: 4.0991
+[2026-05-15 16:33:40,902][__main__][INFO] -   Val loss: 5.1454
+[2026-05-15 16:33:40,903][__main__][INFO] -   [Retrieval 50] Val top-10: 0.2063, balanced: 0.1716 (n=1139)
+[2026-05-15 16:33:40,903][__main__][INFO] -   [Retrieval 50] Test top-10: 0.2188, balanced: 0.1781
+[2026-05-15 16:33:40,903][__main__][INFO] -   [Retrieval 250] Val top-10: 0.0807, balanced: 0.0425 (n=1672)
+[2026-05-15 16:33:40,903][__main__][INFO] -   [Retrieval 250] Test top-10: 0.0749, balanced: 0.0359
+[2026-05-15 16:33:43,780][__main__][INFO] -   Metrics history updated: logs/word_classification_zuco_meg/metrics_history.csv and logs/word_classification_zuco_meg/metrics_history.jsonl
+[2026-05-15 16:33:43,780][__main__][INFO] - 
+Epoch 8/50
+[2026-05-15 16:35:26,335][__main__][INFO] -   Train loss: 3.6946
+[2026-05-15 16:36:33,990][__main__][INFO] -   Val loss: 5.2254
+[2026-05-15 16:36:33,990][__main__][INFO] -   [Retrieval 50] Val top-10: 0.2239, balanced: 0.1780 (n=1139)
+[2026-05-15 16:36:33,991][__main__][INFO] -   [Retrieval 50] Test top-10: 0.2340, balanced: 0.1891
+[2026-05-15 16:36:33,991][__main__][INFO] -   [Retrieval 250] Val top-10: 0.0987, balanced: 0.0422 (n=1672)
+[2026-05-15 16:36:33,991][__main__][INFO] -   [Retrieval 250] Test top-10: 0.0858, balanced: 0.0296
+[2026-05-15 16:36:37,008][__main__][INFO] -   Metrics history updated: logs/word_classification_zuco_meg/metrics_history.csv and logs/word_classification_zuco_meg/metrics_history.jsonl
+[2026-05-15 16:36:37,009][__main__][INFO] - 
+Epoch 9/50
+[2026-05-15 16:38:19,571][__main__][INFO] -   Train loss: 3.3320
+[2026-05-15 16:39:27,246][__main__][INFO] -   Val loss: 5.2837
+[2026-05-15 16:39:27,247][__main__][INFO] -   [Retrieval 50] Val top-10: 0.3126, balanced: 0.1786 (n=1139)
+[2026-05-15 16:39:27,247][__main__][INFO] -   [Retrieval 50] Test top-10: 0.2898, balanced: 0.1933
+[2026-05-15 16:39:27,247][__main__][INFO] -   [Retrieval 250] Val top-10: 0.1262, balanced: 0.0324 (n=1672)
+[2026-05-15 16:39:27,247][__main__][INFO] -   [Retrieval 250] Test top-10: 0.0980, balanced: 0.0348
+[2026-05-15 16:39:30,291][__main__][INFO] -   Metrics history updated: logs/word_classification_zuco_meg/metrics_history.csv and logs/word_classification_zuco_meg/metrics_history.jsonl
+[2026-05-15 16:39:30,291][__main__][INFO] - 
+Epoch 10/50
+[2026-05-15 16:41:12,858][__main__][INFO] -   Train loss: 3.0230
+[2026-05-15 16:42:20,502][__main__][INFO] -   Val loss: 5.3138
+[2026-05-15 16:42:20,502][__main__][INFO] -   [Retrieval 50] Val top-10: 0.3064, balanced: 0.2116 (n=1139)
+[2026-05-15 16:42:20,502][__main__][INFO] -   [Retrieval 50] Test top-10: 0.2867, balanced: 0.1714
+[2026-05-15 16:42:20,503][__main__][INFO] -   [Retrieval 250] Val top-10: 0.1334, balanced: 0.0289 (n=1672)
+[2026-05-15 16:42:20,503][__main__][INFO] -   [Retrieval 250] Test top-10: 0.1253, balanced: 0.0314
+[2026-05-15 16:42:23,551][__main__][INFO] -   Metrics history updated: logs/word_classification_zuco_meg/metrics_history.csv and logs/word_classification_zuco_meg/metrics_history.jsonl
+[2026-05-15 16:42:23,551][__main__][INFO] - 
+Epoch 11/50
+[2026-05-15 16:44:06,123][__main__][INFO] -   Train loss: 2.7763
+[2026-05-15 16:45:13,773][__main__][INFO] -   Val loss: 5.2120
+[2026-05-15 16:45:13,773][__main__][INFO] -   [Retrieval 50] Val top-10: 0.1844, balanced: 0.2052 (n=1139)
+[2026-05-15 16:45:13,773][__main__][INFO] -   [Retrieval 50] Test top-10: 0.1702, balanced: 0.1655
+[2026-05-15 16:45:13,773][__main__][INFO] -   [Retrieval 250] Val top-10: 0.0730, balanced: 0.0486 (n=1672)
+[2026-05-15 16:45:13,773][__main__][INFO] -   [Retrieval 250] Test top-10: 0.0701, balanced: 0.0474
+[2026-05-15 16:45:16,681][__main__][INFO] -   Metrics history updated: logs/word_classification_zuco_meg/metrics_history.csv and logs/word_classification_zuco_meg/metrics_history.jsonl
+[2026-05-15 16:45:16,681][__main__][INFO] - 
+Epoch 12/50
+[2026-05-15 16:46:59,222][__main__][INFO] -   Train loss: 2.5712
+[2026-05-15 16:48:06,879][__main__][INFO] -   Val loss: 5.2435
+[2026-05-15 16:48:06,880][__main__][INFO] -   [Retrieval 50] Val top-10: 0.2792, balanced: 0.2018 (n=1139)
+[2026-05-15 16:48:06,880][__main__][INFO] -   [Retrieval 50] Test top-10: 0.2543, balanced: 0.1853
+[2026-05-15 16:48:06,880][__main__][INFO] -   [Retrieval 250] Val top-10: 0.1274, balanced: 0.0435 (n=1672)
+[2026-05-15 16:48:06,880][__main__][INFO] -   [Retrieval 250] Test top-10: 0.1089, balanced: 0.0338
+[2026-05-15 16:48:09,776][__main__][INFO] -   Metrics history updated: logs/word_classification_zuco_meg/metrics_history.csv and logs/word_classification_zuco_meg/metrics_history.jsonl
+[2026-05-15 16:48:09,776][__main__][INFO] - 
+Epoch 13/50
+[2026-05-15 16:49:52,337][__main__][INFO] -   Train loss: 2.3250
+[2026-05-15 16:51:00,034][__main__][INFO] -   Val loss: 5.2926
+[2026-05-15 16:51:00,035][__main__][INFO] -   [Retrieval 50] Val top-10: 0.3205, balanced: 0.2165 (n=1139)
+[2026-05-15 16:51:00,035][__main__][INFO] -   [Retrieval 50] Test top-10: 0.3080, balanced: 0.1797
+[2026-05-15 16:51:00,035][__main__][INFO] -   [Retrieval 250] Val top-10: 0.1639, balanced: 0.0430 (n=1672)
+[2026-05-15 16:51:00,035][__main__][INFO] -   [Retrieval 250] Test top-10: 0.1341, balanced: 0.0253
+[2026-05-15 16:51:03,101][__main__][INFO] -   Metrics history updated: logs/word_classification_zuco_meg/metrics_history.csv and logs/word_classification_zuco_meg/metrics_history.jsonl
+[2026-05-15 16:51:03,102][__main__][INFO] - 
+Epoch 14/50
+[2026-05-15 16:52:45,915][__main__][INFO] -   Train loss: 2.1831
+[2026-05-15 16:53:53,594][__main__][INFO] -   Val loss: 5.2531
+[2026-05-15 16:53:53,594][__main__][INFO] -   [Retrieval 50] Val top-10: 0.3126, balanced: 0.2024 (n=1139)
+[2026-05-15 16:53:53,595][__main__][INFO] -   [Retrieval 50] Test top-10: 0.2867, balanced: 0.1831
+[2026-05-15 16:53:53,595][__main__][INFO] -   [Retrieval 250] Val top-10: 0.1513, balanced: 0.0449 (n=1672)
+[2026-05-15 16:53:53,595][__main__][INFO] -   [Retrieval 250] Test top-10: 0.1314, balanced: 0.0412
+[2026-05-15 16:53:56,491][__main__][INFO] -   Metrics history updated: logs/word_classification_zuco_meg/metrics_history.csv and logs/word_classification_zuco_meg/metrics_history.jsonl
+[2026-05-15 16:53:56,492][__main__][INFO] - 
+Epoch 15/50
+[2026-05-15 16:55:39,042][__main__][INFO] -   Train loss: 2.0884
+[2026-05-15 16:56:46,749][__main__][INFO] -   Val loss: 5.2910
+[2026-05-15 16:56:46,749][__main__][INFO] -   [Retrieval 50] Val top-10: 0.3240, balanced: 0.1829 (n=1139)
+[2026-05-15 16:56:46,749][__main__][INFO] -   [Retrieval 50] Test top-10: 0.3191, balanced: 0.2051
+[2026-05-15 16:56:46,749][__main__][INFO] -   [Retrieval 250] Val top-10: 0.1633, balanced: 0.0562 (n=1672)
+[2026-05-15 16:56:46,749][__main__][INFO] -   [Retrieval 250] Test top-10: 0.1552, balanced: 0.0396
+[2026-05-15 16:56:49,824][__main__][INFO] -   Saved best model (val balanced: 0.0562, test top-10@250: 0.1552)
+[2026-05-15 16:56:52,858][__main__][INFO] -   Metrics history updated: logs/word_classification_zuco_meg/metrics_history.csv and logs/word_classification_zuco_meg/metrics_history.jsonl
+[2026-05-15 16:56:52,859][__main__][INFO] - 
+Epoch 16/50
+[2026-05-15 16:58:35,448][__main__][INFO] -   Train loss: 2.0189
+[2026-05-15 16:59:43,190][__main__][INFO] -   Val loss: 5.2823
+[2026-05-15 16:59:43,190][__main__][INFO] -   [Retrieval 50] Val top-10: 0.3011, balanced: 0.2050 (n=1139)
+[2026-05-15 16:59:43,190][__main__][INFO] -   [Retrieval 50] Test top-10: 0.2918, balanced: 0.1689
+[2026-05-15 16:59:43,191][__main__][INFO] -   [Retrieval 250] Val top-10: 0.1555, balanced: 0.0440 (n=1672)
+[2026-05-15 16:59:43,191][__main__][INFO] -   [Retrieval 250] Test top-10: 0.1457, balanced: 0.0307
+[2026-05-15 16:59:46,236][__main__][INFO] -   Metrics history updated: logs/word_classification_zuco_meg/metrics_history.csv and logs/word_classification_zuco_meg/metrics_history.jsonl
+[2026-05-15 16:59:46,237][__main__][INFO] - 
+Epoch 17/50
+[2026-05-15 17:01:28,814][__main__][INFO] -   Train loss: 1.9651
+[2026-05-15 17:02:36,557][__main__][INFO] -   Val loss: 5.2385
+[2026-05-15 17:02:36,557][__main__][INFO] -   [Retrieval 50] Val top-10: 0.2968, balanced: 0.2173 (n=1139)
+[2026-05-15 17:02:36,557][__main__][INFO] -   [Retrieval 50] Test top-10: 0.2817, balanced: 0.2008
+[2026-05-15 17:02:36,557][__main__][INFO] -   [Retrieval 250] Val top-10: 0.1352, balanced: 0.0426 (n=1672)
+[2026-05-15 17:02:36,558][__main__][INFO] -   [Retrieval 250] Test top-10: 0.1198, balanced: 0.0325
+[2026-05-15 17:02:39,621][__main__][INFO] -   Metrics history updated: logs/word_classification_zuco_meg/metrics_history.csv and logs/word_classification_zuco_meg/metrics_history.jsonl
+[2026-05-15 17:02:39,622][__main__][INFO] - 
+Epoch 18/50
+[2026-05-15 17:04:22,194][__main__][INFO] -   Train loss: 1.9146
+[2026-05-15 17:05:29,916][__main__][INFO] -   Val loss: 5.3578
+[2026-05-15 17:05:29,916][__main__][INFO] -   [Retrieval 50] Val top-10: 0.3494, balanced: 0.2096 (n=1139)
+[2026-05-15 17:05:29,916][__main__][INFO] -   [Retrieval 50] Test top-10: 0.3354, balanced: 0.1822
+[2026-05-15 17:05:29,916][__main__][INFO] -   [Retrieval 250] Val top-10: 0.1818, balanced: 0.0343 (n=1672)
+[2026-05-15 17:05:29,917][__main__][INFO] -   [Retrieval 250] Test top-10: 0.1736, balanced: 0.0316
+[2026-05-15 17:05:32,779][__main__][INFO] -   Metrics history updated: logs/word_classification_zuco_meg/metrics_history.csv and logs/word_classification_zuco_meg/metrics_history.jsonl
+[2026-05-15 17:05:32,780][__main__][INFO] - 
+Epoch 19/50
+[2026-05-15 17:07:15,275][__main__][INFO] -   Train loss: 1.8716
+[2026-05-15 17:08:22,946][__main__][INFO] -   Val loss: 5.3581
+[2026-05-15 17:08:22,947][__main__][INFO] -   [Retrieval 50] Val top-10: 0.3398, balanced: 0.2238 (n=1139)
+[2026-05-15 17:08:22,947][__main__][INFO] -   [Retrieval 50] Test top-10: 0.3354, balanced: 0.1974
+[2026-05-15 17:08:22,947][__main__][INFO] -   [Retrieval 250] Val top-10: 0.1794, balanced: 0.0431 (n=1672)
+[2026-05-15 17:08:22,947][__main__][INFO] -   [Retrieval 250] Test top-10: 0.1661, balanced: 0.0347
+[2026-05-15 17:08:25,845][__main__][INFO] -   Metrics history updated: logs/word_classification_zuco_meg/metrics_history.csv and logs/word_classification_zuco_meg/metrics_history.jsonl
+[2026-05-15 17:08:25,846][__main__][INFO] - 
+Epoch 20/50
+[2026-05-15 17:10:08,412][__main__][INFO] -   Train loss: 1.8429
+[2026-05-15 17:11:16,082][__main__][INFO] -   Val loss: 5.3792
+[2026-05-15 17:11:16,083][__main__][INFO] -   [Retrieval 50] Val top-10: 0.3547, balanced: 0.1944 (n=1139)
+[2026-05-15 17:11:16,083][__main__][INFO] -   [Retrieval 50] Test top-10: 0.3465, balanced: 0.1975
+[2026-05-15 17:11:16,083][__main__][INFO] -   [Retrieval 250] Val top-10: 0.1962, balanced: 0.0407 (n=1672)
+[2026-05-15 17:11:16,083][__main__][INFO] -   [Retrieval 250] Test top-10: 0.1736, balanced: 0.0349
+[2026-05-15 17:11:18,975][__main__][INFO] -   Metrics history updated: logs/word_classification_zuco_meg/metrics_history.csv and logs/word_classification_zuco_meg/metrics_history.jsonl
+[2026-05-15 17:11:18,975][__main__][INFO] - 
+Epoch 21/50
+[2026-05-15 17:13:01,520][__main__][INFO] -   Train loss: 1.8119
+[2026-05-15 17:14:09,179][__main__][INFO] -   Val loss: 5.3419
+[2026-05-15 17:14:09,179][__main__][INFO] -   [Retrieval 50] Val top-10: 0.3363, balanced: 0.1903 (n=1139)
+[2026-05-15 17:14:09,179][__main__][INFO] -   [Retrieval 50] Test top-10: 0.3435, balanced: 0.1875
+[2026-05-15 17:14:09,180][__main__][INFO] -   [Retrieval 250] Val top-10: 0.1711, balanced: 0.0388 (n=1672)
+[2026-05-15 17:14:09,180][__main__][INFO] -   [Retrieval 250] Test top-10: 0.1634, balanced: 0.0430
+[2026-05-15 17:14:12,056][__main__][INFO] -   Metrics history updated: logs/word_classification_zuco_meg/metrics_history.csv and logs/word_classification_zuco_meg/metrics_history.jsonl
+[2026-05-15 17:14:12,057][__main__][INFO] - 
+Epoch 22/50
+[2026-05-15 17:15:54,853][__main__][INFO] -   Train loss: 1.7593
+[2026-05-15 17:17:02,487][__main__][INFO] -   Val loss: 5.3890
+[2026-05-15 17:17:02,487][__main__][INFO] -   [Retrieval 50] Val top-10: 0.3292, balanced: 0.1704 (n=1139)
+[2026-05-15 17:17:02,487][__main__][INFO] -   [Retrieval 50] Test top-10: 0.3576, balanced: 0.1926
+[2026-05-15 17:17:02,487][__main__][INFO] -   [Retrieval 250] Val top-10: 0.1734, balanced: 0.0363 (n=1672)
+[2026-05-15 17:17:02,487][__main__][INFO] -   [Retrieval 250] Test top-10: 0.1831, balanced: 0.0362
+[2026-05-15 17:17:05,530][__main__][INFO] -   Metrics history updated: logs/word_classification_zuco_meg/metrics_history.csv and logs/word_classification_zuco_meg/metrics_history.jsonl
+[2026-05-15 17:17:05,530][__main__][INFO] - 
+Epoch 23/50
+[2026-05-15 17:18:48,055][__main__][INFO] -   Train loss: 1.7242
+[2026-05-15 17:19:55,674][__main__][INFO] -   Val loss: 5.3400
+[2026-05-15 17:19:55,674][__main__][INFO] -   [Retrieval 50] Val top-10: 0.3152, balanced: 0.1725 (n=1139)
+[2026-05-15 17:19:55,674][__main__][INFO] -   [Retrieval 50] Test top-10: 0.3202, balanced: 0.1748
+[2026-05-15 17:19:55,674][__main__][INFO] -   [Retrieval 250] Val top-10: 0.1597, balanced: 0.0340 (n=1672)
+[2026-05-15 17:19:55,674][__main__][INFO] -   [Retrieval 250] Test top-10: 0.1552, balanced: 0.0390
+[2026-05-15 17:19:58,571][__main__][INFO] -   Metrics history updated: logs/word_classification_zuco_meg/metrics_history.csv and logs/word_classification_zuco_meg/metrics_history.jsonl
+[2026-05-15 17:19:58,571][__main__][INFO] - 
+Epoch 24/50
+[2026-05-15 17:21:41,114][__main__][INFO] -   Train loss: 1.7068
+[2026-05-15 17:22:48,750][__main__][INFO] -   Val loss: 5.3904
+[2026-05-15 17:22:48,751][__main__][INFO] -   [Retrieval 50] Val top-10: 0.3450, balanced: 0.1855 (n=1139)
+[2026-05-15 17:22:48,751][__main__][INFO] -   [Retrieval 50] Test top-10: 0.3506, balanced: 0.1881
+[2026-05-15 17:22:48,751][__main__][INFO] -   [Retrieval 250] Val top-10: 0.1746, balanced: 0.0367 (n=1672)
+[2026-05-15 17:22:48,751][__main__][INFO] -   [Retrieval 250] Test top-10: 0.1763, balanced: 0.0413
+[2026-05-15 17:22:51,673][__main__][INFO] -   Metrics history updated: logs/word_classification_zuco_meg/metrics_history.csv and logs/word_classification_zuco_meg/metrics_history.jsonl
+[2026-05-15 17:22:51,674][__main__][INFO] - 
+Epoch 25/50
+[2026-05-15 17:24:34,257][__main__][INFO] -   Train loss: 1.6913
+[2026-05-15 17:25:41,893][__main__][INFO] -   Val loss: 5.3903
+[2026-05-15 17:25:41,893][__main__][INFO] -   [Retrieval 50] Val top-10: 0.3327, balanced: 0.1762 (n=1139)
+[2026-05-15 17:25:41,893][__main__][INFO] -   [Retrieval 50] Test top-10: 0.3617, balanced: 0.1845
+[2026-05-15 17:25:41,893][__main__][INFO] -   [Retrieval 250] Val top-10: 0.1776, balanced: 0.0389 (n=1672)
+[2026-05-15 17:25:41,894][__main__][INFO] -   [Retrieval 250] Test top-10: 0.1811, balanced: 0.0380
+[2026-05-15 17:25:44,784][__main__][INFO] -   Metrics history updated: logs/word_classification_zuco_meg/metrics_history.csv and logs/word_classification_zuco_meg/metrics_history.jsonl
+[2026-05-15 17:25:44,785][__main__][INFO] - Early stopping at epoch 25
+[2026-05-15 17:25:44,785][__main__][INFO] - 
+Loading best model for final evaluation...
+[2026-05-15 17:26:17,015][__main__][INFO] - 
+=== Final Test Results Comparison ===
+[2026-05-15 17:26:17,015][__main__][INFO] - Test metrics at best val epoch (in-memory):
+[2026-05-15 17:26:17,015][__main__][INFO] -   loss: 5.2943
+[2026-05-15 17:26:17,015][__main__][INFO] -   top10_accuracy_retrieval50: 0.3191
+[2026-05-15 17:26:17,016][__main__][INFO] -   n_samples_retrieval50: 987.0000
+[2026-05-15 17:26:17,016][__main__][INFO] -   n_skipped_retrieval50: 1463.0000
+[2026-05-15 17:26:17,016][__main__][INFO] -   balanced_top10_accuracy_retrieval50: 0.2051
+[2026-05-15 17:26:17,016][__main__][INFO] -   top10_accuracy_retrieval250: 0.1552
+[2026-05-15 17:26:17,016][__main__][INFO] -   n_samples_retrieval250: 1469.0000
+[2026-05-15 17:26:17,016][__main__][INFO] -   n_skipped_retrieval250: 981.0000
+[2026-05-15 17:26:17,016][__main__][INFO] -   balanced_top10_accuracy_retrieval250: 0.0396
+[2026-05-15 17:26:17,016][__main__][INFO] -   mean_cosine_similarity: 0.5928
+[2026-05-15 17:26:17,016][__main__][INFO] -   std_cosine_similarity: 0.0911
+[2026-05-15 17:26:17,016][__main__][INFO] -   mean_pred_norm: 22.3745
+[2026-05-15 17:26:17,016][__main__][INFO] -   std_pred_norm: 1.9425
+[2026-05-15 17:26:17,016][__main__][INFO] -   mean_target_norm: 2485.8250
+[2026-05-15 17:26:17,016][__main__][INFO] - 
+Test metrics after checkpoint load:
+[2026-05-15 17:26:17,016][__main__][INFO] -   loss: 5.3004
+[2026-05-15 17:26:17,016][__main__][INFO] -   top10_accuracy_retrieval50: 0.3110
+[2026-05-15 17:26:17,016][__main__][INFO] -   n_samples_retrieval50: 987.0000
+[2026-05-15 17:26:17,017][__main__][INFO] -   n_skipped_retrieval50: 1463.0000
+[2026-05-15 17:26:17,017][__main__][INFO] -   balanced_top10_accuracy_retrieval50: 0.1816
+[2026-05-15 17:26:17,017][__main__][INFO] -   top10_accuracy_retrieval250: 0.1382
+[2026-05-15 17:26:17,017][__main__][INFO] -   n_samples_retrieval250: 1469.0000
+[2026-05-15 17:26:17,017][__main__][INFO] -   n_skipped_retrieval250: 981.0000
+[2026-05-15 17:26:17,017][__main__][INFO] -   balanced_top10_accuracy_retrieval250: 0.0333
+[2026-05-15 17:26:17,017][__main__][INFO] -   mean_cosine_similarity: 0.5921
+[2026-05-15 17:26:17,017][__main__][INFO] -   std_cosine_similarity: 0.0909
+[2026-05-15 17:26:17,017][__main__][INFO] -   mean_pred_norm: 22.3821
+[2026-05-15 17:26:17,017][__main__][INFO] -   std_pred_norm: 1.9235
+[2026-05-15 17:26:17,017][__main__][INFO] -   mean_target_norm: 2485.8250
+[2026-05-15 17:26:17,017][__main__][WARNING] - 
+⚠️  Discrepancy detected! In-memory: 0.1552, After load: 0.1382, Diff: 0.0170
+[2026-05-15 17:26:17,023][__main__][INFO] - 
+Results saved to: logs/word_classification_zuco_meg/final_results.txt

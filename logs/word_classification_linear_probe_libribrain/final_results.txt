@@ -1,0 +1,17 @@
+CrissCross Word Classification (LINEAR PROBE) - Final Test Results
+============================================================
+
+loss: 5.0421
+top10_accuracy_retrieval50: 0.2261
+n_samples_retrieval50: 18290.0000
+n_skipped_retrieval50: 20060.0000
+balanced_top10_accuracy_retrieval50: 0.2345
+top10_accuracy_retrieval250: 0.0768
+n_samples_retrieval250: 25985.0000
+n_skipped_retrieval250: 12365.0000
+balanced_top10_accuracy_retrieval250: 0.0543
+mean_cosine_similarity: 0.5546
+std_cosine_similarity: 0.0431
+mean_pred_norm: 2875.0793
+std_pred_norm: 446.8211
+mean_target_norm: 2480.5745

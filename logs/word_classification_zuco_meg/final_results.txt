@@ -1,0 +1,17 @@
+CrissCross Word Classification - Final Test Results
+============================================================
+
+loss: 5.3004
+top10_accuracy_retrieval50: 0.3110
+n_samples_retrieval50: 987.0000
+n_skipped_retrieval50: 1463.0000
+balanced_top10_accuracy_retrieval50: 0.1816
+top10_accuracy_retrieval250: 0.1382
+n_samples_retrieval250: 1469.0000
+n_skipped_retrieval250: 981.0000
+balanced_top10_accuracy_retrieval250: 0.0333
+mean_cosine_similarity: 0.5921
+std_cosine_similarity: 0.0909
+mean_pred_norm: 22.3821
+std_pred_norm: 1.9235
+mean_target_norm: 2485.8250

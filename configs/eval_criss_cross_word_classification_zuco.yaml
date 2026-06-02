@@ -1,0 +1,159 @@
+# CrissCross Word Classification Evaluation Configuration - ZuCo 2.0 NR Dataset
+
+# Model checkpoints
+model:
+  # Training mode: false = fine-tune from pretrained, true = train from scratch
+  train_from_scratch: false
+
+  # Local MEG-XL/CrissCross checkpoint. Override this from the CLI if you want
+  # to use the same external checkpoint as the LibriBrain runs.
+  criss_cross_checkpoint: "./checkpoints/baseline/meg-xl-med.ckpt"
+
+  # Path to BioCodec tokenizer checkpoint
+  tokenizer_checkpoint: "./brainstorm/neuro_tokenizers/biocodec_ckpt.pt"
+
+  # Word embedding MLP configuration
+  word_mlp:
+    hidden_dim: 2048
+    embed_dim: 1024  # T5-large embedding dimension
+    dropout: 0.1
+
+# Data settings
+data:
+  dataset_type: "zuco"
+
+  # Dataset root directory. The loader also accepts "./datasets/zuco2".
+  root: "./datasets/zuco2/data/zuco2"
+  cache_dir: "./data/cache/zuco"
+
+  # ZuCo 2.0 NR uses 105 EEG channels.
+  max_channel_dim: 105
+
+  # Channel type used for ZuCo EEG channels.
+  # Options:
+  # - "meg" / "mag": reuse the pretrained magnetometer/MEG type embedding
+  # - "eeg": add a third EEG type embedding (0=GRAD, 1=MAG, 2=EEG)
+  # - "grad": previous behavior, reuse the gradiometer type embedding
+  eeg_sensor_type: "eeg"
+
+  # Subjects included in the downloaded ZuCo 2.0 Natural Reading task.
+  subjects:
+    - "YAC"
+    - "YAG"
+    - "YAK"
+    - "YDG"
+    - "YDR"
+    - "YFR"
+    - "YFS"
+    - "YHS"
+    - "YIS"
+    - "YLS"
+    - "YMD"
+    - "YMS"
+    - "YRH"
+    - "YRK"
+    - "YRP"
+    - "YSD"
+    - "YSL"
+    - "YTL"
+
+  # Split mode: hashed sentence-based splitting, matching the LibriBrain eval.
+  use_hashed_split: true
+
+  # Hashed split parameters (used when use_hashed_split=true)
+  split_ratios: [0.8, 0.1, 0.1]  # train, val, test
+  all_sessions:
+    - "NR1"
+    - "NR2"
+    - "NR3"
+    - "NR4"
+    - "NR5"
+    - "NR6"
+    - "NR7"
+
+  # Session-based temporal split (used when use_hashed_split=false)
+  train_pct: 0.25
+  train_sessions:
+    - "NR1"
+    - "NR2"
+    - "NR3"
+    - "NR4"
+    - "NR5"
+
+  val_sessions:
+    - "NR6"
+
+  test_sessions:
+    - "NR7"
+
+  tasks:
+    - "NR"
+
+  # Preprocessing parameters (the ZuCo adapter resamples to target_sfreq and
+  # applies the same per-window baseline/robust scaling used by the MEG datasets).
+  l_freq: 0.1
+  h_freq: 40.0
+  target_sfreq: 50.0
+
+  # Word window parameters
+  segment_length: 150.0
+  subsegment_duration: 3.0
+  words_per_segment: 50
+  window_onset_offset: -0.5
+
+# T5 embedding settings
+t5:
+  model_name: "t5-large"
+  layer: 12  # Which layer to extract embeddings from
+  cache_dir: "./embeddings_cache"
+
+# Training settings
+training:
+  batch_size: 1
+  num_epochs: 50
+
+  # Resume from checkpoint (path to checkpoint_latest.pt or checkpoint_best.pt)
+  resume_checkpoint: null
+
+  # Learning rates for different training modes
+  criss_cross_lr: 1.0e-5
+  word_mlp_lr: 1.0e-3
+
+  # From-scratch mode (train_from_scratch=true): use same LR for all components
+  from_scratch_lr: 1.0e-4
+
+  # Regularization
+  weight_decay: 1.0e-4
+  gradient_clip_val: 1.0
+
+  # Early stopping
+  patience: 10
+  min_delta: 0.001
+
+  # HDF5-backed MATLAB files are safest with a single-process DataLoader.
+  num_workers: 0
+  pin_memory: true
+
+# Loss settings (SigLIP)
+loss:
+  norm_kind: "xy"
+  temperature: true
+  bias: true
+  reduction: "sum"
+
+# Evaluation settings
+evaluation:
+  retrieval_set_sizes: [50, 250]
+  k: 10
+
+# Logging settings
+logging:
+  wandb_project: "brainstorm-eval"
+  experiment_name: "criss-cross-word-classification-zuco-nr-50Hz"
+  log_every_n_steps: 10
+  save_dir: "./logs/word_classification_zuco"
+  checkpoint_dir: "./checkpoints/word_classification_zuco"
+
+# System settings
+device: "cuda"
+seed: 42

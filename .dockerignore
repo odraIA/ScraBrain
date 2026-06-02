@@ -1,10 +1,16 @@
 # Datos — NUNCA meter en la imagen, van por volume mount
 libribrain_data/
+datasets/
 hf_cache/
 checkpoints/
+data/
+embeddings_cache/
 results/
 logs/
 tensorboard/
+wandb/
+outputs/
+multirun/
 
 # Git / IDE
 .git/
@@ -12,6 +18,7 @@ tensorboard/
 .vscode/
 .idea/
 .venv/
+.python-version
 __pycache__/
 *.pyc
 *.pyo
