@@ -28,6 +28,120 @@ class ZuCoWordAlignedDataset(Dataset):
     adapter aligns first-fixation timestamps to continuous EEG using shared TR
     markers, then exposes the same sample dictionary as the MEG word-aligned
     datasets used by the CrissCross evaluation.
+
+        Each segment contains words_per_segment consecutive words, where each word
+    has a subsegment_duration-second EEG window aligned to the first fixation on
+    that word. By default, this gives 50 word-aligned windows of 3s each,
+    concatenated into a 150s segment. Each 3s subsegment is independently
+    resampled and preprocessed with baseline correction, robust scaling, and
+    clipping.
+
+    ZuCo stores EEG, eye-tracking events, word bounding boxes, and text
+    materials in separate files. This dataset discovers matching Natural Reading
+    recordings, extracts the first fixation for each word using the corrected
+    eye-tracking data and word bounding boxes, maps eye-tracking timestamps to
+    EEG sample indices through shared TR markers, and returns contiguous groups
+    of word-aligned EEG windows.
+
+    Although the returned signal key is named "meg", the tensor contains EEG
+    data. This is intentional: it keeps the output dictionary compatible with
+    the existing MEG word-aligned datasets and CrissCross evaluation code.
+
+    Parameters
+    ----------
+    data_root : str
+        Root directory of the ZuCo 2.0 dataset. The loader expects either a
+        directory containing "task1 - NR" directly, or a parent directory
+        containing "data/zuco2/task1 - NR".
+    segment_length : float
+        Total segment length in seconds. For consistency, this should equal
+        words_per_segment x subsegment_duration. Default: 150.0.
+    subsegment_duration : float
+        Duration of each word-aligned EEG window in seconds. Default: 3.0.
+    words_per_segment : int
+        Number of consecutive word windows concatenated into one sample.
+        Default: 50.
+    window_onset_offset : float
+        Start time of each EEG window relative to the word first-fixation onset,
+        in seconds. Default: -0.5, meaning that each window starts 0.5s before
+        the fixation onset.
+    cache_dir : str, optional
+        Directory reserved for cache files. Created if it does not exist.
+        Default: "./data/cache".
+    subjects : List[str], optional
+        List of subjects to include. Subject names are normalized internally
+        by uppercasing and removing a possible "sub-" prefix. If None, all
+        available subjects are used.
+    sessions : List[str], optional
+        List of Natural Reading sessions to include, e.g. ["NR1", "NR2"] or
+        ["1", "2"]. If None, all available NR sessions are used.
+    tasks : List[str], optional
+        List of tasks to include. This loader only supports the Natural Reading
+        task ("NR"). If None, all discovered NR recordings are used.
+    l_freq : float
+        Low frequency cutoff stored for compatibility with the MEG dataset
+        interface. Default: 0.1 Hz.
+    h_freq : float
+        High frequency cutoff stored for compatibility with the MEG dataset
+        interface. Default: 40.0 Hz.
+    target_sfreq : float
+        Target sampling frequency after resampling each word window.
+        Default: 50.0 Hz.
+    channel_filter : callable, optional
+        Optional channel filter kept for API compatibility. Default: None.
+    max_channel_dim : int, optional
+        Maximum channel dimension for padding. If specified, EEG data, sensor
+        positions, sensor types, and sensor masks are padded to this number of
+        channels. If None, no channel padding is applied.
+    baseline_duration : float
+        Duration of the baseline window used during preprocessing, in seconds.
+        Default: 0.5.
+    clip_range : tuple
+        Minimum and maximum values used for clipping after scaling.
+        Default: (-5, 5).
+    eeg_sensor_type : str
+        Sensor type label assigned to EEG channels for compatibility with models
+        that expect MEG-like sensor type IDs. Supported aliases are "grad",
+        "gradiometer", "mag", "meg", "magnetometer", and "eeg".
+        Default: "grad".
+
+    Returns (from __getitem__)
+    -------
+    Dictionary containing:
+        - meg: torch.Tensor of shape (n_channels, n_timepoints), containing EEG
+          data despite the MEG-compatible key name
+        - words: List[str] of length words_per_segment
+        - subsegment_boundaries: List[Dict] with 'start_sample' and 'end_sample'
+          keys for each word window in the concatenated segment
+        - sensor_xyzdir: torch.Tensor of shape (n_channels, 6), containing sensor
+          positions and normalized directions
+        - sensor_types: torch.Tensor of shape (n_channels,)
+        - sensor_mask: torch.Tensor of shape (n_channels,), with 1 for real
+          channels and 0 for padded channels
+        - subject: str
+        - session: str
+        - task: str, always "NR"
+        - recording_idx: int
+        - segment_idx: int
+        - start_time: float, start time of the first word window in seconds
+        - end_time: float, end time of the last word window in seconds
+
+    Example
+    -------
+    >>> dataset = ZuCoWordAlignedDataset(
+    ...     data_root="/path/to/zuco2",
+    ...     segment_length=150.0,
+    ...     subsegment_duration=3.0,
+    ...     words_per_segment=50,
+    ...     window_onset_offset=-0.5,
+    ...     sessions=["NR1"],
+    ...     target_sfreq=50.0,
+    ... )
+    >>> print(f"Dataset: {len(dataset)} segments")
+    >>> sample = dataset[0]
+    >>> print(f"EEG shape: {sample['meg'].shape}")
+    >>> print(f"Words: {sample['words']}")
+    >>> print(f"Number of subsegments: {len(sample['subsegment_boundaries'])}")
     """
 
     _SESSION_RE = re.compile(r"NR(\d+)", re.IGNORECASE)

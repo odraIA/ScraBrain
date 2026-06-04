@@ -222,3 +222,4 @@ wandb/
 hf_cache/
 data/
 embeddings_cache/
+local/

@@ -1,0 +1,10 @@
+Títol: Transferencia de modelos MEG de contexto largo a EEG para clasificación de palabras en lectura natural
+ 
+Abstract (No sé si massa llarg): La decodificación de palabras a partir de señales cerebrales no invasivas presenta importantes dificultades debidas al bajo nivel de señal útil, la variabilidad entre sujetos y las diferencias entre modalidades como MEG y EEG. En este trabajo se adapta el modelo MEG-XL, diseñado originalmente para el aprendizaje de representaciones de contexto largo en MEG, a un escenario de EEG durante lectura natural. La adaptación se centra en construir un pipeline reproducible para evaluar si las representaciones aprendidas en MEG pueden transferirse a EEG en tareas de clasificación de palabras.
+Para ello, se integra la arquitectura de MEG-XL con un nuevo adaptador diferentes datasets de EEG, que transforma los registros de este tipo de sensores y las anotaciones de lectura en segmentos alineados a palabras. El pipeline incorpora re-muestreo, normalización, extracción de ventanas temporales por palabra, máscaras de sensores y codificación explícita del tipo de sensor EEG. A partir de estos segmentos, el modelo obtiene representaciones neuronales contextualizadas mediante un Transformer con atención criss-cross y las compara con embeddings lingüísticos generados por T5 mediante una pérdida contrastiva.
+El objetivo principal es analizar la viabilidad técnica y experimental de trasladar modelos de contexto largo entrenados en MEG a datos EEG para comenzar a investigar una solución cerrada de brain-to-text que incluya EEG. Este enfoque permite estudiar las barreras prácticas de la transferencia entre modalidades, identificar los puntos críticos del preprocesamiento y sentar una base para futuros modelos multimodales M/EEG aplicados a decodificación de lenguaje natural.
+
+
+EEG datasets:
+SparrKULee 64 canales 168h
+OpenNeuro ds004408 128 canales 20,6h
