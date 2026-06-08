@@ -1,0 +1,12 @@
+Writing folder organization for /home/rdiaper/proyectos/meegxl/ScraBrain/datasets/OpenNeuroEEG
+Output: /home/rdiaper/proyectos/meegxl/ScraBrain/datasets/OpenNeuroEEG_folder_organization.txt
+Unable to find image 'alpine:3.20' locally
+3.20: Pulling from library/alpine
+25f1d6b1951a: Pulling fs layer
+25f1d6b1951a: Download complete
+d4050d56ebf2: Download complete
+3a030ca3f633: Download complete
+25f1d6b1951a: Pull complete
+Digest: sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
+Status: Downloaded newer image for alpine:3.20
+Wrote /out/OpenNeuroEEG_folder_organization.txt
