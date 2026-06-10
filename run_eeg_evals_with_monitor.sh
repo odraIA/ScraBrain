@@ -4,6 +4,7 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
+PYTHON_BIN="${PYTHON_BIN:-python3}"
 STATE_FILE="${EEG_SEQUENCE_STATE_FILE:-.eeg_eval_sequence.json}"
 MONITOR_SERVICE="${EEG_MONITOR_SERVICE:-eeg_monitor}"
 MONITOR_PORT="${EEG_MONITOR_PORT:-8082}"
@@ -85,7 +86,7 @@ json_state() {
   DRY_RUN="$DRY_RUN" \
   PID="$$" \
   SERVICES_JOINED="$(printf '%s\n' "${SERVICES[@]}")" \
-  python - <<'PY'
+  "$PYTHON_BIN" - <<'PY'
 import json
 import os
 import sys
