@@ -42,6 +42,7 @@ LOGS_DIR     = BASE_DIR / "logs"
 RESULTS_DIR  = BASE_DIR / "results"
 CKPT_DIR     = BASE_DIR / "checkpoints"
 PROMOTIONS_DIR = BASE_DIR / "promotions"
+EEG_SEQUENCE_FILE = BASE_DIR / ".eeg_eval_sequence.json"
 PLAN_FILE    = BASE_DIR / ".sweep_plan.json"
 REFRESH_SECS = 8
 DOCKER_SOCKET = Path(os.environ.get("DOCKER_SOCKET", "/var/run/docker.sock"))
@@ -1136,6 +1137,53 @@ def get_precompute_status(ctx: dict | None = None) -> dict:
     }
 
 
+def get_eeg_eval_sequence_status(ctx: dict | None = None) -> dict:
+    """Read the sequential EEG eval runner state file, if present."""
+    data = _read_json_file(EEG_SEQUENCE_FILE)
+    if not data:
+        return {
+            "active": False,
+            "state_file": str(EEG_SEQUENCE_FILE),
+            "status": "missing",
+            "services": [],
+            "counts": {"done": 0, "running": 0, "failed": 0, "pending": 0, "skipped": 0},
+        }
+
+    compose_containers = (ctx or {}).get("compose_containers") or get_compose_container_statuses()
+    services = []
+    counts = {"done": 0, "running": 0, "failed": 0, "pending": 0, "skipped": 0}
+    for raw_item in data.get("services", []):
+        if not isinstance(raw_item, dict):
+            continue
+        item = dict(raw_item)
+        service_name = str(item.get("service") or "")
+        container = compose_containers.get(service_name)
+        container_state = _container_status(container)
+        if container_state == "running":
+            item["status"] = "running"
+        item["container"] = container
+        status = str(item.get("status") or "pending")
+        if status not in counts:
+            counts[status] = 0
+        counts[status] += 1
+        services.append(item)
+
+    return {
+        "active": True,
+        "state_file": str(EEG_SEQUENCE_FILE),
+        "status": data.get("status", "running"),
+        "started_at": data.get("started_at"),
+        "updated_at": data.get("updated_at"),
+        "finished_at": data.get("finished_at"),
+        "current_service": data.get("current_service"),
+        "monitor_service": data.get("monitor_service"),
+        "monitor_url": data.get("monitor_url"),
+        "dry_run": bool(data.get("dry_run", False)),
+        "services": services,
+        "counts": counts,
+    }
+
+
 def get_gpu_info() -> list[dict]:
     try:
         import pynvml
@@ -1630,6 +1678,7 @@ def get_sweep_status() -> dict:
     all_exps = discover_experiments(ctx)
     exps = [get_exp_status(e, ctx=ctx) for e in all_exps]
     precompute = get_precompute_status(ctx=ctx)
+    eeg_sequence = get_eeg_eval_sequence_status(ctx=ctx)
     counts = {"done": 0, "running": 0, "failed": 0, "pending": 0, "skipped": 0}
     for e in exps:
         counts[e["status"]] += 1
@@ -1651,6 +1700,7 @@ def get_sweep_status() -> dict:
         "total": len(all_exps),
         "counts": counts,
         "precompute": precompute,
+        "eeg_sequence": eeg_sequence,
         "experiments": exps,
         "leaderboard": completed,
         "sweep_tail": sweep_tail,
@@ -1945,6 +1995,11 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     color: var(--text);
     text-transform: lowercase;
   }
+  .sequence-meta {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
   .status-pill {
     font-size: 9px;
     letter-spacing: 1px;
@@ -2205,6 +2260,15 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- EEG sequential eval runner -->
+  <div class="card" id="eeg-sequence-card" style="margin-bottom:20px; display:none;">
+    <div class="card-title">EEG Evaluaciones Secuenciales</div>
+    <div class="sequence-meta" id="eeg-sequence-meta">sin datos</div>
+    <div id="eeg-sequence-wrap">
+      <div class="precompute-row"><span class="precompute-task">cargando…</span></div>
+    </div>
+  </div>
+
   <!-- Stats row -->
   <div class="stats-row">
     <div class="stat-box stat-done">
@@ -2356,6 +2420,36 @@ function renderPrecomputeStage(targetId, rows) {
   }).join('');
 }
 
+function renderEegSequence(seq) {
+  const card = document.getElementById('eeg-sequence-card');
+  const wrap = document.getElementById('eeg-sequence-wrap');
+  const meta = document.getElementById('eeg-sequence-meta');
+  if (!seq || !seq.active) {
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = 'block';
+  const dry = seq.dry_run ? ' · dry-run' : '';
+  const current = seq.current_service ? ` · actual: ${seq.current_service}` : '';
+  meta.textContent = `${seq.status || 'running'}${dry}${current} · ${seq.monitor_url || ''}`;
+  const rows = seq.services || [];
+  if (rows.length === 0) {
+    wrap.innerHTML = '<div class="precompute-row"><span class="precompute-task">sin servicios</span></div>';
+    return;
+  }
+  wrap.innerHTML = rows.map((r, idx) => {
+    const label = r.label || r.service || `stage ${idx + 1}`;
+    const exit = r.exit_code == null ? '' : ` · exit ${r.exit_code}`;
+    const container = r.container && r.container.status_text ? ` · ${r.container.status_text}` : '';
+    return `
+      <div class="precompute-row" title="${esc(r.service || '')}${esc(container)}">
+        <span class="precompute-task">${idx + 1}. ${esc(label)}${exit}</span>
+        ${statusPill(r.status || 'pending')}
+      </div>
+    `;
+  }).join('');
+}
+
 function render(d) {
   // Precompute (stats + imágenes)
   if (d.precompute) {
@@ -2370,6 +2464,8 @@ function render(d) {
     renderPrecomputeStage('precompute-stats-wrap', d.precompute.stats || []);
     renderPrecomputeStage('precompute-images-wrap', d.precompute.images || []);
   }
+
+  renderEegSequence(d.eeg_sequence);
 
   // Counters
   document.getElementById('cnt-done').textContent    = d.counts.done;
@@ -2566,6 +2662,9 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/chained_status":
             self.send_json(get_chained_status())
 
+        elif path == "/api/eeg_eval_sequence":
+            self.send_json(get_eeg_eval_sequence_status())
+
         elif path == "/api/log":
             exp   = params.get("exp", ["__sweep__"])[0]
             lines = int(params.get("lines", [80])[0])
@@ -2586,7 +2685,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    global BASE_DIR, LOGS_DIR, RESULTS_DIR, CKPT_DIR, PROMOTIONS_DIR
+    global BASE_DIR, LOGS_DIR, RESULTS_DIR, CKPT_DIR, PROMOTIONS_DIR, EEG_SEQUENCE_FILE
     parser = argparse.ArgumentParser(description="MEG Sweep Monitor")
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port",     type=int, default=8080)
@@ -2598,6 +2697,7 @@ def main():
     RESULTS_DIR = BASE_DIR / "results"
     CKPT_DIR    = BASE_DIR / "checkpoints"
     PROMOTIONS_DIR = BASE_DIR / "promotions"
+    EEG_SEQUENCE_FILE = BASE_DIR / ".eeg_eval_sequence.json"
 
     print(f"[Monitor] Leyendo datos desde: {BASE_DIR}")
     print(f"[Monitor] Dashboard disponible en: http://{args.host}:{args.port}")

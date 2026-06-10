@@ -65,6 +65,18 @@ Run pooled reading + listening:
 docker compose run --rm eval_eeg_reading_listening
 ```
 
+Run all three evaluations in order and start the EEG monitor:
+
+```bash
+bash run_eeg_evals_with_monitor.sh
+```
+
+Preview the same sequence without launching training containers:
+
+```bash
+bash run_eeg_evals_with_monitor.sh --dry-run
+```
+
 Common overrides:
 
 ```bash
@@ -127,6 +139,7 @@ curl 'http://localhost:8082/api/log?exp=<experiment_name>'
 curl http://localhost:8082/api/results
 curl http://localhost:8082/api/compare
 curl http://localhost:8082/api/chained_status
+curl http://localhost:8082/api/eeg_eval_sequence
 ```
 
 The existing MEG monitor remains available with:
@@ -176,6 +189,8 @@ checkpoints/.../<experiment>/
 promotions/
   stage_N_name_promotion.json
   eeg_chained_sweep_lineage.json
+
+.eeg_eval_sequence.json
 
 wandb/
 embeddings_cache/

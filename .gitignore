@@ -225,6 +225,7 @@ wandb/
 hf_cache/
 embeddings_cache/
 data/cache/
+.eeg_eval_sequence.json
 wandb/
 hf_cache/
 data/
