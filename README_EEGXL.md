@@ -14,10 +14,15 @@ python scripts/summarize_datasets_info.py datasets --output-dir datasets_info
 Useful EEG download helpers already in this repo:
 
 ```bash
+bash scripts/clone_openneuro_ds004408.sh
 bash scripts/download_openneuro_eeg_docker.sh
 bash scripts/export_openneuro_eeg_folder_tree_docker.sh
 bash scripts/download_eegdash_docker.sh
 ```
+
+`clone_openneuro_ds004408.sh` clones or updates the DataLad/Git-annex mirror
+and materializes `stimuli/*.TextGrid` by default. Those TextGrid files are
+required by the ds004408 word-aligned listening dataset.
 
 Download the complete EEGDash NM000228 cache used by the reading evaluation:
 

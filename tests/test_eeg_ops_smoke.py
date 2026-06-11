@@ -54,6 +54,29 @@ class EEGOpsSmokeTests(unittest.TestCase):
         self.assertEqual(counts[0].n_channels, 2)
         self.assertEqual(counts[0].method, "channels.tsv")
 
+    def test_openneuro_textgrid_preflight_reports_unmaterialized_sidecars(self) -> None:
+        try:
+            from brainstorm.data.eeg_word_aligned_dataset import OpenNeuroEEGWordAlignedDataset
+        except ModuleNotFoundError as exc:
+            self.skipTest(f"missing optional dependency: {exc.name}")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            raw = root / "sub-001" / "eeg" / "sub-001_task-listening_run-01_eeg.vhdr"
+            raw.parent.mkdir(parents=True)
+            raw.touch()
+            stimuli = root / "stimuli"
+            stimuli.mkdir()
+            (stimuli / "audio01.TextGrid").symlink_to(root / ".git" / "annex" / "missing-textgrid")
+
+            with self.assertRaisesRegex(FileNotFoundError, "No materialized TextGrid sidecars"):
+                OpenNeuroEEGWordAlignedDataset(
+                    data_root=str(root),
+                    dataset_name="openneuro_ds004408",
+                    task_mode="listening",
+                    tasks=["listening"],
+                )
+
     def test_hydra_sweep_config_loading(self) -> None:
         from scripts.make_eeg_sweep_plan import build_plan, load_config
 

@@ -252,6 +252,7 @@ class BIDSEEGWordAlignedDataset(Dataset):
                 f"No EEG recordings found in {self.data_root} for dataset={dataset_name}, "
                 f"subjects={subjects}, sessions={sessions}, tasks={tasks}"
             )
+        self._preflight_textgrid_sidecars()
 
         self.word_groups: List[List[List[Dict[str, Any]]]] = []
         self._parse_all_recordings()
@@ -307,6 +308,40 @@ class BIDSEEGWordAlignedDataset(Dataset):
             })
 
         return recordings
+
+    def _preflight_textgrid_sidecars(self) -> None:
+        missing: List[Path] = []
+        empty: List[Path] = []
+        readable = 0
+
+        for rec in self.recordings:
+            textgrid_path = self._find_textgrid(rec)
+            if textgrid_path is None:
+                continue
+            if textgrid_path.exists() and textgrid_path.stat().st_size > 0:
+                readable += 1
+            elif textgrid_path.exists():
+                empty.append(textgrid_path)
+            elif textgrid_path.is_symlink():
+                missing.append(textgrid_path)
+
+        if readable > 0 or not (missing or empty):
+            return
+
+        unavailable = list(dict.fromkeys([*missing, *empty]))
+        examples = ", ".join(str(path) for path in unavailable[:5])
+        if len(unavailable) > 5:
+            examples += f", ... ({len(unavailable)} total)"
+        fetch_hint = (
+            "Materialize them first, for example: "
+            "bash scripts/clone_openneuro_ds004408.sh"
+            if self.dataset_name == "openneuro_ds004408"
+            else "Materialize the TextGrid sidecars before loading this dataset."
+        )
+        raise FileNotFoundError(
+            f"No materialized TextGrid sidecars found for {self.dataset_name}. "
+            f"Unavailable TextGrid sidecars: {examples}. {fetch_hint}"
+        )
 
     def _cache_path(self, subject: str, session: str, task: str, run: str) -> Path:
         identity = {
