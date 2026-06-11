@@ -17,7 +17,7 @@ data:
   task_mode: "reading"
   root: "./datasets"
   cache_dir: "./data/cache/eeg_reading"
-  max_channel_dim: 128
+  max_channel_dim: auto
   eeg_sensor_type: "eeg"
   use_hashed_split: true
   split_group: "auto"
@@ -41,7 +41,7 @@ data:
       task_mode: "reading"
       root: "./datasets/zuco2/data/zuco2"
       cache_dir: "./data/cache/eeg_reading/zuco"
-      max_channel_dim: 128
+      max_channel_dim: auto
       tasks: ["NR"]
       eeg_sensor_type: "eeg"
     - dataset_type: "eegdash"
@@ -49,7 +49,7 @@ data:
       task_mode: "reading"
       root: "./datasets/eegdash/data/nm000228"
       cache_dir: "./data/cache/eeg_reading/eegdash"
-      max_channel_dim: 128
+      max_channel_dim: auto
       tasks: ["delong"]
 
 t5:

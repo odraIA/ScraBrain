@@ -24,6 +24,36 @@ class EEGOpsSmokeTests(unittest.TestCase):
         self.assertEqual(result["ds004408"]["segments"], 1)
         self.assertIn("listening", result["ds007808"]["tasks"])
 
+    def test_bids_eeg_channel_scanner_uses_channels_tsv(self) -> None:
+        try:
+            from brainstorm.data.eeg_word_aligned_dataset import scan_bids_eeg_channel_counts
+        except ModuleNotFoundError as exc:
+            self.skipTest(f"missing optional dependency: {exc.name}")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            raw = root / "sub-01" / "eeg" / "sub-01_task-delong_run-01_eeg.vhdr"
+            raw.parent.mkdir(parents=True)
+            raw.touch()
+            raw.with_name("sub-01_task-delong_run-01_channels.tsv").write_text(
+                "\n".join(
+                    [
+                        "name\ttype",
+                        "Fp1\tEEG",
+                        "Fp2\tEEG",
+                        "VEOG\tEOG",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            counts = scan_bids_eeg_channel_counts(root, tasks=["delong"])
+
+        self.assertEqual(len(counts), 1)
+        self.assertEqual(counts[0].n_channels, 2)
+        self.assertEqual(counts[0].method, "channels.tsv")
+
     def test_hydra_sweep_config_loading(self) -> None:
         from scripts.make_eeg_sweep_plan import build_plan, load_config
 

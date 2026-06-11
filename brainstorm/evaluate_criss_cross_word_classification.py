@@ -61,6 +61,8 @@ from brainstorm.data.eeg_word_aligned_dataset import (
     EEGDashWordAlignedDataset,
     OpenNeuroEEGWordAlignedDataset,
     PooledWordAlignedDataset,
+    scan_bids_eeg_channel_counts,
+    scan_zuco_channel_counts,
 )
 from brainstorm.eval_metrics_history import append_epoch_metrics_history, resolve_checkpoint_dir
 from brainstorm.losses.contrastive import SigLipLoss
@@ -344,6 +346,79 @@ def _dataset_config_get(dataset_cfg: Any, key: str, default: Any = None) -> Any:
     return default
 
 
+def _is_auto_channel_dim(value: Any) -> bool:
+    return isinstance(value, str) and value.strip().lower() == "auto"
+
+
+def _scan_dataset_max_channel_dim(dataset_cfg: Any) -> Tuple[Optional[int], List[str]]:
+    dataset_type = _dataset_config_get(dataset_cfg, "dataset_type", "")
+    root = _dataset_config_get(dataset_cfg, "root")
+    tasks = _as_list(_dataset_config_get(dataset_cfg, "tasks", None))
+    if root is None:
+        return None, [f"{dataset_type or 'dataset'} has no root configured"]
+
+    if dataset_type == "zuco":
+        counts = scan_zuco_channel_counts(root)
+    elif dataset_type in {"eegdash", "openneuro_eeg", "openneuro_ds004408", "openneuro_ds007808"}:
+        counts = scan_bids_eeg_channel_counts(root, tasks=tasks)
+    else:
+        return None, [f"{dataset_type or 'dataset'} does not support automatic EEG channel scanning"]
+
+    if not counts:
+        return None, [f"{dataset_type} at {root} had no readable EEG channel counts"]
+
+    max_count = max(item.n_channels for item in counts)
+    max_items = [item for item in counts if item.n_channels == max_count]
+    details = [
+        f"{dataset_type} max={max_count} channels across {len(counts)} recording(s); "
+        f"example={max_items[0].path} ({max_items[0].method})"
+    ]
+    return max_count, details
+
+
+def resolve_max_channel_dim(cfg: DictConfig) -> int:
+    dataset_type = cfg.data.get("dataset_type", "armeni")
+    configured = cfg.data.get("max_channel_dim", get_default_max_channel_dim(dataset_type))
+
+    dataset_entries = cfg.data.get("datasets", None)
+    needs_auto = _is_auto_channel_dim(configured)
+    if dataset_entries is not None:
+        needs_auto = needs_auto or any(_is_auto_channel_dim(_dataset_config_get(entry, "max_channel_dim", configured)) for entry in dataset_entries)
+
+    if not needs_auto:
+        return int(configured)
+
+    entries = list(dataset_entries) if dataset_entries is not None else [cfg.data]
+    resolved_values: List[int] = []
+    details: List[str] = []
+    for entry in entries:
+        entry_value = _dataset_config_get(entry, "max_channel_dim", configured)
+        if not _is_auto_channel_dim(entry_value) and entry_value is not None:
+            resolved_values.append(int(entry_value))
+            continue
+        max_count, entry_details = _scan_dataset_max_channel_dim(entry)
+        details.extend(entry_details)
+        if max_count is not None:
+            resolved_values.append(max_count)
+
+    if not resolved_values:
+        raise ValueError(
+            "Could not resolve data.max_channel_dim=auto. "
+            "Set an integer max_channel_dim or check that EEG dataset roots are readable. "
+            f"Scan details: {details}"
+        )
+
+    resolved = max(resolved_values)
+    cfg.data.max_channel_dim = resolved
+    if dataset_entries is not None:
+        for entry in cfg.data.datasets:
+            entry.max_channel_dim = resolved
+    for detail in details:
+        logger.info(f"Channel scan: {detail}")
+    logger.info(f"Resolved max_channel_dim=auto to {resolved}")
+    return resolved
+
+
 def instantiate_word_dataset(
     cfg: DictConfig,
     sessions: Optional[List[str]],
@@ -357,6 +432,8 @@ def instantiate_word_dataset(
         "max_channel_dim",
         cfg.data.get("max_channel_dim", get_default_max_channel_dim(dataset_type)),
     )
+    if _is_auto_channel_dim(max_channel_dim):
+        max_channel_dim = resolve_max_channel_dim(cfg)
 
     extra_cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=False))
     if data_override is not None:
@@ -2014,7 +2091,7 @@ def main(cfg: DictConfig):
 
     # Get dataset metadata based on config
     dataset_type = cfg.data.get('dataset_type', 'armeni')
-    max_channel_dim = cfg.data.get('max_channel_dim', get_default_max_channel_dim(dataset_type))
+    max_channel_dim = resolve_max_channel_dim(cfg)
 
     logger.info(f"Using dataset type: {dataset_type}")
     if cfg.data.get("datasets") is not None:

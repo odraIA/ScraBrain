@@ -6,6 +6,7 @@ import hashlib
 import json
 import re
 import warnings
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
@@ -28,6 +29,104 @@ _TEXTGRID_INTERVAL_RE = re.compile(
     r"text\s*=\s*\"(?P<text>.*?)\"",
     flags=re.DOTALL,
 )
+
+
+@dataclass(frozen=True)
+class EEGChannelCount:
+    path: Path
+    n_channels: int
+    method: str
+
+
+def _read_bids_eeg_channel_count(raw_path: Path) -> Optional[EEGChannelCount]:
+    base = raw_path.name.rsplit("_eeg.", 1)[0]
+    channels_path = raw_path.with_name(f"{base}_channels.tsv")
+    if channels_path.exists():
+        try:
+            channels = pd.read_csv(channels_path, sep="\t")
+            if "type" in channels.columns:
+                eeg_rows = channels["type"].astype(str).str.upper().eq("EEG")
+                n_channels = int(eeg_rows.sum())
+            else:
+                n_channels = int(len(channels))
+            if n_channels > 0:
+                return EEGChannelCount(channels_path, n_channels, "channels.tsv")
+        except Exception as exc:
+            warnings.warn(f"Could not read EEG channel count from {channels_path}: {exc}", RuntimeWarning)
+
+    suffix = raw_path.suffix.lower()
+    try:
+        if suffix == ".vhdr":
+            raw = mne.io.read_raw_brainvision(raw_path, preload=False, verbose=False)
+        elif suffix == ".bdf":
+            raw = mne.io.read_raw_bdf(raw_path, preload=False, verbose=False)
+        elif suffix == ".edf":
+            raw = mne.io.read_raw_edf(raw_path, preload=False, verbose=False)
+        else:
+            return None
+        picks = mne.pick_types(raw.info, eeg=True, eog=False, ecg=False, emg=False, misc=False, stim=False, exclude=[])
+        n_channels = int(len(picks))
+        close = getattr(raw, "close", None)
+        if callable(close):
+            close()
+        if n_channels > 0:
+            return EEGChannelCount(raw_path, n_channels, "mne header")
+    except Exception as exc:
+        warnings.warn(f"Could not read EEG channel count from {raw_path}: {exc}", RuntimeWarning)
+    return None
+
+
+def scan_bids_eeg_channel_counts(
+    data_root: str | Path,
+    tasks: Optional[Sequence[str]] = None,
+) -> List[EEGChannelCount]:
+    """Return EEG channel counts for BIDS-like raw EEG recordings under ``data_root``."""
+    root = Path(data_root)
+    if not root.exists():
+        return []
+    task_filter = {str(task).lower() for task in tasks} if tasks is not None else None
+    counts: List[EEGChannelCount] = []
+    for raw_path in sorted(root.rglob("*_eeg.*")):
+        if raw_path.suffix.lower() not in BIDSEEGWordAlignedDataset.raw_suffixes:
+            continue
+        entities = _entity_dict(raw_path)
+        task = entities.get("task", "").lower()
+        if task == "speechopen":
+            continue
+        if task_filter is not None and task not in task_filter:
+            continue
+        count = _read_bids_eeg_channel_count(raw_path)
+        if count is not None:
+            counts.append(count)
+    return counts
+
+
+def scan_zuco_channel_counts(data_root: str | Path) -> List[EEGChannelCount]:
+    """Return EEG channel counts for ZuCo HDF5/MAT recordings."""
+    root = Path(data_root)
+    if not root.exists():
+        return []
+    if not (root / "task1 - NR").exists() and (root / "data" / "zuco2" / "task1 - NR").exists():
+        root = root / "data" / "zuco2"
+    preprocessed_root = root / "task1 - NR" / "Preprocessed"
+    if not preprocessed_root.exists():
+        return []
+
+    counts: List[EEGChannelCount] = []
+    for eeg_path in sorted(preprocessed_root.rglob("*_EEG.mat")):
+        try:
+            with h5py.File(eeg_path, "r") as h5_file:
+                if "EEG/chanlocs/labels" in h5_file:
+                    n_channels = int(h5_file["EEG/chanlocs/labels"].shape[0])
+                elif "EEG/data" in h5_file:
+                    n_channels = int(h5_file["EEG/data"].shape[1])
+                else:
+                    continue
+            if n_channels > 0:
+                counts.append(EEGChannelCount(eeg_path, n_channels, "zuco hdf5 metadata"))
+        except Exception as exc:
+            warnings.warn(f"Could not read ZuCo channel count from {eeg_path}: {exc}", RuntimeWarning)
+    return counts
 
 
 def _clean_token(token: Any) -> Optional[str]:

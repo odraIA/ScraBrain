@@ -17,7 +17,7 @@ data:
   task_mode: "reading_listening"
   root: "./datasets"
   cache_dir: "./data/cache/eeg_reading_listening"
-  max_channel_dim: 128
+  max_channel_dim: auto
   eeg_sensor_type: "eeg"
   use_hashed_split: true
   split_group: "auto"
@@ -41,7 +41,7 @@ data:
       task_mode: "reading"
       root: "./datasets/zuco2/data/zuco2"
       cache_dir: "./data/cache/eeg_reading_listening/zuco"
-      max_channel_dim: 128
+      max_channel_dim: auto
       tasks: ["NR"]
       eeg_sensor_type: "eeg"
     - dataset_type: "eegdash"
@@ -49,21 +49,21 @@ data:
       task_mode: "reading"
       root: "./datasets/eegdash/data/nm000228"
       cache_dir: "./data/cache/eeg_reading_listening/eegdash"
-      max_channel_dim: 128
+      max_channel_dim: auto
       tasks: ["delong"]
     - dataset_type: "openneuro_ds004408"
       dataset_name: "openneuro_ds004408"
       task_mode: "listening"
       root: "./datasets/OpenNeuroEEG_ds004408"
       cache_dir: "./data/cache/eeg_reading_listening/openneuro_ds004408"
-      max_channel_dim: 128
+      max_channel_dim: auto
       tasks: ["listening"]
     - dataset_type: "openneuro_ds007808"
       dataset_name: "openneuro_ds007808"
       task_mode: "listening"
       root: "./datasets/OpenNeuroEEG_ds007808"
       cache_dir: "./data/cache/eeg_reading_listening/openneuro_ds007808"
-      max_channel_dim: 128
+      max_channel_dim: auto
       tasks: ["listening", "listeningcovert"]
 
 t5:
