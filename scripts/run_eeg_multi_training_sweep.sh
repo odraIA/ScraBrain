@@ -84,8 +84,8 @@ mkdir -p "$SWEEP_ROOT"
 # Default bands: beta/gamma/high-gamma. Override with EEG_BANDS="beta_13_24 gamma_30_55".
 read -r -a BANDS <<< "${EEG_BANDS:-beta_13_24 beta_gamma_13_45 low_gamma_30_45 gamma_30_55 high_gamma_70_120}"
 
-# Default tokenizers. BrainOmni/BrainTokenizer runs require their functional
-# tokenizer model code to be wired into brainstorm/neuro_tokenizers/factory.py.
+# Default tokenizers. Override to include BrainOmni variants, e.g.
+# EEG_TOKENIZERS="biocodec brainomni_base brainomni_tiny braintokenizer".
 read -r -a TOKENIZERS <<< "${EEG_TOKENIZERS:-biocodec}"
 
 band_values() {

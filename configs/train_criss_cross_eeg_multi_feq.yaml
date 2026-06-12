@@ -93,9 +93,8 @@ data:
 
 # Available neuro-tokenizers.
 # This block is informational unless your training script explicitly reads it.
-# Only BioCodec is currently trainable in this repository. BrainOmni and
-# BrainTokenizer checkpoints/configs can be metadata-validated, but their model
-# implementations are not wired into the tokenizer factory for encoding.
+# BioCodec, BrainOmni base/tiny, and BrainTokenizer are wired into the tokenizer
+# factory for encoding and codebook initialization.
 neuro_tokenizers:
   biocodec:
     tokenizer_name: "biocodec"
@@ -148,9 +147,8 @@ neuro_tokenizers:
 # neuro_tokenizer settings
 model:
   # Active tokenizer.
-  # Trainable option:
+# Options:
   #   biocodec
-  # Metadata-only, not trainable yet:
   #   brainomni_base
   #   brainomni_tiny
   #   braintokenizer
