@@ -13,6 +13,10 @@
 #     data.target_sfreq=100.0 model.sampling_rate=100
 #   The current training code expects scalar values, not a list.
 
+
+# The training entrypoint is:
+#   python -m brainstorm.train_criss_cross_eeg_multi --config-name train_criss_cross_eeg_multi_feq
+
 datasets_config:
 
   - type: "openneuro_ds004408"
@@ -30,6 +34,7 @@ datasets_config:
     subjects: null
     sessions: null
     tasks: ["listening", "listeningcovert"]
+    # Last-session style validation split.
     # this way we have from the 3 subjects: 
     # training:   ~178.7 h
     # validation: ~28.3 h
@@ -47,8 +52,8 @@ data:
   debug_mode: false
 
   # Preprocessing parameters
-  l_freq: 0.1
-  h_freq: 40.0
+  l_freq: 13.0
+  h_freq: 24.0
   target_sfreq: 50.0
 
   # EEG channel handling.
@@ -63,13 +68,34 @@ data:
   # Recording subsampling for ablation experiments.
   recording_subsample_prop: null
 
-  # Candidate values for frequency experiments.
-  # This list is informational only unless your launcher iterates over it.
-  # For Hydra/CLI sweeps, override target_sfreq and model.sampling_rate together.
-  frequency_grid: [25.0, 50.0, 100.0, 128.0]
+  # Informational frequency bands used by the provided sweep launcher.
+  frequency_experiments:
+    beta_13_24:
+      target_sfreq: 50.0
+      l_freq: 13.0
+      h_freq: 24.0
+    beta_gamma_13_45:
+      target_sfreq: 100.0
+      l_freq: 13.0
+      h_freq: 45.0
+    low_gamma_30_45:
+      target_sfreq: 100.0
+      l_freq: 30.0
+      h_freq: 45.0
+    gamma_30_55:
+      target_sfreq: 128.0
+      l_freq: 30.0
+      h_freq: 55.0
+    high_gamma_70_120:
+      target_sfreq: 250.0
+      l_freq: 70.0
+      h_freq: 120.0
 
 # Available neuro-tokenizers.
 # This block is informational unless your training script explicitly reads it.
+# Only BioCodec is currently trainable in this repository. BrainOmni and
+# BrainTokenizer checkpoints/configs can be metadata-validated, but their model
+# implementations are not wired into the tokenizer factory for encoding.
 neuro_tokenizers:
   biocodec:
     tokenizer_name: "biocodec"
@@ -122,9 +148,11 @@ neuro_tokenizers:
 # neuro_tokenizer settings
 model:
   # Active tokenizer.
-  # Options you want to test:
+  # Trainable option:
   #   biocodec
-  #   brainomni
+  # Metadata-only, not trainable yet:
+  #   brainomni_base
+  #   brainomni_tiny
   #   braintokenizer
   tokenizer_name: "biocodec"
   tokenizer_variant: "default"
@@ -147,7 +175,20 @@ model:
   num_heads: 8
   use_gradient_checkpointing: true
 
-# Training settings
+  mask_duration: 3.0
+  num_subsegments_to_mask: 20
+  sampling_rate: 50
+  fourier_pos_dim: 250
+  num_sensor_types: 3
+
+  # Initialization. For a true scratch experiment leave train_from_scratch=true.
+  # For partial MEG-XL initialization set train_from_scratch=false and provide criss_cross_checkpoint.
+  train_from_scratch: true
+  criss_cross_checkpoint: "./checkpoints/baseline/meg-xl-med.ckpt"
+  use_promoted_checkpoint: false
+  promoted_checkpoint: null
+
+# Training settings -----------------------------------------------------------
 training:
   batch_size: 1
   num_epochs: 50
@@ -155,33 +196,32 @@ training:
   learning_rate: 1e-4
   warmup_steps: 250
   gradient_clip_val: 1.0
-
-  # DataLoader settings
   num_workers: 6
   pin_memory: true
   persistent_workers: true
-
-  # Sampler settings
   use_recording_sampler: true
   sampler_seed: 42
 
-# Logging settings
+# Logging settings ------------------------------------------------------------
 logging:
   wandb_project: "brainstorm"
   wandb_entity: null
-  experiment_name: "criss-cross-eeg-multi-feq-50Hz"
+  experiment_name: "criss-cross-eeg-multi-feq-50hz"
+  save_dir: "./logs/eeg_multi_training"
   log_every_n_steps: 10
 
-# Checkpoint settings
+# Checkpoint settings ---------------------------------------------------------
 checkpoint:
-  save_dir: "./checkpoints"
+  save_dir: "./checkpoints/eeg_multi_training"
   every_n_train_steps: 5000
-  save_top_k: -1
+  save_top_k: 1
   save_last: true
+  monitor: "val/loss"
+  mode: "min"
   resume: false
   resume_path: null
 
-# Trainer settings
+# Trainer settings ------------------------------------------------------------
 trainer:
   accelerator: "gpu"
   devices: 2
@@ -190,5 +230,4 @@ trainer:
   accumulate_grad_batches: 1
   val_check_interval: 500
 
-# Reproducibility
 seed: 42
