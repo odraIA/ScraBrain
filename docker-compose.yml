@@ -254,7 +254,7 @@ services:
     container_name: scrabrain_eeg_sweep
     environment:
       <<: *eegxl-env
-      NVIDIA_VISIBLE_DEVICES: ${EEG_GPU:-0}
+      NVIDIA_VISIBLE_DEVICES: "0,1"
     command: >
       bash -lc 'uv run --no-sync python scripts/run_eeg_sweep.py --continue-on-error'
     deploy:
@@ -262,7 +262,7 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              device_ids: ["${EEG_GPU:-0}"]
+              device_ids: ["0","1"]
               capabilities: [gpu]
 
   eeg_chained_sweep:
