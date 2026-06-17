@@ -363,7 +363,11 @@ class OpenNeuroEEGContinuousDataset(Dataset):
         except Exception:
             return False
 
-    def _preprocess_all(self) -> None:
+    def _apply_eeg_montage(
+        self,
+        raw: mne.io.BaseRaw,
+        raw_path: Path,
+    ) -> None:
         for index, recording in enumerate(self.source_recordings, start=1):
             cache_path = Path(recording["cache_path"])
             if self._cache_is_readable(cache_path):
