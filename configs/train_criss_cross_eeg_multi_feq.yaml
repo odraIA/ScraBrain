@@ -52,8 +52,8 @@ data:
   debug_mode: false
 
   # Preprocessing parameters
-  l_freq: 13.0
-  h_freq: 24.0
+  l_freq: 0.1
+  h_freq: 40.0
   target_sfreq: 50.0
 
   # EEG channel handling.
