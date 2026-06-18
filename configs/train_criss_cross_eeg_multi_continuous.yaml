@@ -1,8 +1,9 @@
-# Continuous EEG pre-training with physical-run continuity.
+# Continuous EEG pre-training as a minimal MEG-XL adaptation.
 #
-# This configuration inherits the architecture and optimizer settings from
-# train_criss_cross_eeg_multi_feq.yaml, but the continuous EEG entrypoint swaps
-# in a continuity-aware DataModule and model implementation.
+# The tokenizer, embeddings, criss-cross attention, sensor_mask semantics,
+# output head and masked-token objective are the original MEG-XL components.
+# The continuous EEG loader only preserves physical-run continuity and marks
+# which listeningcovert intervals are eligible reconstruction targets.
 
 defaults:
   - train_criss_cross_eeg_multi_feq
@@ -17,12 +18,10 @@ datasets_config:
     tasks: ["listening"]
     val_subjects: ["sub-017", "sub-018", "sub-019"]
 
-    # Keep each physical run intact. A final overlapping window can cover the
-    # remainder, while genuinely short recordings are padded and explicitly
-    # masked instead of repeated cyclically.
-    cover_all_samples: true
-    short_stream_policy: "zero_pad"
-    eeg_reference: "average"
+    # MEG-XL-style segmentation: complete, non-overlapping windows inside
+    # each physical run. The incomplete final remainder is discarded.
+    cover_all_samples: false
+    short_stream_policy: "error"
 
   - type: "openneuro_ds007808"
     data_root: "/workspace/datasets/OpenNeuroEEG_ds007808"
@@ -40,25 +39,22 @@ datasets_config:
       - "ses-20241119"
       - "ses-20241227"
 
-    # Preserve the complete listeningcovert run as visible temporal context.
-    # Only trial_type=listening samples are eligible for masking and loss.
+    # Keep the complete listeningcovert run visible as context. Only samples
+    # labelled trial_type=listening can be chosen as masked-token targets.
     listeningcovert_policy: "full_recording_listening_targets"
     listening_trial_type: "listening"
     listening_interval_start: "onset"
     group_listeningcovert_by: "recording"
     merge_gap_seconds: 0.0
 
-    cover_all_samples: true
-    short_stream_policy: "zero_pad"
-    eeg_reference: "average"
+    cover_all_samples: false
+    short_stream_policy: "error"
 
   - type: "sparrkulee"
     data_root: "/workspace/datasets/sparrkulee"
     subjects: null
     sessions: null
     tasks: ["listeningActive"]
-
-    # Keep subjects entirely disjoint between train and validation.
     val_subjects:
       - "sub-101"
       - "sub-102"
@@ -66,9 +62,8 @@ datasets_config:
       - "sub-104"
       - "sub-105"
 
-    cover_all_samples: true
-    short_stream_policy: "zero_pad"
-    eeg_reference: "average"
+    cover_all_samples: false
+    short_stream_policy: "error"
 
 
 data:
@@ -77,24 +72,15 @@ data:
   segment_length: 150.0
   subsegment_duration: 3.0
 
-  # The inherited 0.1-40 Hz passband requires a sampling rate above 80 Hz.
-  # Keep the requested band and use 100 Hz rather than silently removing the
-  # 25-40 Hz content at a 50 Hz sampling rate.
-  target_sfreq: 100.0
-
-  # Retained because the shared training entrypoint accepts these arguments;
-  # the continuous DataModule intentionally ignores word alignment.
+  # Retained because the shared EEG training entrypoint accepts them. The
+  # continuous loader does not use word alignment.
   words_per_segment: 50
   window_onset_offset: -0.5
   allow_missing_word_alignment: true
 
 
 model:
-  sampling_rate: 100
-
-  # The EEG-specific entrypoint keeps the original two-row GRAD/MAG embedding
-  # for MEG checkpoint compatibility and adds a separate EEG/MEG modality
-  # embedding. EEG orientation is gated off after projection.
+  # 0=GRAD, 1=MAG, 2=EEG. No separate modality embedding is introduced.
   num_sensor_types: 3
 
   # Uses more VRAM but avoids recomputing activations in the backward pass.
@@ -102,7 +88,7 @@ model:
 
 
 logging:
-  experiment_name: "criss-cross-eeg-continuous-listening-spatial-masked-100hz"
+  experiment_name: "criss-cross-eeg-continuous-megxl-adaptation"
   save_dir: "./logs/eeg_continuous_training"
 
 
