@@ -5,6 +5,11 @@ recordings stored as BioSemi BDF files. Older sessions can be stored as
 ``.bdf.gz`` files, so this loader materializes one compressed recording at a
 time, preprocesses it through the shared continuous EEG pipeline, and removes
 the temporary BDF afterwards.
+
+Unlike the OpenNeuro datasets used by this project, SparrKULee does not always
+provide a run-level ``*_channels.tsv``. This loader follows BIDS inheritance
+when a less-specific sidecar exists and otherwise reconstructs channel types
+from the known BioSemi-64 acquisition layout.
 """
 
 from __future__ import annotations
@@ -12,6 +17,7 @@ from __future__ import annotations
 import gzip
 import hashlib
 import shutil
+import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -23,6 +29,7 @@ from .openneuro_eeg_continuous_dataset import OpenNeuroEEGContinuousDataset
 
 
 SPARRKULEE_TASK = "listeningActive"
+SPARRKULEE_EEG_CHANNELS = 64
 _RAW_ENDINGS = ("_eeg.bdf", "_eeg.bdf.gz")
 
 
@@ -77,11 +84,85 @@ def _discover_raw_paths(root: Path) -> List[Path]:
     return sorted(candidates.values())
 
 
+def _is_ancestor(path: Path, possible_ancestor: Path) -> bool:
+    try:
+        path.relative_to(possible_ancestor)
+        return True
+    except ValueError:
+        return False
+
+
+def _resolve_bids_sidecar(
+    data_root: Path,
+    raw_path: Path,
+    suffix: str,
+) -> Optional[Path]:
+    """Resolve a sidecar using the BIDS inheritance principle.
+
+    The exact run-level sidecar is preferred. Otherwise, files in the EEG,
+    session, subject and dataset directories are considered when all entities
+    encoded in the sidecar also match the raw recording.
+    """
+
+    exact = _sidecar_path(raw_path, suffix)
+    if exact.exists():
+        return exact
+    exact_gz = exact.with_suffix(exact.suffix + ".gz")
+    if exact_gz.exists():
+        return exact_gz
+
+    raw_entities = _entity_dict(raw_path)
+    candidates = []
+    current = raw_path.parent
+    distance = 0
+
+    while _is_ancestor(current, data_root):
+        for candidate in list(current.glob(f"*_{suffix}")) + list(
+            current.glob(f"*_{suffix}.gz")
+        ):
+            candidate_entities = _entity_dict(candidate)
+            if any(
+                raw_entities.get(key, "").lower() != value.lower()
+                for key, value in candidate_entities.items()
+                if key in {"sub", "ses", "task", "acq", "run"}
+            ):
+                continue
+            specificity = sum(
+                key in candidate_entities
+                for key in ("sub", "ses", "task", "acq", "run")
+            )
+            candidates.append((specificity, -distance, len(candidate.name), candidate))
+
+        if current == data_root:
+            break
+        parent = current.parent
+        if parent == current:
+            break
+        current = parent
+        distance += 1
+
+    if not candidates:
+        return None
+    return max(candidates, key=lambda item: item[:3])[3]
+
+
+def _count_eeg_rows(channels_path: Path) -> Optional[int]:
+    try:
+        channels = pd.read_csv(channels_path, sep="\t")
+    except Exception:
+        return None
+    if "type" in channels.columns:
+        count = int(channels["type"].astype(str).str.upper().eq("EEG").sum())
+    else:
+        count = int(len(channels))
+    return count if count > 0 else None
+
+
 def scan_sparrkulee_eeg_channel_counts(
     data_root: str | Path,
     tasks: Optional[Sequence[str]] = None,
 ) -> List[EEGChannelCount]:
-    """Read SparrKULee EEG channel counts without decompressing BDF files."""
+    """Return SparrKULee EEG dimensions without decompressing every BDF."""
 
     root = Path(data_root)
     if not root.exists():
@@ -89,7 +170,6 @@ def scan_sparrkulee_eeg_channel_counts(
 
     task_filter = {str(task).lower() for task in tasks} if tasks is not None else None
     counts: List[EEGChannelCount] = []
-    seen_sidecars = set()
 
     for raw_path in _discover_raw_paths(root):
         entities = _entity_dict(raw_path)
@@ -97,23 +177,22 @@ def scan_sparrkulee_eeg_channel_counts(
         if task_filter is not None and task not in task_filter:
             continue
 
-        channels_path = _sidecar_path(raw_path, "channels.tsv")
-        if channels_path in seen_sidecars or not channels_path.exists():
-            continue
-        seen_sidecars.add(channels_path)
+        channels_path = _resolve_bids_sidecar(root, raw_path, "channels.tsv")
+        if channels_path is not None:
+            n_channels = _count_eeg_rows(channels_path)
+            if n_channels is not None:
+                counts.append(EEGChannelCount(channels_path, n_channels, "channels.tsv"))
+                continue
 
-        try:
-            channels = pd.read_csv(channels_path, sep="\t")
-            if "type" in channels.columns:
-                eeg_rows = channels["type"].astype(str).str.upper().eq("EEG")
-                n_channels = int(eeg_rows.sum())
-            else:
-                n_channels = int(len(channels))
-        except Exception:
-            continue
-
-        if n_channels > 0:
-            counts.append(EEGChannelCount(channels_path, n_channels, "channels.tsv"))
+        # SparrKULee uses a 64-channel BioSemi EEG cap. Recordings with 65 or
+        # 73 total BDF channels add Status and, in some sessions, EXG channels.
+        counts.append(
+            EEGChannelCount(
+                raw_path,
+                SPARRKULEE_EEG_CHANNELS,
+                "SparrKULee BioSemi64 layout",
+            )
+        )
 
     return counts
 
@@ -150,13 +229,21 @@ class SparrKULeeEEGContinuousDataset(OpenNeuroEEGContinuousDataset):
 
             subject = f"sub-{subject_id}" if subject_id else "sub-unknown"
             session = f"ses-{session_id}" if session_id else ""
-            events_path = _sidecar_path(raw_path, "events.tsv")
-            channels_path = _sidecar_path(raw_path, "channels.tsv")
+            events_path = _resolve_bids_sidecar(
+                self.data_root,
+                raw_path,
+                "events.tsv",
+            )
+            channels_path = _resolve_bids_sidecar(
+                self.data_root,
+                raw_path,
+                "channels.tsv",
+            )
 
             recording: Dict[str, Any] = {
                 "raw_path": raw_path,
                 "channels_path": channels_path,
-                "events_path": events_path if events_path.exists() else None,
+                "events_path": events_path,
                 "subject": subject,
                 "session": session,
                 "task": task or SPARRKULEE_TASK.lower(),
@@ -180,10 +267,138 @@ class SparrKULeeEEGContinuousDataset(OpenNeuroEEGContinuousDataset):
         materialized_dir.mkdir(parents=True, exist_ok=True)
         return materialized_dir / f"{stem}_{digest}.bdf"
 
+    def _inferred_channels_path(
+        self,
+        original_raw_path: Path,
+        readable_raw_path: Path,
+    ) -> Path:
+        try:
+            stat = original_raw_path.stat()
+            identity = (
+                f"{original_raw_path.resolve()}:{stat.st_size}:{stat.st_mtime_ns}"
+            )
+        except OSError:
+            identity = str(original_raw_path.resolve())
+        digest = hashlib.sha1(identity.encode("utf-8")).hexdigest()[:16]
+        sidecar_dir = self.cache_dir / "inferred_sidecars"
+        sidecar_dir.mkdir(parents=True, exist_ok=True)
+        sidecar_path = sidecar_dir / f"{original_raw_path.stem}_{digest}_channels.tsv"
+        if sidecar_path.exists():
+            return sidecar_path
+
+        raw = mne.io.read_raw_bdf(readable_raw_path, preload=False, verbose=False)
+        try:
+            names = list(raw.ch_names)
+        finally:
+            close = getattr(raw, "close", None)
+            if callable(close):
+                close()
+
+        standard_names = set(mne.channels.make_standard_montage("biosemi64").ch_names)
+        acquisition_names = {
+            f"{group}{index}"
+            for group in ("A", "B")
+            for index in range(1, 33)
+        }
+
+        eeg_indices = []
+        for index, name in enumerate(names):
+            stripped = name.strip()
+            normalized = stripped
+            if len(stripped) >= 2 and stripped[0].upper() in {"A", "B"}:
+                try:
+                    normalized = f"{stripped[0].upper()}{int(stripped[1:])}"
+                except ValueError:
+                    pass
+            if stripped in standard_names or normalized in acquisition_names:
+                eeg_indices.append(index)
+
+        if len(eeg_indices) != SPARRKULEE_EEG_CHANNELS:
+            excluded_tokens = (
+                "status",
+                "trigger",
+                "trig",
+                "exg",
+                "eog",
+                "ecg",
+                "emg",
+                "gsr",
+                "resp",
+                "plet",
+                "temp",
+                "audio",
+            )
+            likely_eeg = [
+                index
+                for index, name in enumerate(names)
+                if not any(token in name.lower() for token in excluded_tokens)
+            ]
+            if len(likely_eeg) >= SPARRKULEE_EEG_CHANNELS:
+                eeg_indices = likely_eeg[:SPARRKULEE_EEG_CHANNELS]
+            elif len(names) >= SPARRKULEE_EEG_CHANNELS:
+                eeg_indices = list(range(SPARRKULEE_EEG_CHANNELS))
+            else:
+                raise ValueError(
+                    f"SparrKULee recording {original_raw_path} has only "
+                    f"{len(names)} total channels; expected at least 64"
+                )
+            warnings.warn(
+                f"Could not identify exactly 64 BioSemi labels in "
+                f"{original_raw_path.name}; using the first 64 non-auxiliary "
+                "channels from the BDF header.",
+                RuntimeWarning,
+            )
+
+        eeg_index_set = set(eeg_indices)
+        rows = []
+        for index, name in enumerate(names):
+            lower = name.lower()
+            if index in eeg_index_set:
+                channel_type = "EEG"
+            elif "status" in lower or "trigger" in lower or "trig" in lower:
+                channel_type = "TRIG"
+            elif "eog" in lower or lower in {"exg1", "exg2"}:
+                channel_type = "EOG"
+            elif "ecg" in lower or lower in {"exg3", "exg4"}:
+                channel_type = "ECG"
+            else:
+                channel_type = "MISC"
+            rows.append({"name": name, "type": channel_type})
+
+        pd.DataFrame(rows).to_csv(sidecar_path, sep="\t", index=False)
+        print(
+            f"Inferred SparrKULee channel types for {original_raw_path.name}: "
+            f"{len(eeg_indices)} EEG / {len(names)} total"
+        )
+        return sidecar_path
+
+    def _preprocess_readable_recording(
+        self,
+        recording: Dict[str, Any],
+        readable_raw_path: Path,
+    ) -> None:
+        prepared = dict(recording)
+        prepared["raw_path"] = readable_raw_path
+
+        channels_path_value = recording.get("channels_path")
+        channels_path = (
+            Path(channels_path_value)
+            if channels_path_value is not None
+            else None
+        )
+        if channels_path is None or not channels_path.exists():
+            channels_path = self._inferred_channels_path(
+                Path(recording["raw_path"]),
+                readable_raw_path,
+            )
+        prepared["channels_path"] = channels_path
+
+        super()._preprocess_recording(prepared)
+
     def _preprocess_recording(self, recording: Dict[str, Any]) -> None:
         raw_path = Path(recording["raw_path"])
         if not raw_path.name.lower().endswith(".bdf.gz"):
-            super()._preprocess_recording(recording)
+            self._preprocess_readable_recording(recording, raw_path)
             return
 
         materialized_path = self._temporary_bdf_path(raw_path)
@@ -194,10 +409,7 @@ class SparrKULeeEEGContinuousDataset(OpenNeuroEEGContinuousDataset):
             with gzip.open(raw_path, "rb") as source, open(temporary_path, "wb") as target:
                 shutil.copyfileobj(source, target, length=16 * 1024 * 1024)
             temporary_path.replace(materialized_path)
-
-            prepared = dict(recording)
-            prepared["raw_path"] = materialized_path
-            super()._preprocess_recording(prepared)
+            self._preprocess_readable_recording(recording, materialized_path)
         finally:
             if temporary_path.exists():
                 temporary_path.unlink()
@@ -209,9 +421,6 @@ class SparrKULeeEEGContinuousDataset(OpenNeuroEEGContinuousDataset):
         montage = mne.channels.make_standard_montage("biosemi64")
         montage_names = set(montage.ch_names)
 
-        # BIDS conversions may retain either the standard 10-20 labels or the
-        # original BioSemi acquisition labels A1-A32/B1-B32. MNE's biosemi64
-        # montage is ordered in that same acquisition order.
         if set(raw.ch_names) == montage_names:
             raw.set_montage(montage, match_case=True, on_missing="raise")
             print("Applied SparrKULee BioSemi 64 montage")
@@ -250,6 +459,7 @@ class SparrKULeeEEGContinuousDataset(OpenNeuroEEGContinuousDataset):
 
 __all__ = [
     "SPARRKULEE_TASK",
+    "SPARRKULEE_EEG_CHANNELS",
     "SparrKULeeEEGContinuousDataset",
     "scan_sparrkulee_eeg_channel_counts",
 ]
