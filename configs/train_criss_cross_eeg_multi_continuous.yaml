@@ -90,6 +90,10 @@ data:
   window_onset_offset: -0.5
   allow_missing_word_alignment: true
 
+model:
+  # Usa más VRAM, pero evita recomputar activaciones durante el backward.
+  use_gradient_checkpointing: false
+
 logging:
   experiment_name: "criss-cross-eeg-continuous-listening-sparrkulee-50hz"
   save_dir: "./logs/eeg_continuous_training"
