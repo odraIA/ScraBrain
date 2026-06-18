@@ -18,9 +18,11 @@ import gzip
 import hashlib
 import shutil
 import warnings
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
+import h5py
 import mne
 import pandas as pd
 
@@ -30,6 +32,7 @@ from .openneuro_eeg_continuous_dataset import OpenNeuroEEGContinuousDataset
 
 SPARRKULEE_TASK = "listeningActive"
 SPARRKULEE_EEG_CHANNELS = 64
+SPARRKULEE_MAX_OPEN_H5_FILES = 32
 _RAW_ENDINGS = ("_eeg.bdf", "_eeg.bdf.gz")
 
 
@@ -204,11 +207,50 @@ class SparrKULeeEEGContinuousDataset(OpenNeuroEEGContinuousDataset):
         self,
         *args: Any,
         tasks: Optional[Sequence[str]] = None,
+        max_open_h5_files: int = SPARRKULEE_MAX_OPEN_H5_FILES,
         **kwargs: Any,
     ) -> None:
         if tasks is None:
             tasks = [SPARRKULEE_TASK]
+        self.max_open_h5_files = int(max_open_h5_files)
+        if self.max_open_h5_files <= 0:
+            raise ValueError("max_open_h5_files must be positive")
         super().__init__(*args, tasks=tasks, **kwargs)
+        self._file_handles = OrderedDict(self._file_handles)
+
+    def _get_h5(self, source_idx: int) -> h5py.File:
+        """Return an HDF5 handle while bounding descriptors in each worker.
+
+        The base continuous loader keeps every HDF5 file it has ever touched.
+        SparrKULee contains hundreds of recordings, so random sampling can
+        otherwise exhaust the process file-descriptor limit after a few thousand
+        batches. Recently used files remain open and the least recently used
+        handle is closed before opening another one.
+        """
+
+        if not isinstance(self._file_handles, OrderedDict):
+            self._file_handles = OrderedDict(self._file_handles)
+
+        handle = self._file_handles.pop(source_idx, None)
+        if handle is not None:
+            if handle.id.valid:
+                self._file_handles[source_idx] = handle
+                return handle
+            try:
+                handle.close()
+            except Exception:
+                pass
+
+        while len(self._file_handles) >= self.max_open_h5_files:
+            _, oldest = self._file_handles.popitem(last=False)
+            try:
+                oldest.close()
+            except Exception:
+                pass
+
+        handle = h5py.File(self.source_recordings[source_idx]["cache_path"], "r")
+        self._file_handles[source_idx] = handle
+        return handle
 
     def _discover_source_recordings(self) -> List[Dict[str, Any]]:
         recordings: List[Dict[str, Any]] = []
@@ -460,6 +502,7 @@ class SparrKULeeEEGContinuousDataset(OpenNeuroEEGContinuousDataset):
 __all__ = [
     "SPARRKULEE_TASK",
     "SPARRKULEE_EEG_CHANNELS",
+    "SPARRKULEE_MAX_OPEN_H5_FILES",
     "SparrKULeeEEGContinuousDataset",
     "scan_sparrkulee_eeg_channel_counts",
 ]
