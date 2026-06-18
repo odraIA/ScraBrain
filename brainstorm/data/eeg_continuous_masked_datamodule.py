@@ -1,4 +1,4 @@
-"""Continuity-aware DataModule for continuous EEG pre-training."""
+"""DataModule for the minimal continuous-EEG adaptation of MEG-XL."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from .eeg_continuous_multi_datamodule import (
 
 
 class MultiEEGDataModule(LegacyContinuousEEGDataModule):
-    """Use complete physical runs and expose sensor/time/target masks."""
+    """Use complete physical runs and provide an optional target-time mask."""
 
     def _create_dataset(
         self,
@@ -72,17 +72,13 @@ class MultiEEGDataModule(LegacyContinuousEEGDataModule):
                 "listening_interval_start",
                 "onset",
             ),
+            # These values are intentionally fixed to MEG-XL-style complete
+            # non-overlapping windows. No run concatenation, overlap, repetition,
+            # or temporal padding is permitted by the adapted dataset.
             group_listeningcovert_by="recording",
-            cover_all_samples=config.get("cover_all_samples", True),
-            short_stream_policy=config.get(
-                "short_stream_policy",
-                "zero_pad",
-            ),
+            cover_all_samples=False,
+            short_stream_policy="error",
             merge_gap_seconds=config.get("merge_gap_seconds", 0.0),
-            eeg_reference=config.get(
-                "eeg_reference",
-                "average",
-            ),
         )
 
     @staticmethod
@@ -97,9 +93,6 @@ class MultiEEGDataModule(LegacyContinuousEEGDataModule):
         sensor_mask = torch.stack(
             [item["sensor_mask"] for item in batch]
         )
-        time_mask = torch.stack(
-            [item["time_mask"] for item in batch]
-        )
         target_mask = torch.stack(
             [item["target_mask"] for item in batch]
         )
@@ -107,12 +100,12 @@ class MultiEEGDataModule(LegacyContinuousEEGDataModule):
             [item["dataset_idx"] for item in batch],
             dtype=torch.long,
         )
+
         return (
             eeg,
             sensor_xyzdir,
             sensor_types,
             sensor_mask,
-            time_mask,
             target_mask,
             dataset_ids,
         )
