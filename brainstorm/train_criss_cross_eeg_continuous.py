@@ -1,14 +1,16 @@
-"""Run the existing EEG trainer with the continuous EEG DataModule.
+"""Run continuous EEG training with the original MEG-XL model.
 
-The original training script imports ``brainstorm.data.eeg_multi_datamodule``.
-This small compatibility entrypoint swaps that module's exported class before
-importing the trainer, avoiding a duplicated 600-line training script.
+Only the EEG DataModule is replaced so it can preserve physical-run continuity
+and provide target intervals for listeningcovert. The shared trainer imports the
+same ``CrissCrossTransformerModule`` used by MEG-XL; no alternative attention or
+EEG-specific transformer is installed here.
 """
 
 from __future__ import annotations
 
 import brainstorm.data.eeg_multi_datamodule as legacy_datamodule
-from brainstorm.data.eeg_continuous_multi_datamodule import MultiEEGDataModule
+from brainstorm.data.eeg_continuous_masked_datamodule import MultiEEGDataModule
+
 
 legacy_datamodule.MultiEEGDataModule = MultiEEGDataModule
 

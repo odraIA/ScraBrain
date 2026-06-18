@@ -1,12 +1,14 @@
-# Continuous EEG pre-training configuration.
+# Continuous EEG pre-training as a minimal MEG-XL adaptation.
 #
-# It inherits the architecture, optimizer, frequency experiments, logging and
-# trainer settings from train_criss_cross_eeg_multi_feq.yaml, but replaces the
-# word-aligned loaders with continuous neural-signal segmentation.
+# The tokenizer, embeddings, criss-cross attention, sensor_mask semantics,
+# output head and masked-token objective are the original MEG-XL components.
+# The continuous EEG loader only preserves physical-run continuity and marks
+# which listeningcovert intervals are eligible reconstruction targets.
 
 defaults:
   - train_criss_cross_eeg_multi_feq
   - _self_
+
 
 datasets_config:
   - type: "openneuro_ds004408"
@@ -16,9 +18,10 @@ datasets_config:
     tasks: ["listening"]
     val_subjects: ["sub-017", "sub-018", "sub-019"]
 
-    # task-listening is already a listening recording, so use all samples.
-    cover_all_samples: true
-    short_stream_policy: "repeat"
+    # MEG-XL-style segmentation: complete, non-overlapping windows inside
+    # each physical run. The incomplete final remainder is discarded.
+    cover_all_samples: false
+    short_stream_policy: "error"
 
   - type: "openneuro_ds007808"
     data_root: "/workspace/datasets/OpenNeuroEEG_ds007808"
@@ -36,35 +39,22 @@ datasets_config:
       - "ses-20241119"
       - "ses-20241227"
 
-    # For task-listeningcovert, keep every interval labelled listening and
-    # exclude all intervals labelled covert.
-    listeningcovert_policy: "listening_only"
+    # Keep the complete listeningcovert run visible as context. Only samples
+    # labelled trial_type=listening can be chosen as masked-token targets.
+    listeningcovert_policy: "full_recording_listening_targets"
     listening_trial_type: "listening"
-
-    # "onset" preserves 100% of each event labelled listening. To start at the
-    # actual audio onset instead, change this to "wav_onset".
     listening_interval_start: "onset"
-
-    # Combine runs from the same subject/session into one listening-only stream.
-    group_listeningcovert_by: "subject_session"
-
-    # The last 150 s window overlaps the previous one when a remainder exists,
-    # so no selected listening sample is discarded.
-    cover_all_samples: true
-
-    # Only used if an entire grouped listening stream is shorter than 150 s.
-    # It repeats real listening samples instead of introducing zero padding.
-    short_stream_policy: "repeat"
+    group_listeningcovert_by: "recording"
     merge_gap_seconds: 0.0
+
+    cover_all_samples: false
+    short_stream_policy: "error"
 
   - type: "sparrkulee"
     data_root: "/workspace/datasets/sparrkulee"
     subjects: null
     sessions: null
     tasks: ["listeningActive"]
-
-    # Keep subjects entirely disjoint between train and validation. These five
-    # subjects are present in the downloaded varyingStories12 cohort.
     val_subjects:
       - "sub-101"
       - "sub-102"
@@ -72,11 +62,9 @@ datasets_config:
       - "sub-104"
       - "sub-105"
 
-    # SparrKULee recordings are continuous active listening runs. The loader
-    # also supports the .bdf.gz files used by older sessions and removes the
-    # temporary decompressed BDF after creating the 50 Hz cache.
-    cover_all_samples: true
-    short_stream_policy: "repeat"
+    cover_all_samples: false
+    short_stream_policy: "error"
+
 
 data:
   task_mode: "listening"
@@ -84,22 +72,29 @@ data:
   segment_length: 150.0
   subsegment_duration: 3.0
 
-  # These two values remain because the inherited training entrypoint passes
-  # them, but the continuous DataModule intentionally ignores them.
+  # Retained because the shared EEG training entrypoint accepts them. The
+  # continuous loader does not use word alignment.
   words_per_segment: 50
   window_onset_offset: -0.5
   allow_missing_word_alignment: true
 
+
 model:
-  # Usa más VRAM, pero evita recomputar activaciones durante el backward.
+  # 0=GRAD, 1=MAG, 2=EEG. No separate modality embedding is introduced.
+  num_sensor_types: 3
+
+  # Uses more VRAM but avoids recomputing activations in the backward pass.
   use_gradient_checkpointing: false
 
+
 logging:
-  experiment_name: "criss-cross-eeg-continuous-listening-sparrkulee-50hz"
+  experiment_name: "criss-cross-eeg-continuous-megxl-adaptation"
   save_dir: "./logs/eeg_continuous_training"
+
 
 checkpoint:
   save_dir: "./checkpoints/eeg_continuous_training"
+
 
 trainer:
   accelerator: "gpu"
@@ -108,6 +103,7 @@ trainer:
   precision: "bf16-mixed"
   accumulate_grad_batches: 1
   val_check_interval: 500
+
 
 training:
   gradient_clip_val: 1.0
