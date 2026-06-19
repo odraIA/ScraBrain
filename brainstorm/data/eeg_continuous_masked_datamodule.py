@@ -7,8 +7,10 @@ from typing import Any, Dict, Optional
 import torch
 
 from .eeg_continuous_masked_dataset import (
+    ContinuityAwareEEGDashDataset,
     ContinuityAwareOpenNeuroEEGDataset,
     ContinuityAwareSparrKULeeEEGDataset,
+    ContinuityAwareZuCoEEGDataset,
     LISTENING_TARGET_POLICY,
 )
 from .eeg_continuous_multi_datamodule import (
@@ -35,11 +37,14 @@ class MultiEEGDataModule(LegacyContinuousEEGDataModule):
             if sessions:
                 sessions = sessions[:1]
 
-        dataset_class = (
-            ContinuityAwareSparrKULeeEEGDataset
-            if canonical == "sparrkulee"
-            else ContinuityAwareOpenNeuroEEGDataset
-        )
+        dataset_classes = {
+            "openneuro_ds004408": ContinuityAwareOpenNeuroEEGDataset,
+            "openneuro_ds007808": ContinuityAwareOpenNeuroEEGDataset,
+            "sparrkulee": ContinuityAwareSparrKULeeEEGDataset,
+            "eegdash": ContinuityAwareEEGDashDataset,
+            "zuco": ContinuityAwareZuCoEEGDataset,
+        }
+        dataset_class = dataset_classes[canonical]
 
         return dataset_class(
             data_root=config["data_root"],
