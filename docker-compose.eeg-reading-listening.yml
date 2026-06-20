@@ -1,0 +1,50 @@
+services:
+  eeg_train_reading_listening:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: scrabrain-megxl:latest
+    container_name: scrabrain_eeg_reading_listening
+    working_dir: /workspace
+    init: true
+    shm_size: "${SHM_SIZE:-64gb}"
+    volumes:
+      - .:/workspace
+      - ${EEG_DATASETS_DIR:-./datasets}:/workspace/datasets:ro
+      - ./datasets_info:/workspace/datasets_info:ro
+      - ./data/cache:/workspace/data/cache
+      - ./logs:/workspace/logs
+      - ./checkpoints:/workspace/checkpoints
+      - ./promotions:/workspace/promotions
+      - ./results:/workspace/results
+      - ./wandb:/workspace/wandb
+      - ./embeddings_cache:/workspace/embeddings_cache
+      - ./hf_cache:/workspace/hf_cache
+    environment:
+      CRISS_CROSS_CHECKPOINT: ${CRISS_CROSS_CHECKPOINT:-./checkpoints/baseline/meg-xl-med.ckpt}
+      BIOCODEC_CHECKPOINT: ${BIOCODEC_CHECKPOINT:-./brainstorm/neuro_tokenizers/biocodec_ckpt.pt}
+      EEG_DATASETS_DIR: /workspace/datasets
+      HDF5_USE_FILE_LOCKING: "FALSE"
+      HF_HOME: /workspace/hf_cache
+      HF_TOKEN: ${HF_TOKEN:-}
+      HYDRA_FULL_ERROR: "1"
+      MPLCONFIGDIR: /workspace/hf_cache/matplotlib
+      NVIDIA_VISIBLE_DEVICES: ${EEG_GPU:-0}
+      OMP_NUM_THREADS: ${OMP_NUM_THREADS:-8}
+      TOKENIZERS_PARALLELISM: "false"
+      TRANSFORMERS_CACHE: /workspace/hf_cache/transformers
+      UV_PROJECT_ENVIRONMENT: /opt/venv
+      WANDB_API_KEY: ${WANDB_API_KEY:-}
+      WANDB_DIR: /workspace/wandb
+      WANDB_MODE: ${WANDB_MODE:-offline}
+      PYTHONUNBUFFERED: "1"
+    command: >
+      bash -lc 'uv run --no-sync python -m brainstorm.train_criss_cross_eeg_continuous
+      --config-name=train_criss_cross_eeg_reading_listening_continuous'
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: ${EEG_GPU_COUNT:-1}
+              capabilities: [gpu]

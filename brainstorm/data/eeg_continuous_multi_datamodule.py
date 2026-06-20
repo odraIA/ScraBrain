@@ -18,12 +18,20 @@ from torch.utils.data import DataLoader, Subset
 
 from .eeg_multi_dataset import MultiEEGDataset
 from .eeg_word_aligned_dataset import scan_bids_eeg_channel_counts
+from .eegdash_eeg_continuous_dataset import (
+    EEGDashEEGContinuousDataset,
+    scan_eegdash_eeg_channel_counts,
+)
 from .openneuro_eeg_continuous_dataset import OpenNeuroEEGContinuousDataset
 from .sparrkulee_eeg_continuous_dataset import (
     SparrKULeeEEGContinuousDataset,
     scan_sparrkulee_eeg_channel_counts,
 )
 from .subsampled_dataset import SubsampledRecordingDataset
+from .zuco_eeg_continuous_dataset import (
+    ZuCoEEGContinuousDataset,
+    scan_zuco_eeg_channel_counts,
+)
 
 
 _DATASET_ALIASES = {
@@ -38,12 +46,20 @@ _DATASET_ALIASES = {
     "sparrkulee": "sparrkulee",
     "sparrkulee_eeg": "sparrkulee",
     "sparrkuleeeeg": "sparrkulee",
+    "eegdash": "eegdash",
+    "eegdash_nm000228": "eegdash",
+    "nm000228": "eegdash",
+    "zuco": "zuco",
+    "zuco2": "zuco",
+    "zuco_2": "zuco",
 }
 
 _DEFAULT_TASKS = {
     "openneuro_ds004408": ["listening"],
     "openneuro_ds007808": ["listening", "listeningcovert"],
     "sparrkulee": ["listeningActive"],
+    "eegdash": ["delong", "control"],
+    "zuco": ["NR"],
 }
 
 
@@ -67,16 +83,41 @@ def _sorted_dirs(root: Path, pattern: str) -> List[str]:
     return sorted(path.name for path in root.glob(pattern) if path.is_dir())
 
 
-def _discover_subjects(data_root: str) -> List[str]:
+def _resolve_eegdash_root(data_root: str | Path) -> Path:
+    root = Path(data_root)
+    nested = root / "nm000228"
+    return nested if nested.is_dir() else root
+
+
+def _resolve_zuco_root(data_root: str | Path) -> Path:
+    root = Path(data_root)
+    if (root / "task1 - NR" / "Preprocessed").is_dir():
+        return root
+    nested = root / "data" / "zuco2"
+    return nested if (nested / "task1 - NR" / "Preprocessed").is_dir() else root
+
+
+def _discover_subjects(data_root: str | Path) -> List[str]:
     return _sorted_dirs(Path(data_root), "sub-*")
 
 
+def _discover_zuco_subjects(data_root: str | Path) -> List[str]:
+    preprocessed = _resolve_zuco_root(data_root) / "task1 - NR" / "Preprocessed"
+    if not preprocessed.is_dir():
+        return []
+    return sorted(
+        f"sub-{path.name}"
+        for path in preprocessed.iterdir()
+        if path.is_dir()
+    )
+
+
 def _discover_sessions(
-    data_root: str,
+    data_root: str | Path,
     subjects: Optional[Sequence[str]] = None,
 ) -> List[str]:
     root = Path(data_root)
-    subject_names = list(subjects) if subjects is not None else _discover_subjects(data_root)
+    subject_names = list(subjects) if subjects is not None else _discover_subjects(root)
     sessions = set()
     for subject in subject_names:
         for session_dir in (root / _norm_id(subject, "sub-")).glob("ses-*"):
@@ -101,6 +142,27 @@ def _exclude(
         if _strip_prefix(full, prefix).lower() not in excluded_norm:
             kept.append(full)
     return kept
+
+
+def _fraction_holdout(
+    values: Sequence[str],
+    fraction: float,
+    seed: int,
+) -> List[str]:
+    unique = sorted(set(str(value) for value in values))
+    if not 0.0 < fraction < 1.0:
+        raise ValueError(f"val_fraction must be in (0, 1), got {fraction}")
+    if len(unique) < 2:
+        raise ValueError(
+            "val_fraction requires at least two discoverable split groups; "
+            f"found {len(unique)}"
+        )
+
+    n_val = int(round(len(unique) * fraction))
+    n_val = min(len(unique) - 1, max(1, n_val))
+    rng = np.random.RandomState(int(seed))
+    selected = rng.choice(len(unique), size=n_val, replace=False)
+    return sorted(unique[int(index)] for index in selected.tolist())
 
 
 class MultiEEGDataModule(pl.LightningDataModule):
@@ -158,6 +220,7 @@ class MultiEEGDataModule(pl.LightningDataModule):
         self.infer_max_channel_dim = bool(infer_max_channel_dim)
         self.recording_subsample_prop = recording_subsample_prop
         self.tokenizer_name = str(tokenizer_name)
+        self._split_cache: Dict[Tuple[Any, ...], List[str]] = {}
 
         # Accepted only for compatibility with the old word-aligned entrypoint.
         self.words_per_segment = words_per_segment
@@ -189,6 +252,28 @@ class MultiEEGDataModule(pl.LightningDataModule):
             )
         return list(_DEFAULT_TASKS[canonical])
 
+    def _dataset_subjects(
+        self,
+        canonical: str,
+        data_root: str,
+    ) -> List[str]:
+        if canonical == "eegdash":
+            return _discover_subjects(_resolve_eegdash_root(data_root))
+        if canonical == "zuco":
+            return _discover_zuco_subjects(data_root)
+        return _discover_subjects(data_root)
+
+    def _dataset_sessions(
+        self,
+        canonical: str,
+        data_root: str,
+        subjects: Optional[Sequence[str]],
+    ) -> List[str]:
+        if canonical == "zuco":
+            raise ValueError("ZuCo validation must be split by subject, not session")
+        root = _resolve_eegdash_root(data_root) if canonical == "eegdash" else Path(data_root)
+        return _discover_sessions(root, subjects=subjects)
+
     def _infer_max_channel_dim(self) -> Optional[int]:
         counts = []
         for config in self.datasets_config:
@@ -197,6 +282,20 @@ class MultiEEGDataModule(pl.LightningDataModule):
             if canonical == "sparrkulee":
                 counts.extend(
                     scan_sparrkulee_eeg_channel_counts(
+                        config["data_root"],
+                        tasks=tasks,
+                    )
+                )
+            elif canonical == "eegdash":
+                counts.extend(
+                    scan_eegdash_eeg_channel_counts(
+                        config["data_root"],
+                        tasks=tasks,
+                    )
+                )
+            elif canonical == "zuco":
+                counts.extend(
+                    scan_zuco_eeg_channel_counts(
                         config["data_root"],
                         tasks=tasks,
                     )
@@ -225,16 +324,77 @@ class MultiEEGDataModule(pl.LightningDataModule):
             print(f"Inferred continuous EEG max_channel_dim: {inferred}")
         return inferred
 
+    def _fraction_split_groups(
+        self,
+        config: Dict[str, Any],
+        subjects: Optional[List[str]],
+        sessions: Optional[List[str]],
+    ) -> Tuple[Optional[List[str]], Optional[List[str]]]:
+        fraction = config.get("val_fraction")
+        if fraction is None:
+            return None, None
+
+        canonical = self._canonical_type(config["type"])
+        axis = str(config.get("split_axis", "subject")).lower()
+        seed = int(config.get("split_seed", self.sampler_seed))
+        data_root = str(config["data_root"])
+        cache_key = (canonical, str(Path(data_root)), axis, float(fraction), seed)
+
+        if cache_key not in self._split_cache:
+            if axis == "subject":
+                groups = subjects or self._dataset_subjects(canonical, data_root)
+                prefix = "sub-"
+            elif axis == "session":
+                groups = sessions or self._dataset_sessions(
+                    canonical,
+                    data_root,
+                    subjects=subjects,
+                )
+                prefix = "ses-"
+            else:
+                raise ValueError(
+                    f"Unsupported split_axis={axis!r} for {config['type']}; "
+                    "expected 'subject' or 'session'."
+                )
+
+            normalized = [_norm_id(group, prefix) for group in groups]
+            self._split_cache[cache_key] = _fraction_holdout(
+                normalized,
+                fraction=float(fraction),
+                seed=seed,
+            )
+            print(
+                f"Deterministic validation split for {config['type']}: "
+                f"axis={axis}, fraction={float(fraction):.3f}, seed={seed}, "
+                f"groups={self._split_cache[cache_key]}"
+            )
+
+        selected = list(self._split_cache[cache_key])
+        return (selected, None) if axis == "subject" else (None, selected)
+
     def _split_filters(
         self,
         config: Dict[str, Any],
         split: str,
     ) -> Tuple[Optional[List[str]], Optional[List[str]]]:
-        data_root = config["data_root"]
+        canonical = self._canonical_type(config["type"])
+        data_root = str(config["data_root"])
         subjects = _as_list(config.get("subjects"))
         sessions = _as_list(config.get("sessions"))
         val_subjects = _as_list(config.get("val_subjects"))
         val_sessions = _as_list(config.get("val_sessions"))
+
+        if config.get("val_fraction") is not None:
+            if val_subjects or val_sessions:
+                raise ValueError(
+                    f"Dataset {config['type']} defines val_fraction together with "
+                    "an explicit validation split; choose one method."
+                )
+            val_subjects, val_sessions = self._fraction_split_groups(
+                config,
+                subjects=subjects,
+                sessions=sessions,
+            )
 
         if val_subjects and val_sessions:
             raise ValueError(
@@ -244,13 +404,13 @@ class MultiEEGDataModule(pl.LightningDataModule):
         if not val_subjects and not val_sessions:
             raise ValueError(
                 f"Missing validation split for {config['type']}. Add "
-                "val_subjects=[...] or val_sessions=[...]."
+                "val_subjects=[...], val_sessions=[...], or val_fraction=... ."
             )
 
         if val_subjects:
             val_subjects = [_norm_id(item, "sub-") for item in val_subjects]
             if subjects is None:
-                subjects = _discover_subjects(data_root)
+                subjects = self._dataset_subjects(canonical, data_root)
             subjects = [_norm_id(item, "sub-") for item in subjects]
             if split == "val":
                 return val_subjects, sessions
@@ -259,7 +419,11 @@ class MultiEEGDataModule(pl.LightningDataModule):
         assert val_sessions is not None
         val_sessions = [_norm_id(item, "ses-") for item in val_sessions]
         if sessions is None:
-            sessions = _discover_sessions(data_root, subjects=subjects)
+            sessions = self._dataset_sessions(
+                canonical,
+                data_root,
+                subjects=subjects,
+            )
         sessions = [_norm_id(item, "ses-") for item in sessions]
         if split == "val":
             return subjects, val_sessions
@@ -270,7 +434,7 @@ class MultiEEGDataModule(pl.LightningDataModule):
         config: Dict[str, Any],
         split: str,
         max_channel_dim: Optional[int],
-    ) -> OpenNeuroEEGContinuousDataset:
+    ):
         canonical = self._canonical_type(config["type"])
         subjects, sessions = self._split_filters(config, split=split)
         tasks = config.get("tasks", self._default_tasks(canonical))
@@ -281,11 +445,14 @@ class MultiEEGDataModule(pl.LightningDataModule):
             if sessions:
                 sessions = sessions[:1]
 
-        dataset_class = (
-            SparrKULeeEEGContinuousDataset
-            if canonical == "sparrkulee"
-            else OpenNeuroEEGContinuousDataset
-        )
+        dataset_classes = {
+            "openneuro_ds004408": OpenNeuroEEGContinuousDataset,
+            "openneuro_ds007808": OpenNeuroEEGContinuousDataset,
+            "sparrkulee": SparrKULeeEEGContinuousDataset,
+            "eegdash": EEGDashEEGContinuousDataset,
+            "zuco": ZuCoEEGContinuousDataset,
+        }
+        dataset_class = dataset_classes[canonical]
 
         return dataset_class(
             data_root=config["data_root"],
@@ -401,7 +568,6 @@ class MultiEEGDataModule(pl.LightningDataModule):
                 )
                 self.val_dataset = Subset(self.val_dataset, indices)
                 print(f"Debug mode: using {subset_size}/{total} validation segments")
-
             print(f"Total continuous EEG validation segments: {len(self.val_dataset)}")
 
     def train_dataloader(self) -> DataLoader:

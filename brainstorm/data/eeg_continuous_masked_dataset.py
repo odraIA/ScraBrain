@@ -9,7 +9,7 @@ module only changes how EEG recordings are exposed to that model:
 - complete ``listeningcovert`` runs remain visible as context, while only
   intervals labelled ``listening`` are eligible reconstruction targets;
 - EEG electrode positions are retained, but the MEG-like orientation vectors
-  invented by the legacy loader are removed.
+  invented by legacy loaders are removed.
 """
 
 from __future__ import annotations
@@ -21,12 +21,14 @@ import h5py
 import numpy as np
 import torch
 
+from .eegdash_eeg_continuous_dataset import EEGDashEEGContinuousDataset
 from .openneuro_eeg_continuous_dataset import (
     EEG_SENSOR_TYPE_ID,
     IntervalRef,
     OpenNeuroEEGContinuousDataset,
 )
 from .sparrkulee_eeg_continuous_dataset import SparrKULeeEEGContinuousDataset
+from .zuco_eeg_continuous_dataset import ZuCoEEGContinuousDataset
 
 
 LISTENING_TARGET_POLICY = "full_recording_listening_targets"
@@ -94,6 +96,9 @@ class ContinuityAwareEEGMixin:
     def _preprocess_recording(self, recording: Dict[str, Any]) -> None:
         super()._preprocess_recording(recording)
         with h5py.File(recording["cache_path"], "r+") as h5_file:
+            sensor_xyzdir = h5_file["sensor_xyzdir"]
+            if sensor_xyzdir.shape[1] >= 6:
+                sensor_xyzdir[:, 3:6] = 0.0
             h5_file.attrs["eeg_spatial_policy"] = _CACHE_SPATIAL_POLICY
 
     @staticmethod
@@ -259,8 +264,25 @@ class ContinuityAwareSparrKULeeEEGDataset(
     """SparrKULee EEG with the same complete-run sampling semantics."""
 
 
+class ContinuityAwareEEGDashDataset(
+    ContinuityAwareEEGMixin,
+    EEGDashEEGContinuousDataset,
+):
+    """EEGDash reading EEG with complete physical-run sampling semantics."""
+
+
+class ContinuityAwareZuCoEEGDataset(
+    ContinuityAwareEEGMixin,
+    ZuCoEEGContinuousDataset,
+):
+    """ZuCo natural-reading EEG with complete physical-run sampling semantics."""
+
+
 __all__ = [
     "LISTENING_TARGET_POLICY",
+    "ContinuityAwareEEGMixin",
     "ContinuityAwareOpenNeuroEEGDataset",
     "ContinuityAwareSparrKULeeEEGDataset",
+    "ContinuityAwareEEGDashDataset",
+    "ContinuityAwareZuCoEEGDataset",
 ]
