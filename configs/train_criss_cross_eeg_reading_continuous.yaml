@@ -1,7 +1,7 @@
 # Stage 1 of the staged EEG sweep: continuous natural-reading pre-training.
 #
-# This config intentionally keeps the existing dataset roots and shared cache
-# location used by the joint reading/listening training setup.
+# This config intentionally keeps the existing dataset roots and the common
+# preprocessed EEG cache used by the joint reading/listening setup.
 
 defaults:
   - train_criss_cross_eeg_reading_listening_continuous
@@ -34,7 +34,7 @@ datasets_config:
 
 data:
   task_mode: "reading"
-  cache_dir: "./data/cache/eeg_reading_listening_continuous"
+  cache_dir: "./data/cache/eeg_preprocessed"
 
 
 logging:
