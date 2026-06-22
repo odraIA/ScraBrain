@@ -24,13 +24,14 @@ services:
       CRISS_CROSS_CHECKPOINT: ${CRISS_CROSS_CHECKPOINT:-./checkpoints/baseline/meg-xl-med.ckpt}
       BIOCODEC_CHECKPOINT: ${BIOCODEC_CHECKPOINT:-./brainstorm/neuro_tokenizers/biocodec_ckpt.pt}
       EEG_DATASETS_DIR: /workspace/datasets
+      EEG_HOST_GPU: ${EEG_GPU:-0}
       HDF5_USE_FILE_LOCKING: "FALSE"
       HF_HOME: /workspace/hf_cache
       HF_TOKEN: ${HF_TOKEN:-}
       HYDRA_FULL_ERROR: "1"
       MPLCONFIGDIR: /workspace/hf_cache/matplotlib
-      NVIDIA_VISIBLE_DEVICES: ${EEG_GPU:-0}
       OMP_NUM_THREADS: ${OMP_NUM_THREADS:-8}
+      PYTORCH_CUDA_ALLOC_CONF: ${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}
       TOKENIZERS_PARALLELISM: "false"
       TRANSFORMERS_CACHE: /workspace/hf_cache/transformers
       UV_PROJECT_ENVIRONMENT: /opt/venv
@@ -46,5 +47,5 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              count: ${EEG_GPU_COUNT:-1}
+              device_ids: ["${EEG_GPU:-0}"]
               capabilities: [gpu]
