@@ -1,0 +1,55 @@
+# Stage 1 of the staged EEG sweep: continuous natural-reading pre-training.
+#
+# This config intentionally keeps the existing dataset roots and shared cache
+# location used by the joint reading/listening training setup.
+
+defaults:
+  - train_criss_cross_eeg_reading_listening_continuous
+  - _self_
+
+
+datasets_config:
+  - type: "eegdash"
+    data_root: "/workspace/datasets/eegdash/data"
+    subjects: null
+    sessions: null
+    tasks: ["delong", "control"]
+    split_axis: "subject"
+    val_fraction: 0.10
+    split_seed: 42
+    cover_all_samples: false
+    short_stream_policy: "error"
+
+  - type: "zuco"
+    data_root: "/workspace/datasets/zuco2"
+    subjects: null
+    sessions: null
+    tasks: ["NR"]
+    split_axis: "subject"
+    val_fraction: 0.15
+    split_seed: 42
+    cover_all_samples: false
+    short_stream_policy: "error"
+
+
+data:
+  task_mode: "reading"
+  cache_dir: "./data/cache/eeg_reading_listening_continuous"
+
+
+logging:
+  experiment_name: "criss-cross-eeg-continuous-reading-stage"
+  save_dir: "./logs/eeg_reading_listening_training"
+
+
+checkpoint:
+  save_dir: "./checkpoints/eeg_reading_listening_training"
+
+
+trainer:
+  devices: 1
+  strategy: "auto"
+
+
+training:
+  batch_size: 4
