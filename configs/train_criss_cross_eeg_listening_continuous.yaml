@@ -1,0 +1,84 @@
+# Stage 2 of the staged EEG sweep: continuous listening pre-training.
+#
+# The launcher initializes this stage from the best checkpoint produced by the
+# matching reading-stage experiment.
+
+defaults:
+  - train_criss_cross_eeg_reading_listening_continuous
+  - _self_
+
+
+datasets_config:
+  - type: "openneuro_ds004408"
+    data_root: "/workspace/datasets/OpenNeuroEEG_ds004408"
+    subjects: null
+    sessions: null
+    tasks: ["listening"]
+    val_subjects: ["sub-017", "sub-018", "sub-019"]
+    cover_all_samples: false
+    short_stream_policy: "error"
+
+  - type: "openneuro_ds007808"
+    data_root: "/workspace/datasets/OpenNeuroEEG_ds007808"
+    subjects: null
+    sessions: null
+    tasks: ["listening", "listeningcovert"]
+    val_sessions:
+      - "ses-20240621"
+      - "ses-20240624"
+      - "ses-20240625"
+      - "ses-20240626"
+      - "ses-20240627"
+      - "ses-20240628"
+      - "ses-20240701"
+      - "ses-20241119"
+      - "ses-20241227"
+    listeningcovert_policy: "full_recording_listening_targets"
+    listening_trial_type: "listening"
+    listening_interval_start: "onset"
+    group_listeningcovert_by: "recording"
+    merge_gap_seconds: 0.0
+    cover_all_samples: false
+    short_stream_policy: "error"
+
+  - type: "sparrkulee"
+    data_root: "/workspace/datasets/sparrkulee"
+    subjects: null
+    sessions: null
+    tasks: ["listeningActive"]
+    val_subjects:
+      - "sub-101"
+      - "sub-102"
+      - "sub-103"
+      - "sub-104"
+      - "sub-105"
+    cover_all_samples: false
+    short_stream_policy: "error"
+
+
+data:
+  task_mode: "listening"
+  cache_dir: "./data/cache/eeg_reading_listening_continuous"
+
+
+model:
+  train_from_scratch: false
+  use_promoted_checkpoint: true
+
+
+logging:
+  experiment_name: "criss-cross-eeg-continuous-listening-stage"
+  save_dir: "./logs/eeg_reading_listening_training"
+
+
+checkpoint:
+  save_dir: "./checkpoints/eeg_reading_listening_training"
+
+
+trainer:
+  devices: 1
+  strategy: "auto"
+
+
+training:
+  batch_size: 4
