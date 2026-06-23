@@ -9,6 +9,7 @@ from .libribrain_dataset import LibriBrainMEGDataset
 from .libribrain_word_aligned_dataset import LibriBrainWordAlignedDataset
 from .gwilliams_word_aligned_dataset import GwilliamsWordAlignedDataset
 from .zuco_word_aligned_dataset import ZuCoWordAlignedDataset
+from .weissbart_eeg_word_aligned_dataset import WeissbartEEGWordAlignedDataset
 from .eeg_word_aligned_dataset import (
     BIDSEEGWordAlignedDataset,
     EEGDashWordAlignedDataset,
@@ -40,6 +41,7 @@ __all__ = [
     "LibriBrainWordAlignedDataset",
     "GwilliamsWordAlignedDataset",
     "ZuCoWordAlignedDataset",
+    "WeissbartEEGWordAlignedDataset",
     "BIDSEEGWordAlignedDataset",
     "EEGDashWordAlignedDataset",
     "OpenNeuroEEGWordAlignedDataset",
