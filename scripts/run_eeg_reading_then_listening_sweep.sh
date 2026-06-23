@@ -236,7 +236,7 @@ run_docker_command() {
   local gpu="$1" container_name="$2" log_path="$3"
   shift 3
   local -a command=("$@")
-  local quoted
+  local quoted status
   printf -v quoted '%q ' "${command[@]}"
 
   EEG_GPU="$gpu" EEG_GPU_COUNT=1 WANDB_MODE="$WANDB_MODE" \
@@ -246,7 +246,10 @@ run_docker_command() {
       -e "WANDB_MODE=${WANDB_MODE}" \
       "$SERVICE" bash -lc "$quoted" \
       2>&1 | tee "$log_path" >&2
-  return "${PIPESTATUS[0]}"
+
+  status="${PIPESTATUS[0]}"
+  printf '%s\n' "$status" > "${log_path}.exit_code"
+  return "$status"
 }
 
 probe_batch_size() {

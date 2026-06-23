@@ -1,0 +1,485 @@
+Dataset: WeissbartEEG
+Path: /workspace/datasets/WeissbartEEG
+Generated: 2026-06-22T18:18:34
+
+Content summary
+- Directories scanned: 39
+- Files scanned: 352
+- Total file size: 29.2 GB
+- Skipped directory names: .cache, .git, .ipynb_checkpoints, __pycache__, cache, checkpoints, logs
+
+Top-level content
+- stim: 192 files, 76.9 MB
+- eeg: 142 files, 9.9 GB
+- dataCND: 14 files, 6.3 GB
+- [root files]: 2 files, 13.0 GB
+- preproc_functions: 2 files, 1.5 KB
+
+File extensions
+- .txt: 181
+- .mat: 28
+- .textgrid: 19
+- .lab: 15
+- .wav: 15
+- .words: 15
+- .csv: 15
+- .eeg: 13
+- .vhdr: 13
+- .vmrk: 13
+- .fif: 12
+- .fif.gz: 5
+- .m: 3
+- [no extension]: 2
+- .zip: 1
+- .sh: 1
+- .sh~: 1
+
+Training-hours estimate
+- Selection: raw recordings with readable duration
+- Note: all selected recordings are counted as trainable hours; explicit train/val/test splits are not inferred unless encoded as separate files.
+- Total selected recordings: 18
+- Total training hours: 14.580 h (14:34:49)
+
+Hours by task
+task	recordings	hours	duration
+unknown	18	14.580	14:34:49
+
+Detected recording candidates
+kind	task	subject	session	run	duration	channels	sfreq	method	path
+raw	unknown				00:49:51	64	1000	mne header	eeg/P01_bis/1_laura-0002.vhdr
+raw	unknown				unknown				eeg/P01_bis/P01_bis-ica.fif
+raw	unknown				00:45:07	64	1000	mne header	eeg/P02_11072016/P02.vhdr
+raw	unknown				unknown				eeg/P02_11072016/P02_11072016-ica.fif
+raw	unknown				00:45:07	64	256	mne header	eeg/P02_11072016/processed_raw.fif.gz
+raw	unknown				00:50:02	64	1000	mne header	eeg/P03_12072016/P03.vhdr
+raw	unknown				unknown				eeg/P03_12072016/P03_12072016-ica.fif
+raw	unknown				00:47:18	64	1000	mne header	eeg/P04_13072016/P04.vhdr
+raw	unknown				unknown				eeg/P04_13072016/P04_13072016-ica.fif
+raw	unknown				00:47:18	64	256	mne header	eeg/P04_13072016/processed_raw.fif.gz
+raw	unknown				00:47:01	64	1000	mne header	eeg/P05_14072016/P05.vhdr
+raw	unknown				unknown				eeg/P05_14072016/P05_14072016-ica.fif
+raw	unknown				00:46:34	64	1000	mne header	eeg/P06_18072016/P06.vhdr
+raw	unknown				unknown				eeg/P06_18072016/P06_18072016-ica.fif
+raw	unknown				00:44:49	64	1000	mne header	eeg/P07_19072016/P07.vhdr
+raw	unknown				unknown				eeg/P07_19072016/P07_19072016-ica.fif
+raw	unknown				00:44:49	64	256	mne header	eeg/P07_19072016/processed_raw.fif.gz
+raw	unknown				00:44:28	64	1000	mne header	eeg/P08_21072016/P08.vhdr
+raw	unknown				unknown				eeg/P08_21072016/P08_21072016-ica.fif
+raw	unknown				00:44:28	64	256	mne header	eeg/P08_21072016/processed_raw.fif.gz
+raw	unknown				00:56:56	64	1000	mne header	eeg/P09_22072016/P09.vhdr
+raw	unknown				unknown				eeg/P09_22072016/P09_22072016-ica.fif
+raw	unknown				00:56:56	64	256	mne header	eeg/P09_22072016/processed_raw.fif.gz
+raw	unknown				00:49:11	64	1000	mne header	eeg/P10_14092016/P10.vhdr
+raw	unknown				unknown				eeg/P10_14092016/P10_14092016-ica.fif
+raw	unknown				00:54:04	64	1000	mne header	eeg/P12_01092016/P12.vhdr
+raw	unknown				unknown				eeg/P12_01092016/P12_01092016-ica.fif
+raw	unknown				00:53:32	64	1000	mne header	eeg/P13_08092016/P13.vhdr
+raw	unknown				unknown				eeg/P13_08092016/P13_08092016-ica.fif
+raw	unknown				00:47:17	64	1000	mne header	eeg/P14_21032017/P14.vhdr
+
+Duration read notes
+- eeg/P01_bis/P01_bis-ica.fif: ValueError: No raw data in /workspace/datasets/WeissbartEEG/eeg/P01_bis/P01_bis-ica.fif
+- eeg/P02_11072016/P02_11072016-ica.fif: ValueError: No raw data in /workspace/datasets/WeissbartEEG/eeg/P02_11072016/P02_11072016-ica.fif
+- eeg/P03_12072016/P03_12072016-ica.fif: ValueError: No raw data in /workspace/datasets/WeissbartEEG/eeg/P03_12072016/P03_12072016-ica.fif
+- eeg/P04_13072016/P04_13072016-ica.fif: ValueError: No raw data in /workspace/datasets/WeissbartEEG/eeg/P04_13072016/P04_13072016-ica.fif
+- eeg/P05_14072016/P05_14072016-ica.fif: ValueError: No raw data in /workspace/datasets/WeissbartEEG/eeg/P05_14072016/P05_14072016-ica.fif
+- eeg/P06_18072016/P06_18072016-ica.fif: ValueError: No raw data in /workspace/datasets/WeissbartEEG/eeg/P06_18072016/P06_18072016-ica.fif
+- eeg/P07_19072016/P07_19072016-ica.fif: ValueError: No raw data in /workspace/datasets/WeissbartEEG/eeg/P07_19072016/P07_19072016-ica.fif
+- eeg/P08_21072016/P08_21072016-ica.fif: ValueError: No raw data in /workspace/datasets/WeissbartEEG/eeg/P08_21072016/P08_21072016-ica.fif
+- eeg/P09_22072016/P09_22072016-ica.fif: ValueError: No raw data in /workspace/datasets/WeissbartEEG/eeg/P09_22072016/P09_22072016-ica.fif
+- eeg/P10_14092016/P10_14092016-ica.fif: ValueError: No raw data in /workspace/datasets/WeissbartEEG/eeg/P10_14092016/P10_14092016-ica.fif
+- eeg/P12_01092016/P12_01092016-ica.fif: ValueError: No raw data in /workspace/datasets/WeissbartEEG/eeg/P12_01092016/P12_01092016-ica.fif
+- eeg/P13_08092016/P13_08092016-ica.fif: ValueError: No raw data in /workspace/datasets/WeissbartEEG/eeg/P13_08092016/P13_08092016-ica.fif
+
+Folder tree (max depth 4)
+.
+  - dataCND/
+  - eeg/
+  - preproc_functions/
+  - stim/
+  - toCND.m
+  - WeissbartSurprisal.zip
+    - S01.mat
+    - S02.mat
+    - S03.mat
+    - S04.mat
+    - S05.mat
+    - S06.mat
+    - S07.mat
+    - S08.mat
+    - S09.mat
+    - S10.mat
+    - S11.mat
+    - S12.mat
+    - S13.mat
+    - Stim.mat
+    - P01_bis/
+    - P02_11072016/
+    - P03_12072016/
+    - P04_13072016/
+    - P05_14072016/
+    - P06_18072016/
+    - P07_19072016/
+    - P08_21072016/
+    - P09_22072016/
+    - P10_14092016/
+    - P12_01092016/
+    - P13_08092016/
+    - P14_21032017/
+      - 1_laura-0002.eeg
+      - 1_laura-0002.vhdr
+      - 1_laura-0002.vmrk
+      - bad_channels.txt
+      - bad_ICcomp.txt
+      - P01_bis-ica.fif
+      - P01_bis_1kHz-eve.txt
+      - P01_bis_1kHz-events_id.txt
+      - P01_bis_MATLAB_1kHz-eve.txt
+      - 1_P02_11-07.mat
+      - 2_P02_11-07.mat
+      - bad_channels.txt
+      - bad_ICcomp.txt
+      - P02.eeg
+      - P02.vhdr
+      - P02.vmrk
+      - P02_11072016-eve.txt
+      - P02_11072016-events_id.txt
+      - P02_11072016-ica.fif
+      - P02_11072016_1kHz-eve.txt
+      - P02_11072016_1kHz-events_id.txt
+      - P02_11072016_MATLAB_1kHz-eve.txt
+      - processed_raw.fif.gz
+      - 1_P03_12-07.mat
+      - bad_channels.txt
+      - bad_ICcomp.txt
+      - P03.eeg
+      - P03.vhdr
+      - P03.vmrk
+      - P03_12072016-ica.fif
+      - P03_120720162-eve.txt
+      - P03_12072016_1kHz-eve.txt
+      - P03_12072016_1kHz-events_id.txt
+      - P03_12072016_MATLAB_1kHz-eve.txt
+      - 1_P04_13-07.mat
+      - bad_channels.txt
+      - bad_ICcomp.txt
+      - P04.eeg
+      - P04.vhdr
+      - P04.vmrk
+      - P04_13072016-events_id.txt
+      - P04_13072016-events_id2.txt
+      - P04_13072016-ica.fif
+      - P04_13072016_1kHz-eve.txt
+      - P04_13072016_1kHz-events_id.txt
+      - P04_13072016_MATLAB_1kHz-eve.txt
+      - processed_raw.fif.gz
+      - 1_P05_14-07.mat
+      - bad_channels.txt
+      - bad_ICcomp.txt
+      - P05.eeg
+      - P05.vhdr
+      - P05.vmrk
+      - P05_14072016-ica.fif
+      - P05_14072016_1kHz-eve.txt
+      - P05_14072016_1kHz-events_id.txt
+      - P05_14072016_MATLAB_1kHz-eve.txt
+      - 1_P06_18-07.mat
+      - bad_channels.txt
+      - bad_ICcomp.txt
+      - P06.eeg
+      - P06.vhdr
+      - P06.vmrk
+      - P06_18072016-ica.fif
+      - P06_18072016_1kHz-eve.txt
+      - P06_18072016_1kHz-events_id.txt
+      - P06_18072016_MATLAB_1kHz-eve.txt
+      - 1_07_19-07.mat
+      - bad_channels.txt
+      - bad_ICcomp.txt
+      - P07.eeg
+      - P07.vhdr
+      - P07.vmrk
+      - P07_19072016-eve.txt
+      - P07_19072016-events_id.txt
+      - P07_19072016-ica.fif
+      - P07_19072016_1kHz-eve.txt
+      - P07_19072016_1kHz-events_id.txt
+      - P07_19072016_MATLAB_1kHz-eve.txt
+      - processed_raw.fif.gz
+      - 1_P08_21-07.mat
+      - bad_channels.txt
+      - bad_ICcomp.txt
+      - P08.eeg
+      - P08.vhdr
+      - P08.vmrk
+      - P08_21072016-eve.txt
+      - P08_21072016-events_id.txt
+      - P08_21072016-ica.fif
+      - P08_21072016_1kHz-eve.txt
+      - P08_21072016_1kHz-events_id.txt
+      - P08_21072016_MATLAB_1kHz-eve.txt
+      - processed_raw.fif.gz
+      - 1_P09_22-07.mat
+      - bad_channels.txt
+      - bad_ICcomp.txt
+      - P09.eeg
+      - P09.vhdr
+      - P09.vmrk
+      - P09_22072016-eve.txt
+      - P09_22072016-events_id.txt
+      - P09_22072016-ica.fif
+      - P09_22072016_1kHz-eve.txt
+      - P09_22072016_1kHz-events_id.txt
+      - P09_22072016_MATLAB_1kHz-eve.txt
+      - processed_raw.fif.gz
+      - 1_P10_14-09.mat
+      - bad_channels.txt
+      - bad_ICcomp.txt
+      - P10.eeg
+      - P10.vhdr
+      - P10.vmrk
+      - P10_14092016-ica.fif
+      - P10_14092016_1kHz-eve.txt
+      - P10_14092016_1kHz-events_id.txt
+      - P10_14092016_MATLAB_1kHz-eve.txt
+      - bad_channels.txt
+      - bad_ICcomp.txt
+      - P12.eeg
+      - P12.vhdr
+      - P12.vmrk
+      - P12_01092016-ica.fif
+      - P12_01092016_1kHz-eve.txt
+      - P12_01092016_1kHz-events_id.txt
+      - P12_01092016_MATLAB_1kHz-eve.txt
+      - 1_P13_08-09.mat
+      - 2_P13_08-09.mat
+      - bad_channels.txt
+      - bad_ICcomp.txt
+      - P13.eeg
+      - P13.vhdr
+      - P13.vmrk
+      - P13_08092016-ica.fif
+      - P13_08092016_1kHz-eve.txt
+      - P13_08092016_1kHz-events_id.txt
+      - P13_08092016_MATLAB_1kHz-eve.txt
+      - 1_P14_21-03.mat
+      - P14.eeg
+      - P14.vhdr
+      - P14.vmrk
+      - P14_21032017_1kHz-eve.txt
+      - P14_21032017_MATLAB_1kHz-eve.txt
+    - hilbertEnvelope.m
+    - wordLevelFeatures.m
+    - alignment_data/
+    - surprisal/
+    - transcripts/
+    - word_frequencies/
+    - onsets.mat
+      - AUNP01/
+      - AUNP02/
+      - AUNP03/
+      - AUNP04/
+      - AUNP05/
+      - AUNP06/
+      - AUNP07/
+      - AUNP08/
+      - BROP01/
+      - BROP02/
+      - BROP03/
+      - FLOP01/
+      - FLOP02/
+      - FLOP03/
+      - FLOP04/
+        - AUNP01.lab
+        - AUNP01.TextGrid
+        - AUNP01.txt
+        - AUNP01.wav
+        - clean_AUNP01_35K.txt
+        - AUNP02.lab
+        - AUNP02.TextGrid
+        - AUNP02.txt
+        - AUNP02.wav
+        - clean_AUNP02_35K.txt
+        - AUNP03.lab
+        - AUNP03.TextGrid
+        - AUNP03.txt
+        - AUNP03.wav
+        - clean_AUNP03_35K.txt
+        - AUNP04.lab
+        - AUNP04.TextGrid
+        - AUNP04.txt
+        - AUNP04.wav
+        - clean_AUNP04_35K.txt
+        - AUNP05.lab
+        - AUNP05.TextGrid
+        - AUNP05.txt
+        - AUNP05.wav
+        - clean_AUNP05_35K.txt
+        - AUNP06.lab
+        - AUNP06.TextGrid
+        - AUNP06.txt
+        - AUNP06.wav
+        - clean_AUNP06_35K.txt
+        - AUNP07.lab
+        - AUNP07.TextGrid
+        - AUNP07.txt
+        - AUNP07.wav
+        - clean_AUNP07_35K.txt
+        - AUNP08.lab
+        - AUNP08.TextGrid
+        - AUNP08.txt
+        - AUNP08.wav
+        - clean_AUNP08_35K.txt
+        - BROP01.lab
+        - BROP01.TextGrid
+        - BROP01.txt
+        - BROP01.wav
+        - clean_BROP01_35K.txt
+        - BROP02.lab
+        - BROP02.TextGrid
+        - BROP02.txt
+        - BROP02.wav
+        - clean_BROP02_35K.txt
+        - BROP03.lab
+        - BROP03.TextGrid
+        - BROP03.txt
+        - BROP03.wav
+        - BROP03_beginCorrected.TextGrid
+        - clean_BROP03_35K.txt
+        - clean_FLOP01_35K.txt
+        - FLOP01.lab
+        - FLOP01.TextGrid
+        - FLOP01.txt
+        - FLOP01.wav
+        - FLOP01_corrected121s36.TextGrid
+        - clean_FLOP02_35K.txt
+        - FLOP02.lab
+        - FLOP02.TextGrid
+        - FLOP02.txt
+        - FLOP02.wav
+        - FLOP02_corrected.TextGrid
+        - clean_FLOP03_35K.txt
+        - FLOP03.lab
+        - FLOP03.TextGrid
+        - FLOP03.txt
+        - FLOP03.wav
+        - FLOP03_beginCoreected.TextGrid
+        - clean_FLOP04_35K.txt
+        - FLOP04.lab
+        - FLOP04.TextGrid
+        - FLOP04.txt
+        - FLOP04.wav
+      - word_lists/
+      - .words
+      - AUNP01_probs.txt
+      - AUNP01_probs2.txt
+      - AUNP01_probs3.txt
+      - AUNP02_probs.txt
+      - AUNP02_probs2.txt
+      - AUNP02_probs3.txt
+      - AUNP03_probs.txt
+      - AUNP03_probs2.txt
+      - AUNP03_probs3.txt
+      - AUNP04_probs.txt
+      - AUNP04_probs2.txt
+      - AUNP04_probs3.txt
+      - AUNP05_probs.txt
+      - AUNP05_probs2.txt
+      - AUNP05_probs3.txt
+      - AUNP06_probs.txt
+      - AUNP06_probs2.txt
+      - AUNP06_probs3.txt
+      - AUNP07_probs.txt
+      - AUNP07_probs2.txt
+      - AUNP07_probs3.txt
+      - AUNP08_probs.txt
+      - AUNP08_probs2.txt
+      - AUNP08_probs3.txt
+      - BROP01_probs.txt
+      - BROP01_probs2.txt
+      - BROP01_probs3.txt
+      - BROP02_probs.txt
+      - BROP02_probs2.txt
+      - BROP02_probs3.txt
+      - BROP03_probs.txt
+      - BROP03_probs2.txt
+      - BROP03_probs3.txt
+      - FLOP01_probs.txt
+      - FLOP01_probs2.txt
+      - FLOP01_probs3.txt
+      - FLOP02_probs.txt
+      - FLOP02_probs2.txt
+      - FLOP02_probs3.txt
+      - FLOP03_probs.txt
+      - FLOP03_probs2.txt
+      - FLOP03_probs3.txt
+      - FLOP04_probs.txt
+      - FLOP04_probs2.txt
+      - FLOP04_probs3.txt
+      - get_word_lists.sh
+      - get_word_lists.sh~
+        - .words
+        - AUNP01_probs.words
+        - AUNP02_probs.words
+        - AUNP03_probs.words
+        - AUNP04_probs.words
+        - AUNP05_probs.words
+        - AUNP06_probs.words
+        - AUNP07_probs.words
+        - AUNP08_probs.words
+        - BROP01_probs.words
+        - BROP02_probs.words
+        - BROP03_probs.words
+        - FLOP01_probs.words
+        - FLOP02_probs.words
+        - FLOP03_probs.words
+        - FLOP04_probs.words
+      - originals/
+      - AUNP01.txt
+      - AUNP02.txt
+      - AUNP03.txt
+      - AUNP04.txt
+      - AUNP05.txt
+      - AUNP06.txt
+      - AUNP07.txt
+      - AUNP08.txt
+      - BROP01.txt
+      - BROP02.txt
+      - BROP03.txt
+      - FLOP01.txt
+      - FLOP02.txt
+      - FLOP03.txt
+      - FLOP04.txt
+        - story_1_aun.txt
+        - story_2_bro.txt
+        - story_3_flo.txt
+      - AUNP01_word_freq.txt
+      - AUNP01_word_freq_timed.csv
+      - AUNP02_word_freq.txt
+      - AUNP02_word_freq_timed.csv
+      - AUNP03_word_freq.txt
+      - AUNP03_word_freq_timed.csv
+      - AUNP04_word_freq.txt
+      - AUNP04_word_freq_timed.csv
+      - AUNP05_word_freq.txt
+      - AUNP05_word_freq_timed.csv
+      - AUNP06_word_freq.txt
+      - AUNP06_word_freq_timed.csv
+      - AUNP07_word_freq.txt
+      - AUNP07_word_freq_timed.csv
+      - AUNP08_word_freq.txt
+      - AUNP08_word_freq_timed.csv
+      - BROP01_word_freq.txt
+      - BROP01_word_freq_timed.csv
+      - BROP02_word_freq.txt
+      - BROP02_word_freq_timed.csv
+      - BROP03_word_freq.txt
+      - BROP03_word_freq_timed.csv
+      - FLOP01_word_freq.txt
+      - FLOP01_word_freq_timed.csv
+      - FLOP02_word_freq.txt
+      - FLOP02_word_freq_timed.csv
+      - FLOP03_word_freq.txt
+      - FLOP03_word_freq_timed.csv
+      - FLOP04_word_freq.txt
+      - FLOP04_word_freq_timed.csv

@@ -244,3 +244,7 @@ brainstorm/neuro_tokenizers/base/BrainOmni.pt
 brainstorm/neuro_tokenizers/biocodec_ckpt.pt
 brainstorm/neuro_tokenizers/braintokenizer/BrainTokenizer.pt
 brainstorm/neuro_tokenizers/tiny/BrainOmni.pt
+# Generated training files
+outputs/
+*.pid
+*.bak_exit_code
