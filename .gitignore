@@ -51,6 +51,17 @@ coverage.xml
 .pytest_cache/
 cover/
 
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.blg
+*.lof
+*.log
+*.lot
+*.out
+*.toc
+*.synctex.gz
+
 # Translations
 *.mo
 *.pot

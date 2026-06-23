@@ -177,7 +177,7 @@ class OpenNeuroEEGContinuousDataset(Dataset):
         dataset_name: str,
         segment_length: float = 150.0,
         subsegment_duration: float = 3.0,
-        cache_dir: str = "./data/cache/eeg_continuous",
+        cache_dir: str = "./data/cache/eeg_preprocessed",
         subjects: Optional[Sequence[str]] = None,
         sessions: Optional[Sequence[str]] = None,
         tasks: Optional[Sequence[str]] = None,

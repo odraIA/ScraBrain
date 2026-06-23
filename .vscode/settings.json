@@ -1,0 +1,24 @@
+{
+  "latex-workshop.latex.recipes": [
+    {
+      "name": "tectonic",
+      "tools": [
+        "tectonic"
+      ]
+    }
+  ],
+  "latex-workshop.latex.recipe.default": "tectonic",
+  "latex-workshop.latex.tools": [
+    {
+      "name": "tectonic",
+      "command": "/usr/bin/env",
+      "args": [
+        "XDG_CACHE_HOME=%DIR%/../.cache/tectonic",
+        "/home/odra/miniconda3/envs/biom/bin/tectonic",
+        "--chatter",
+        "minimal",
+        "%DOC_EXT%"
+      ]
+    }
+  ]
+}
