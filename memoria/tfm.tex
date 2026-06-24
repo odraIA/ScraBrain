@@ -42,6 +42,13 @@
 
 \usepackage{booktabs}
 \usepackage{tabularx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{array}
+
+% Evita que LaTeX estire el espacio vertical entre párrafos/listas
+% para forzar que todas las páginas tengan la misma altura.
+\raggedbottom
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %                        DADES DEL TREBALL                                    %
@@ -101,9 +108,10 @@ The main objective is to analyze the technical and experimental feasibility of t
 \input{capitulos/01_introduccion}
 \input{capitulos/02_marco_teorico}
 \input{capitulos/03_estado_del_arte}
-\input{capitulos/04_propuesta_megxl_eeg}
-\input{capitulos/05_evaluacion_experimental}
-\input{capitulos/06_conclusiones_trabajo_futuro}
+\input{capitulos/04_datasets_utilizados.tex}
+\input{capitulos/05_propuesta_megxl_eeg}
+\input{capitulos/06_evaluacion_experimental}
+\input{capitulos/07_conclusiones_trabajo_futuro}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %                                BIBLIOGRAFIA                                 %

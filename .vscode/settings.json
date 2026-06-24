@@ -17,6 +17,10 @@
         "/home/odra/miniconda3/envs/biom/bin/tectonic",
         "--chatter",
         "minimal",
+        "--keep-intermediates",
+        "--keep-logs",
+        "--pass",
+        "bibtex_first",
         "%DOC_EXT%"
       ]
     }

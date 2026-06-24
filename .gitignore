@@ -60,6 +60,7 @@ cover/
 *.lot
 *.out
 *.toc
+*.xdv
 *.synctex.gz
 
 # Translations

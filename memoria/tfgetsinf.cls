@@ -155,7 +155,6 @@
 
 \RequirePackage[justification=centerlast,small,bf,labelsep=colon]{caption}
 
-\RequirePackage{algorithmic}
 \RequirePackage[within=chapter]{newfloat}
 
 \DeclareFloatingEnvironment[fileext=loa,
