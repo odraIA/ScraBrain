@@ -10,8 +10,8 @@ GPU="${EEG_MEG_GPU:-0}"
 WANDB_MODE="${WANDB_MODE:-offline}"
 CHECKPOINT="${CRISS_CROSS_CHECKPOINT:-./checkpoints/baseline/meg-xl-med.ckpt}"
 STAMP="$(date +%Y%m%d_%H%M%S)"
-EXPERIMENT="${EEG_MEG_EXPERIMENT:-megxl_to_all_eeg_with_meg_replay_${STAMP}}"
-LOG_DIR="${EEG_MEG_LOG_DIR:-logs/eeg_reading_listening_megxl_joint}"
+EXPERIMENT="${EEG_MEG_EXPERIMENT:-megxl_to_all_eeg_${STAMP}}"
+LOG_DIR="${EEG_MEG_LOG_DIR:-logs/eeg_reading_listening_megxl}"
 RUN_LOG="${LOG_DIR}/${EXPERIMENT}.log"
 PID_FILE="${LOG_DIR}/${EXPERIMENT}.pid"
 LATEST_LOG="${LOG_DIR}/latest.log"
@@ -32,9 +32,13 @@ if [[ ! -f "$COMPOSE_FILE" ]]; then
   exit 1
 fi
 
-# Keep Docker Compose attached to the container, but launch the complete command
-# with nohup so the training survives terminal disconnection and all output is
-# written to one ordinary log file.
+if [[ ! -f "$CHECKPOINT" ]]; then
+  echo "ERROR: MEG-XL checkpoint not found: $CHECKPOINT" >&2
+  exit 1
+fi
+
+# Docker Compose remains attached to the training container, while nohup places
+# the complete command in the background and redirects all output to RUN_LOG.
 nohup env \
   EEG_GPU="$GPU" \
   WANDB_MODE="$WANDB_MODE" \
@@ -56,6 +60,7 @@ printf '%s\n' "$PID" > "$LATEST_PID"
 ln -sfn "$(basename "$RUN_LOG")" "$LATEST_LOG"
 
 echo "Experiment: $EXPERIMENT"
+echo "Mode: MEG-XL checkpoint -> EEG only (no LibriBrain/MEG replay)"
 echo "GPU: $GPU"
 echo "Checkpoint: $CHECKPOINT"
 echo "PID: $PID"
