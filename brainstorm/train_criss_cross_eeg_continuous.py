@@ -1,10 +1,9 @@
-"""Continuous EEG training with the original MEG-XL model.
+"""Continuous EEG training with optional MEG replay.
 
-This entrypoint keeps the shared EEG training utilities, logging, checkpoints,
-and model, but uses the continuity-aware DataModule. It intentionally follows
-the original MEG-XL preprocessing order: filter at the source sampling rate and
-then resample. Therefore it does not reject ``h_freq=40`` with a final sampling
-rate of 50 Hz; MNE handles anti-alias filtering during resampling.
+By default this is the existing continuous EEG adaptation of MEG-XL. Setting
+``data.mix_eeg_meg=true`` pairs each EEG batch with a MEG batch while keeping the
+same tokenizer, embeddings, Criss-Cross Transformer and masked-token objective.
+The base architecture is not modified.
 """
 
 from __future__ import annotations
@@ -23,6 +22,11 @@ from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 from pytorch_lightning.loggers import CSVLogger, WandbLogger
 
 from brainstorm.data.eeg_continuous_masked_datamodule import MultiEEGDataModule
+from brainstorm.eeg_meg_joint import (
+    JointEEGMEGDataModule,
+    SharedEEGMEGCrissCrossTransformerModule,
+    load_megxl_checkpoint_for_eeg,
+)
 from brainstorm.models.criss_cross_transformer import CrissCrossTransformerModule
 from brainstorm.neuro_tokenizers.factory import load_neuro_tokenizer
 from brainstorm.train_criss_cross_eeg_multi import (
@@ -56,15 +60,20 @@ def main(cfg: DictConfig):
     checkpoint_callback: Optional[ModelCheckpoint] = None
     metrics_callback = MetricsFileCallback(save_dir)
     tokenizer = None
-    datamodule: Optional[MultiEEGDataModule] = None
+    datamodule: Optional[pl.LightningDataModule] = None
     checkpoint_load_report = {"requested": False, "loaded": False}
     wandb_logger = None
     status = "failed"
     error_text: Optional[str] = None
+    mix_eeg_meg = bool(cfg.data.get("mix_eeg_meg", False))
 
     try:
         print("\n" + "=" * 80)
-        print("CONTINUOUS EEG MEG-XL TRAINING")
+        print(
+            "CONTINUOUS EEG + MEG JOINT TRAINING"
+            if mix_eeg_meg
+            else "CONTINUOUS EEG MEG-XL TRAINING"
+        )
         print("=" * 80)
         print("\n=== Configuration ===")
         print(OmegaConf.to_yaml(cfg))
@@ -74,59 +83,72 @@ def main(cfg: DictConfig):
                 f"data.target_sfreq ({cfg.data.target_sfreq}) must match "
                 f"model.sampling_rate ({cfg.model.sampling_rate})."
             )
+        if mix_eeg_meg and not cfg.get("meg_datasets_config", None):
+            raise ValueError(
+                "data.mix_eeg_meg=true requires a non-empty meg_datasets_config."
+            )
 
         print("✓ Config validation passed")
         print(
             "✓ MEG-XL preprocessing order: "
             "source-rate filtering followed by resampling"
         )
+        print(f"✓ EEG/MEG mixing enabled: {mix_eeg_meg}")
 
         torch.set_float32_matmul_precision("high")
         if hasattr(cfg, "seed"):
             pl.seed_everything(int(cfg.seed), workers=True)
             print(f"✓ Random seed set to {cfg.seed}")
 
-        print("\n" + "=" * 80)
-        print("SETTING UP CONTINUOUS EEG DATA")
-        print("=" * 80)
         tokenizer_name = str(cfg.model.get("tokenizer_name", "biocodec"))
-        datamodule = MultiEEGDataModule(
-            datasets_config=OmegaConf.to_container(
-                cfg.datasets_config,
-                resolve=True,
-            ),
-            segment_length=float(cfg.data.segment_length),
-            subsegment_duration=float(
-                cfg.data.get("subsegment_duration", 3.0)
-            ),
-            words_per_segment=int(cfg.data.get("words_per_segment", 50)),
-            window_onset_offset=float(
-                cfg.data.get("window_onset_offset", -0.5)
-            ),
-            cache_dir=str(cfg.data.cache_dir),
-            l_freq=float(cfg.data.l_freq),
-            h_freq=float(cfg.data.h_freq),
-            target_sfreq=float(cfg.data.target_sfreq),
-            batch_size=int(cfg.training.batch_size),
-            num_workers=int(cfg.training.num_workers),
-            pin_memory=bool(cfg.training.pin_memory),
-            persistent_workers=bool(cfg.training.persistent_workers),
-            use_recording_sampler=bool(cfg.training.use_recording_sampler),
-            sampler_seed=int(cfg.training.sampler_seed),
-            debug_mode=bool(cfg.data.get("debug_mode", False)),
-            max_channel_dim=cfg.data.get("max_channel_dim", None),
-            infer_max_channel_dim=bool(
-                cfg.data.get("infer_max_channel_dim", True)
-            ),
-            recording_subsample_prop=cfg.data.get(
-                "recording_subsample_prop",
-                None,
-            ),
-            allow_missing_word_alignment=bool(
-                cfg.data.get("allow_missing_word_alignment", False)
-            ),
-            tokenizer_name=tokenizer_name,
+        print("\n" + "=" * 80)
+        print(
+            "SETTING UP CONTINUOUS EEG AND MEG DATA"
+            if mix_eeg_meg
+            else "SETTING UP CONTINUOUS EEG DATA"
         )
+        print("=" * 80)
+
+        if mix_eeg_meg:
+            datamodule = JointEEGMEGDataModule(cfg)
+        else:
+            datamodule = MultiEEGDataModule(
+                datasets_config=OmegaConf.to_container(
+                    cfg.datasets_config,
+                    resolve=True,
+                ),
+                segment_length=float(cfg.data.segment_length),
+                subsegment_duration=float(
+                    cfg.data.get("subsegment_duration", 3.0)
+                ),
+                words_per_segment=int(cfg.data.get("words_per_segment", 50)),
+                window_onset_offset=float(
+                    cfg.data.get("window_onset_offset", -0.5)
+                ),
+                cache_dir=str(cfg.data.cache_dir),
+                l_freq=float(cfg.data.l_freq),
+                h_freq=float(cfg.data.h_freq),
+                target_sfreq=float(cfg.data.target_sfreq),
+                batch_size=int(cfg.training.batch_size),
+                num_workers=int(cfg.training.num_workers),
+                pin_memory=bool(cfg.training.pin_memory),
+                persistent_workers=bool(cfg.training.persistent_workers),
+                use_recording_sampler=bool(cfg.training.use_recording_sampler),
+                sampler_seed=int(cfg.training.sampler_seed),
+                debug_mode=bool(cfg.data.get("debug_mode", False)),
+                max_channel_dim=cfg.data.get("max_channel_dim", None),
+                infer_max_channel_dim=bool(
+                    cfg.data.get("infer_max_channel_dim", True)
+                ),
+                recording_subsample_prop=cfg.data.get(
+                    "recording_subsample_prop",
+                    None,
+                ),
+                allow_missing_word_alignment=bool(
+                    cfg.data.get("allow_missing_word_alignment", False)
+                ),
+                tokenizer_name=tokenizer_name,
+            )
         datamodule.setup("fit")
 
         num_epochs = cfg.training.get("num_epochs", None)
@@ -140,7 +162,10 @@ def main(cfg: DictConfig):
                 "Set either training.num_epochs or training.max_steps."
             )
 
-        steps_per_epoch = len(datamodule.train_dataloader())
+        if mix_eeg_meg:
+            steps_per_epoch = datamodule.num_training_batches()
+        else:
+            steps_per_epoch = len(datamodule.train_dataloader())
         training_steps = (
             int(max_steps)
             if max_steps is not None
@@ -171,23 +196,45 @@ def main(cfg: DictConfig):
         print("\n" + "=" * 80)
         print("CREATING MEG-XL MODEL")
         print("=" * 80)
-        model = CrissCrossTransformerModule(
-            tokenizer=tokenizer,
-            latent_dim=int(cfg.model.latent_dim),
-            num_layers=int(cfg.model.num_layers),
-            num_heads=int(cfg.model.num_heads),
-            vocab_size=int(cfg.model.vocab_size),
-            learning_rate=float(cfg.training.learning_rate),
-            warmup_steps=int(cfg.training.warmup_steps),
-            training_steps=training_steps,
-            mask_duration=float(cfg.model.get("mask_duration", 3.0)),
-            num_subsegments_to_mask=int(
+        model_kwargs = {
+            "tokenizer": tokenizer,
+            "latent_dim": int(cfg.model.latent_dim),
+            "num_layers": int(cfg.model.num_layers),
+            "num_heads": int(cfg.model.num_heads),
+            "vocab_size": int(cfg.model.vocab_size),
+            "learning_rate": float(cfg.training.learning_rate),
+            "warmup_steps": int(cfg.training.warmup_steps),
+            "training_steps": training_steps,
+            "mask_duration": float(cfg.model.get("mask_duration", 3.0)),
+            "num_subsegments_to_mask": int(
                 cfg.model.get("num_subsegments_to_mask", 20)
             ),
-            sampling_rate=int(cfg.model.sampling_rate),
-            fourier_pos_dim=int(cfg.model.get("fourier_pos_dim", 250)),
-            num_sensor_types=int(cfg.model.get("num_sensor_types", 3)),
-        )
+            "sampling_rate": int(cfg.model.sampling_rate),
+            "fourier_pos_dim": int(cfg.model.get("fourier_pos_dim", 250)),
+            "num_sensor_types": int(cfg.model.get("num_sensor_types", 3)),
+        }
+        if mix_eeg_meg:
+            model = SharedEEGMEGCrissCrossTransformerModule(
+                **model_kwargs,
+                meg_loss_weight=float(cfg.joint.get("meg_loss_weight", 1.0)),
+                eeg_loss_weight=float(cfg.joint.get("eeg_loss_weight", 1.0)),
+                eeg_as_meg_sensor_type=bool(
+                    cfg.model.get("eeg_as_meg_sensor_type", True)
+                ),
+                eeg_meg_sensor_type_id=int(
+                    cfg.model.get("eeg_meg_sensor_type_id", 1)
+                ),
+            )
+            print(
+                "✓ Joint mode uses the same tokenizer, RVQ projector, "
+                "Criss-Cross Transformer and output head"
+            )
+            print(
+                "✓ EEG uses MEG sensor-type embedding: "
+                f"{bool(cfg.model.get('eeg_as_meg_sensor_type', True))}"
+            )
+        else:
+            model = CrissCrossTransformerModule(**model_kwargs)
 
         if bool(cfg.model.get("use_gradient_checkpointing", False)):
             model.enable_gradient_checkpointing()
@@ -208,10 +255,20 @@ def main(cfg: DictConfig):
             }
             print("✓ Training from scratch")
         else:
-            checkpoint_load_report = load_partial_checkpoint(
-                model,
-                init_checkpoint,
-            )
+            if bool(cfg.model.get("initialize_eeg_from_meg", False)):
+                checkpoint_load_report = load_megxl_checkpoint_for_eeg(
+                    model,
+                    init_checkpoint,
+                    copy_meg_type_to_eeg=True,
+                    meg_sensor_type_id=int(
+                        cfg.model.get("eeg_meg_sensor_type_id", 1)
+                    ),
+                )
+            else:
+                checkpoint_load_report = load_partial_checkpoint(
+                    model,
+                    init_checkpoint,
+                )
             print("Checkpoint load report:")
             print(json.dumps(checkpoint_load_report, indent=2)[:5000])
 
@@ -248,9 +305,10 @@ def main(cfg: DictConfig):
 
         callbacks = [
             LearningRateMonitor(logging_interval="step"),
-            SamplerVerificationCallback(),
             metrics_callback,
         ]
+        if not mix_eeg_meg:
+            callbacks.insert(1, SamplerVerificationCallback())
         checkpoint_callback = ModelCheckpoint(
             dirpath=str(checkpoint_dir),
             filename="checkpoint-{epoch:02d}-{step:06d}",
@@ -299,7 +357,11 @@ def main(cfg: DictConfig):
                 )
 
         print("\n" + "=" * 80)
-        print("STARTING CONTINUOUS EEG TRAINING")
+        print(
+            "STARTING CONTINUOUS EEG + MEG TRAINING"
+            if mix_eeg_meg
+            else "STARTING CONTINUOUS EEG TRAINING"
+        )
         print("=" * 80)
         trainer.fit(
             model,
