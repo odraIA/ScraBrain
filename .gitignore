@@ -231,7 +231,12 @@ __pycache__/
 datasets/
 checkpoints/
 logs/
-results/
+
+# Ignorar todos los resultados salvo los de Weissbart
+results/*
+!results/weissbart_three_way/
+!results/weissbart_three_way/**
+
 promotions/
 wandb/
 hf_cache/

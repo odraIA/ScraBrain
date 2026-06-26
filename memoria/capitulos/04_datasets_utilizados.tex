@@ -1,9 +1,335 @@
 \chapter{Datasets utilizados}
 
-\section{LibriBrain}
+Como se ha descrito anteriormente, una de las limitaciones de la decodificación cerebral no invasiva es la disponibilidad de datos. La adquisición de EEG y sobre todo de MEG requiere equipamiento especializado, tiempo de preparación y la participación de voluntarios en sesiones que pueden resultar largas. Además, los conjuntos de datos disponibles presentan diferencias importantes en el número y la posición de los sensores, la frecuencia de muestreo, el idioma, la tarea realizada y la cantidad de información disponible por participante.
 
-\section{Datasets de lenguaje de EEG}
-\subsection{Datasets de escucha}
+% En este trabajo se han combinado varios conjuntos de datos con el objetivo de
+% aumentar la cantidad y la diversidad de registros disponibles. No obstante, no
+% todos desempeñan la misma función dentro del proceso experimental. LibriBrain
+% representa el dominio MEG sobre el que se desarrollaron los modelos de contexto
+% largo utilizados como punto de partida. A continuación, cinco conjuntos de EEG
+% se emplean para entrenar la adaptación a esta nueva modalidad. Finalmente, el
+% conjunto de Weissbart et al. se reserva para realizar el \textit{fine-tuning}
+% supervisado y evaluar la clasificación de palabras durante la escucha de habla
+% continua.
+
+En este trabajo era necesario combinar varios conjuntos de datos para aumentar la cantidad y la diversidad de registros disponibles. No obstante, diferentes  datasets desempeñan distintas funciones dentro del proceso experimental. Los cinco conjuntos de EEG se emplean para entrenar la adaptación de MEG-XL a esta nueva modalidad. Finalmente, el conjunto de Weissbart et al. se reserva para realizar el \textit{fine-tuning} supervisado y evaluar la clasificación de palabras durante la escucha de habla continua.
+
+% Los cinco conjuntos utilizados durante el entrenamiento se dividen en dos
+% grupos. En primer lugar se incorporan los conjuntos de lectura, ZuCo 2.0 y
+% Nieuwland et al. Posteriormente se introducen los conjuntos de escucha,
+% SparrKULee, OpenNeuro ds007808 y OpenNeuro ds004408. La adaptación comienza
+% por lectura porque ofrece condiciones experimentales relativamente controladas
+% y permite comprobar inicialmente el funcionamiento del modelo con EEG
+% relacionado con procesamiento lingüístico. Después se aproxima el dominio de
+% entrenamiento a la tarea final mediante registros obtenidos durante la percepción
+% auditiva del habla.
+
+Los cinco conjuntos utilzizados en entrenamiento se dividen en dos grupos en función de la tarea realizada. En primer lugar se incorporan los conjuntos de lectura: ZuCo 2.0 y el de Nieuwland et al. Posteriormente se introducen los conjuntos de escucha: SparrKULee, OpenNeuro ds007808 y OpenNeuro ds004408. La adaptación comienza por lectura porque ofrece condiciones de experimentación relativamente controladas y permite realizar un primer entrenamiento con EEG relacionado con procesamiento lingüístico. Después se aproxima el dominio de entrenamiento a la tarea final mediante registros obtenidos durante la percepción auditiva del habla.
+
+% A pesar de sus diferencias, todos estos conjuntos se transforman a una interfaz
+% común. Se conservan únicamente los canales EEG, junto con sus posiciones y una
+% máscara que diferencia los sensores reales de los añadidos para igualar
+% dimensiones. La señal se filtra inicialmente en su frecuencia de muestreo
+% original y después se remuestrea a 50 Hz. A partir de cada grabación se extraen
+% ventanas completas y no solapadas de 150 segundos. Los fragmentos finales que
+% no alcanzan esta duración se descartan para evitar introducir muestras repetidas
+% o relleno artificial.
+
+A pesar de las diferencias entre ellos, todos estos conjuntos se transforman a una interfaz común. Se conservan únicamente los canales EEG, junto con sus posiciones y una máscara para que el modelo tenga un único número de sensores de entrada, de forma que se enmascaran los sensores que no están presentes en un conjunto concreto. La señal se filtra inicialmente en su frecuencia de muestreo original y después se remuestrea a 50 Hz -- al igual que en MEG-XL. A partir de cada grabación se extraen ventanas completas y no solapadas de 150 segundos. Los fragmentos finales que no alcanzan esta duración se descartan.
+
+% Durante esta etapa no se utilizan las palabras, las transcripciones ni las
+% alineaciones lingüísticas como etiquetas. BioCodec transforma la señal en una
+% secuencia discreta de códigos neuronales y el modelo aprende a reconstruir los
+% códigos que han sido ocultados. De esta forma, los cinco conjuntos pueden
+% combinarse aunque estén asociados a idiomas y paradigmas experimentales
+% diferentes. El objetivo no es que el modelo memorice el texto presentado, sino
+% que aprenda regularidades temporales y espaciales de la señal EEG que puedan
+% transferirse posteriormente a una tarea supervisada.
+
+Durante esta etapa no se entrena utilizando ni las palabras, ni las transcripciones, ni las alineaciones lingüísticas como etiquetas. BioCodec transforma la señal en una secuencia discreta de códigos neuronales y el modelo aprende a reconstruir los códigos que han sido ocultados. De esta forma, los cinco conjuntos pueden combinarse aunque estén asociados a idiomas y paradigmas experimentales diferentes. Esto se hace para que el modelo aprenda regularidades temporales y espaciales de la señal EEG que puedan transferirse posteriormente a una tarea supervisada.
+
+
+\section{Selección de conjuntos de entrenamiento}
+
+MEG-XL se preentrena de forma autosupervisada con aproximadamente 300 horas de MEG procedentes de CamCAN, MOUS y SMN4Lang \cite{jayalath2026megxl}. Estos conjuntos incluyen diferentes participantes, idiomas y tareas. Posteriormente, el modelo se ajusta y evalúa sobre conjuntos de escucha continua, como MEG-MASC, Armeni et al. y LibriBrain \cite{gwilliams2023megmasc,armeni2022meg,ozdogan2025libribrain}, tal como se resume en la Tabla~\ref{tab:datasets_megxl}.
+
+\begin{table}[htbp]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.18}
+\begin{tabularx}{\textwidth}{
+    >{\raggedright\arraybackslash}p{1.65cm}
+    >{\centering\arraybackslash}p{0.8cm}
+    >{\raggedright\arraybackslash}p{1.95cm}
+    >{\centering\arraybackslash}p{1.45cm}
+    >{\centering\arraybackslash}p{1.05cm}
+    >{\centering\arraybackslash}p{1.15cm}
+    >{\centering\arraybackslash}p{1.2cm}
+    >{\centering\arraybackslash}X
+}
+\toprule
+\textbf{Dataset} &
+\textbf{Tipo} &
+\textbf{Tarea} &
+\textbf{Idioma} &
+\textbf{Sujetos} &
+\textbf{Sensores} &
+\textbf{Duración} &
+\textbf{Uso en MEG-XL} \\
+\midrule
+
+CamCAN &
+MEG &
+Reposo y tarea sensoriomotora &
+No aplica &
+$\sim$700 &
+306 &
+$\sim$160 h &
+Preentrenamiento \\
+
+MOUS &
+MEG &
+Escucha de oraciones &
+Neerlandés &
+104 &
+275 &
+$\sim$81 h &
+Preentrenamiento \\
+
+SMN4Lang &
+MEG &
+Escucha de habla natural &
+Mandarín &
+12 &
+306 &
+$\sim$72 h &
+Preentrenamiento \\
+
+\midrule
+
+MEG-MASC &
+MEG &
+Escucha de historias &
+Inglés &
+27 &
+208 &
+54 h &
+Ajuste y evaluación \\
+
+Armeni et al. &
+MEG &
+Escucha de audiolibros &
+Inglés &
+3 &
+269 &
+30 h &
+Ajuste y evaluación \\
+
+LibriBrain &
+MEG &
+Escucha de audiolibros &
+Inglés &
+1 &
+306 &
+52,32 h &
+Ajuste y evaluación \\
+
+\bottomrule
+\end{tabularx}
+
+\vspace{2pt}
+\begin{minipage}{\textwidth}
+\scriptsize
+\end{minipage}
+
+\caption{Conjuntos de datos utilizados para el preentrenamiento y la
+evaluación de MEG-XL.}
+\label{tab:datasets_megxl}
+\end{table}
+
+Para adaptar este procedimiento a EEG se buscaron conjuntos de lectura o escucha con señal suficientemente continua para extraer ventanas de 150 segundos. Se descartaron datasets formados únicamente por palabras o frases aisladas, aquellos que no proporcionaban la señal EEG completa y las tareas de producción oral, debido a la posible presencia de artefactos musculares. Se vio la necesidad de incluir datasets de lectura debido a la falta de conjuntos de escucha continua con un número suficiente de horas de entrenamiento.  También se revisó la lateralidad de los participantes, priorizando sujetos diestros cuando esta información estaba disponible. Finalmente, se seleccionaron ZuCo 2.0 y Nieuwland et al. para lectura, y SparrKULee, OpenNeuro ds007808 y OpenNeuro ds004408 para escucha.
+
+\section{Datasets de entrenamiento}
+
 \subsection{Datasets de lectura}
 
+\subsubsection{ZuCo 2.0}
+
+ZuCO 2.0 es un conjunto de EEG y seguimiento ocular simultáneo registrado durante la lectura de frases en inglés \cite{hollenstein2020zuco2}. Participaron 18 personas, que leyeron un total de 739 frases. De estas, 349 pertenecen a una tarea de lectura natural y 390 a una tarea de anotación en la que los participantes debían buscar relaciones semánticas concretas.
+
+La señal se adquirió mediante un sistema de 128 electrodos a 500 Hz. Tras eliminar los canales utilizados para registrar actividad ocular, facial y del cuello, el conjunto proporciona 105 canales EEG. La adquisición simultánea de la mirada permite conocer qué palabra estaba observando el participante y durante cuánto tiempo. Esto resulta especialmente importante en lectura natural, porque las palabras no se muestran durante intervalos fijos, ya que cada persona puede detenerse, saltar una palabra o volver a una parte anterior de la frase.
+
+En este trabajo se utiliza únicamente la tarea de lectura natural, denominada NR. La tarea específica de anotación se descarta porque introduce una búsqueda semántica explícita que modifica el proceso normal de lectura. La copia preprocesada empleada contiene aproximadamente 11.1 horas de señal NR.
+
+La separación entre entrenamiento y validación se realiza por participante. Un 15\,\% de los sujetos se reserva de forma determinista para validación, utilizando una semilla fija. De esta manera se evita que segmentos de una misma persona aparezcan en ambos subconjuntos.
+
+\subsubsection{Nieuwland et al.}
+
+El conjunto que proponen Nieuwland et al. procede de un estudio de replicación a gran escala sobre predicción lingüística durante la lectura \cite{nieuwland2018large}. El experimento fue realizado de forma coordinada en nueve laboratorios y reunió datos válidos de 334 participantes. Esta distribución multicéntrica convierte al conjunto en uno de los registros EEG de lectura con mayor número de sujetos disponibles públicamente.
+
+Los participantes de este estudio leían frases en inglés presentadas palabra por palabra. El experimento principal, denominado \textit{DeLong}, estudiaba cómo la probabilidad de aparición de una palabra afectaba a la respuesta N400. Cada contexto conducía a sustantivos con distintos grados de predictibilidad y estaba precedido por el artículo correspondiente. El conjunto también incluye una tarea de control formada por frases más breves.
+
+A diferencia de la lectura libre de ZuCo, la presentación visual estaba temporizada. Generalmente cada palabra se mostraba durante 200 ms y era seguida por un intervalo vacío de 300 ms. Esta presentación mantiene una velocidad de dos palabras por segundo y proporciona una referencia temporal común entre participantes.
+
+Por otro lado, al tratarse de un estudio realizado en varios laboratorios, el número de canales, la frecuencia de muestreo y el equipo utilizado no son idénticos en todos los registros. El análisis ERP original redujo los datos a un conjunto común de electrodos para facilitar la comparación entre centros. En este trabajo no se reproduce esa reducción orientada al análisis de la N400. En su lugar se conservan los canales identificados como EEG y se utiliza una máscara de sensores para representar los distintos montajes dentro del mismo modelo.
+
+Se emplean ambas tareas existentes. Las grabaciones se procesan como señal continua, sin proporcionar al modelo la identidad de las palabras ni su probabilidad de cierre. En conjunto, el estudio original aporta alrededor de 170 horas de EEG, aunque la cantidad efectiva utilizable depende de los registros que se encuentran disponibles en un formato compatible.
+
+En este caso la validación vuelve a realizarse por participante. Se reserva un 10\,\% de los sujetos mediante una división determinista. Esto resulta especialmente importante en un conjunto multicéntrico, ya que obliga al modelo a enfrentarse durante la validación a personas y registros que no ha observado previamente.
+
+\subsection{Datasets de escucha}
+
+\subsubsection{SparrKULee}
+
+
+SparrKULee es el primer dataset de escucha continua en el entrenamiento, se trata de un repositorio de respuestas EEG evocadas por habla creado en KU Leuven \cite{accou2024sparrkulee}. Contiene datos de 85 participantes jóvenes, con audición normal y neerlandés o flamenco como lengua materna. Cada participante escuchó entre 90 y 150 minutos de habla natural, distribuidos en varios bloques de aproximadamente 15 minutos.
+
+La adquisición se realizó con 64 canales EEG mediante un sistema BioSemi ActiveTwo. El conjunto completo reúne alrededor de 168 horas de señal. La mayor parte corresponde a narraciones sin ruido, aunque también algún fragmento de habla presentada en condiciones de ruido. Esta combinación se diseñó para estudiar el seguimiento cortical del habla y para entrenar modelos de codificación, decodificación y correspondencia entre EEG y audio.
+
+En el entrenamiento se selecciona solo la tarea \textit{listeningActive}. Los registros se procesan como secuencias continuas y se transforman a ventanas de 150 segundos. No se utilizan los atributos acústicos calculados por los autores ni las etiquetas de correspondencia entre segmentos.
+
+Para la validación se reservan cinco participantes completos. Esta partición mantiene separados los sujetos de entrenamiento y permite comprobar la capacidad de generalización dentro de un sistema de adquisición homogéneo.
+
+\subsubsection{JapanEEG (OpenNeuro ds007808)}
+
+OpenNeuro ds007808, también denominado JapanEEG, es un conjunto multimodal de gran escala orientado al estudio del habla \cite{sato2026japaneeg}. Incluye EEG, electromiografía facial y audio sincronizados de tres hablantes nativos de japonés. Los datos se registraron durante varios meses y mediante tres sistemas de adquisición diferentes, con configuraciones comprendidas entre 62 y 128 canales EEG.
+
+El conjunto al completo supera las 1000 horas pero está dominado por una tarea de producción oral de vocabulario abierto. Por suerte, también contiene tareas de escucha y habla encubierta. Tiene una alta profundidad por participante, lo que permite estudiar variaciones entre sesiones, días y dispositivos que no aparecen en conjuntos más breves.
+
+En este trabajo no se utiliza la tarea de producción oral \textit{speechopen} pese a que represente la mayor parte del conjunto, ya que introduce actividad muscular facial y articulatoria. Además, esta tarea se aleja del objetivo de decodificar palabras percibidas durante la escucha.
+
+De este conjunto se seleccionan las tareas \textit{listening} y \textit{listeningcovert}. La primera contiene aproximadamente 33,8 horas de grabaciones de escucha. La segunda contiene cerca de 167 horas de registros en los que se alternan periodos de escucha y repetición mental. En estos registros se conserva la grabación completa como contexto, pero únicamente los intervalos etiquetados como escucha pueden seleccionarse como objetivo de reconstrucción. Los periodos de habla encubierta ayudan a mantener la continuidad temporal, pero no contribuyen directamente a la pérdida aplicada sobre los tokens enmascarados.
+
+Esta decisión se tomó para aprovechar una parte considerable de las sesiones sin confundir percepción auditiva y producción imaginada. Al mismo tiempo, introduce un conjunto profundo y longitudinal que complementa el mayor número de sujetos de SparrKULee. Las particiones de validación se realizan mediante sesiones completas, de modo que una misma sesión no se divide entre entrenamiento y validación.
+
+\subsubsection{OpenNeuro ds004408}
+
+OpenNeuro ds004408 contiene respuestas EEG registradas mientras 19 participantes escuchaban habla continua y natural en inglés. El conjunto fue utilizado originalmente para estudiar tanto el seguimiento cortical de propiedades fonéticas como el procesamiento semántico de palabras dentro de una narración \cite{diliberto2015phoneme,broderick2018semantic}.
+
+Los participantes escucharon fragmentos de un audiolibro mientras se registraba la actividad mediante un sistema EEG de alta densidad. Cada persona dispone de 20 bloques de aproximadamente tres minutos, lo que produce 380 grabaciones y alrededor de 20,6 horas de señal. Los registros contienen 128 canales EEG y fueron adquiridos originalmente a 512 Hz.
+
+Este conjunto resulta especialmente relevante porque combina habla natural, narración en inglés y un número de participantes superior al de los conjuntos profundos de un único individuo. Además, los trabajos asociados han mostrado que su señal refleja propiedades del habla a distintos niveles, desde la estructura acústica y fonética hasta la relación semántica entre una palabra y su contexto.
+
+En el entrenamiento se utiliza la tarea completa de escucha. Cada bloque se filtra, se remuestrea y se divide en ventanas continuas siguiendo el mismo procedimiento aplicado en el resto de los conjuntos. No se incorporan al objetivo las representaciones acústicas, los fonemas ni las medidas de disimilitud semántica empleadas en los estudios originales.
+
+Los participantes 17, 18 y 19 se reservan para validación. Esta división proporciona una evaluación sobre sujetos no utilizados durante el entrenamiento y mantiene el resto de las grabaciones disponible para aprender representaciones de escucha en inglés.
+
+\section{Dataset de fine-tuning: Weissbart et al.}
+
+Una vez realizado el entrenamiento con los cinco conjuntos anteriores, el modelo se ajusta sobre el conjunto de Weissbart et al. \cite{weissbart2020surprisal}. Este conjunto contiene EEG de 13 participantes mientras escuchaban narraciones continuas en inglés. La señal se registró con 64 canales a 1000 Hz y los estímulos se dividieron en 15 fragmentos de historias. En total se dispone de aproximadamente 520 minutos de escucha, equivalentes a unas 8,7 horas de estímulo.
+
+El estudio original analizaba cómo la actividad cortical seguía la \textit{surprisal} o grado de sorpresa asociado a cada palabra. Para ello, las narraciones fueron alineadas temporalmente palabra por palabra. Estas anotaciones hacen que el conjunto sea apropiado para la etapa supervisada del trabajo, ya que permiten extraer una respuesta EEG concreta alrededor del inicio de cada elemento lingüístico.
+
+A diferencia del entrenamiento continuo, Weissbart se utiliza en modo \textit{word-aligned}. Para cada palabra se obtiene una ventana de tres segundos que comienza 0,5 segundos antes de su aparición y termina 2,5 segundos después. La parte anterior al inicio permite estimar una línea base y conserva información sobre el contexto inmediatamente precedente. La parte posterior incluye la respuesta cerebral asociada a la percepción y procesamiento de la palabra.
+
+Cada ventana se corrige respecto a su línea base, se normaliza de forma robusta y se limita a un rango determinado para reducir la influencia de valores extremos. Posteriormente se concatenan 50 palabras consecutivas. Como cada una aporta tres segundos, la entrada completa vuelve a tener una duración de 150 segundos. De esta manera se mantiene el contexto largo utilizado durante el entrenamiento, pero ahora cada subsegmento está asociado a una palabra conocida.
+
+Las palabras se representan mediante embeddings obtenidos con T5. El modelo neuronal genera una representación para cada ventana EEG y una proyección aprende a aproximarla al embedding lingüístico correcto. La función de pérdida contrastiva acerca las parejas EEG--palabra correspondientes y separa las combinaciones incorrectas. Durante la evaluación se comprueba si la palabra verdadera aparece entre las primeras posiciones recuperadas dentro de vocabularios de distinto tamaño.
+
+Los datos se dividen en entrenamiento, validación y test siguiendo una proporción de 80/10/10. La división no se realiza de manera independiente para cada participante, sino a partir del fragmento textual formado por las 50 palabras. Por tanto, si varias personas han escuchado el mismo fragmento, todas sus repeticiones se asignan a la misma partición. Esta precaución evita que el modelo vea durante el entrenamiento exactamente la misma secuencia de palabras que después aparece en validación o prueba.
+
+La elección de Weissbart permite que el ajuste final se realice sobre escucha continua, que es el dominio objetivo del trabajo. Además, su alineación temporal hace posible pasar de un entrenamiento autosupervisado sobre señal continua a una tarea concreta de clasificación de palabras. Así, el modelo primero aprende una representación general a partir de los cinco conjuntos EEG y después especializa esa representación para recuperar contenido lingüístico.
+
 \section{Tabla resumen}
+
+La Tabla~\ref{tab:datasets_utilizados} resume las principales características de
+los conjuntos descritos y la función que desempeña cada uno dentro del trabajo.
+
+\begin{table}[htbp]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.18}
+\begin{tabularx}{\textwidth}{
+    >{\raggedright\arraybackslash}p{2.05cm}
+    >{\centering\arraybackslash}p{0.8cm}
+    >{\raggedright\arraybackslash}p{1.95cm}
+    >{\centering\arraybackslash}p{1.65cm}
+    >{\centering\arraybackslash}p{1.1cm}
+    >{\centering\arraybackslash}p{1.45cm}
+    >{\centering\arraybackslash}p{1.45cm}
+    >{\centering\arraybackslash}X
+}
+\toprule
+\textbf{Dataset} &
+\textbf{Tipo} &
+\textbf{Tarea} &
+\textbf{Idioma} &
+\textbf{Sujetos} &
+\textbf{Sensores} &
+\textbf{Duración} &
+\textbf{Uso en el trabajo} \\
+\midrule
+
+LibriBrain &
+MEG &
+Escucha &
+Inglés &
+1 &
+306 &
+52,32 h &
+Nada \\
+
+ZuCo 2.0 &
+EEG &
+Lectura natural &
+Inglés &
+18 &
+105 &
+11,1 h NR &
+Entrenamiento \\
+
+Nieuwland et al. &
+EEG &
+Lectura temporizada &
+Inglés &
+334 &
+$\geq 32$ &
+$\sim$170 h &
+Entrenamiento \\
+
+SparrKULee &
+EEG &
+Escucha &
+Neerlandés &
+85 &
+64 &
+168 h &
+Entrenamiento \\
+
+OpenNeuro\newline ds007808 &
+EEG &
+Escucha &
+Japonés &
+3 &
+62--128 &
+33,8 h +\newline 167,0 h de contexto &
+Entrenamiento \\
+
+OpenNeuro\newline ds004408 &
+EEG &
+Escucha &
+Inglés &
+19 &
+128 &
+20,6 h &
+Entrenamiento \\
+
+Weissbart et al. &
+EEG &
+Escucha continua &
+Inglés &
+13 &
+64 &
+$\sim$8,7 h &
+Fine-\allowbreak tuning \\
+
+\bottomrule
+\end{tabularx}
+\caption{Resumen de los conjuntos de datos utilizados y su función dentro del
+proceso experimental. En ds007808, las horas de
+\textit{listeningcovert} corresponden a grabaciones completas utilizadas como
+contexto y no a 167 horas de objetivos exclusivamente auditivos.}
+\label{tab:datasets_utilizados}
+\end{table}

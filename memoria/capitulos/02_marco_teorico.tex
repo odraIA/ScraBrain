@@ -11,7 +11,7 @@ Durante los últimos años el interés por este tipo de sistemas ha aumentado co
 
 De forma más o menos general, una BCI se puede dividir en varias etapas. En primer lugar, la actividad cerebral se registra mediante una modalidad de adquisición, como la electroencefalografía, magneroencefalografía o electrocorticografía (descritas más adelante). Después, la señal obtenida se preprocesa para reducir ruido, artefactos y diferencias de escala. Sobre estos datos se extrae una representación que conserve la información relevante para la tarea. Finalmente, un modelo de decodificación transforma dicha representación en una predicción y, en los sistemas en línea, esta predicción se utiliza para actuar sobre un dispositivo o proporcionar \emph{feedback} al usuario.
 
-No todas las BCIs persiguen el mismo objetivo, algunas se basan en reconocer actividad generada voluntariamente por el usuario, como la imaginación motora o el habla imaginada. También existen sistemas pasivos que no buscan ejecutar una orden, sino estimar estados como la carga cognitiva, la atención o la fatiga. Dentro de esta variedad de aplicaciones, la decodificación cerebral del lenguaje es una de las líneas de investigación más ambiciosas, ya que pretende recuperar información lingüística directamente a partir de la actividad neuronal.
+No todas las BCIs persiguen el mismo objetivo, algunas se basan en reconocer actividad generada voluntariamente por el usuario, como la imaginación motora o el habla imaginada. También existen sistemas pasivos que, a diferencia de los anteriores, no buscan ejecutar una orden, sino estimar estados como la carga cognitiva, la atención o la fatiga. Dentro de esta variedad de aplicaciones, la decodificación cerebral del lenguaje es una de las líneas de investigación más ambiciosas, ya que pretende recuperar información lingüística directamente a partir de la actividad neuronal.
 
 \subsection{Decodificación cerebral del lenguaje}
 
@@ -62,7 +62,7 @@ Por otro lado, las señales EEG pueden contaminarse con actividad que no procede
 
 \subsection{Magnetoencefalografía}
 
-Por su contraparte, MEG registra los campos magnéticos generados por la actividad neuronal. Estos campos detectados son extremadamente débiles, normalmente del orden de femtoteslas, por lo que se necesitan sensores muy sensibles y salas completamente protegidas a inferencias magnéticas externas. Los sistemas tradicionales utilizan dispositivos superconductores de interferencia cuántica, conocidos como SQUID. Asimismo se están desarrollando sistemas basados en magnetómetros de bombeo óptico, que permiten situar los sensores más cerca de la cabeza y ofrecen nuevas posibilidades para dispositivos más flexibles. 
+Por su contraparte, MEG registra los campos magnéticos generados por la actividad neuronal. Estos campos detectados son extremadamente débiles, normalmente del orden de femtoteslas, por lo que se necesitan sensores muy sensibles y salas completamente protegidas a inferencias magnéticas externas. Los sistemas tradicionales utilizan dispositivos superconductores de interferencia cuántica, conocidos como SQUID. Asimismo se están desarrollando sistemas basados en magnetómetros de bombeo óptico, que permiten situar los sensores más cerca de la cabeza y ofrecen nuevas posibilidades para dispositivos más flexibles.
 
 Los sistemas MEG suelen tener 2 tipos de sensores: magnetómetros y gradiómetros. Los magnetómetros miden directamente la intensidad del campo magnético, mientras que los gradiómetros registran diferencias espaciales del campo y ayudan a reducir interferencias externas. Un equipo MEG de cuerpo completo puede contener más de trescientos canales distribuidos alrededor de la cabeza. Por ejemplo, LibriBrain fue registrado con un sistema MEGIN Triux Neo de 306 canales \cite{ozdogan2025libribrain}.
 
@@ -91,9 +91,9 @@ EEG y MEG comparten su carácter no invasivo y su elevada resolución temporal, 
         \hline
         Resolución temporal & Elevada, normalmente del orden de milisegundos. & Elevada, normalmente del orden de milisegundos. \\
         \hline
-        Resolución espacial & Limitada por la conducción de volumen y la referencia. & Generalmente superior, con menor distorsión causada por el cráneo. \\
+        Resolución espacial & Limitada por la conducción de volumen y la referencia. & Superior, con menor distorsión causada por el cráneo. \\
         \hline
-        Sensibilidad a fuentes & Sensible a fuentes radiales y tangenciales. & Principalmente sensible a fuentes tangenciales en sistemas convencionales. \\
+        Sensibilidad a fuentes & Sensible a fuentes radiales y tangenciales. & Sensible a fuentes tangenciales en sistemas convencionales. \\
         \hline
         Artefactos frecuentes & Parpadeos, movimientos oculares, actividad muscular, referencia y contacto de electrodos. & Movimiento de cabeza, interferencias magnéticas, actividad cardíaca y muscular. \\
         \hline
@@ -106,15 +106,17 @@ EEG y MEG comparten su carácter no invasivo y su elevada resolución temporal, 
     \end{tabularx}
 \end{table}
 
-Desde el punto de vista del aprendizaje automático, ambas modalidades suelen representarse inicialmente como una matriz de canales por tiempo. Sin embargo, esta similitud de formato puede resultar engañosa. Los canales de EEG y MEG no son intercambiables, y una misma fuente cortical se proyecta de forma diferente en cada modalidad. Además, EEG suele tener menos canales y una relación señal-ruido inferior, mientras que MEG proporciona una estructura espacial más rica.
+Desde el punto de vista del aprendizaje automático, ambas modalidades suelen representarse inicialmente como una matriz de canales por tiempo. Sin embargo, esta similitud de formato puede dar lugar a errores conceptuales. Los canales de EEG y MEG no son intercambiables, y una misma fuente cortical se proyecta de forma diferente en cada modalidad. Además, EEG suele tener menos canales y una relación señal-ruido inferior, mientras que MEG proporciona una estructura espacial más rica.
 
 Estas diferencias generan un problema de cambio de dominio. Un modelo entrenado con MEG puede haber aprendido patrones que dependen de la geometría de sus sensores, de la amplitud de la señal o del tipo de ruido presente en el escáner. Al aplicarlo sobre EEG, estas relaciones dejan de cumplirse. Por ello, la transferencia requiere adaptar la entrada, normalizar la señal, representar la posición de los electrodos y, en muchos casos, reajustar parte o la totalidad del modelo.
 
-Aun así, EEG y MEG comparten información temporal y neurofisiológica. Ambas modalidades reflejan la actividad coordinada de poblaciones neuronales y contienen respuestas relacionadas con el procesamiento de palabras. Esta base común justifica estudiar si las representaciones aprendidas mediante preentrenamiento MEG pueden aportar información útil para EEG, especialmente en escenarios con pocos datos etiquetados. El objetivo no es asumir que ambas señales son iguales, sino determinar qué partes del conocimiento aprendido son transferibles y qué componentes deben adaptarse.
+Aun así, EEG y MEG comparten información temporal y neurofisiológica. Ambas modalidades reflejan la actividad coordinada de poblaciones neuronales y contienen respuestas relacionadas con el procesamiento de palabras. Esta base común justifica estudiar si las representaciones aprendidas mediante preentrenamiento MEG pueden aportar información útil para EEG, especialmente en escenarios con pocos datos etiquetados. El objetivo es determinar qué partes del conocimiento aprendido son transferibles y qué componentes deben adaptarse.
 
 \section{Procesamiento de señales cerebrales}
 
-Las señales EEG y MEG se registran como series temporales multicanal. Si se utilizan \(C\) sensores y se obtienen \(T\) muestras, una grabación se puede representar como una matriz
+\textit{En esta sección y durante el resto del trabajo se empleará el término frecuencia con dos significados diferentes y cabe recalcar la diferencia. Por un lado, la frecuencia de muestreo, expresada en hercios, indica el número de valores de la señal registrados por segundo y determina su resolución temporal. Por otro, la frecuencia de las componentes de la señal describe el número de oscilaciones por segundo de la actividad registrada, como las asociadas a las distintas bandas cerebrales o a fuentes de ruido. Aunque ambas magnitudes se expresan en hercios, representan conceptos distintos: la primera describe cómo se digitaliza la señal, mientras que la segunda caracteriza su contenido espectral.}
+
+Como se ha comentado previamente, las señales EEG y MEG se registran como series temporales multicanal. Si se utilizan \(C\) sensores y se obtienen \(T\) muestras, una grabación se puede representar como una matriz
 \[
     \mathbf{X} \in \mathbb{R}^{C \times T}.
 \]
@@ -160,8 +162,6 @@ En los estudios de habla imaginada se han utilizado combinaciones muy diferentes
 
 \subsection{Preprocesamiento de EEG y MEG}
 
-En esta sección y durante el resto del trabajo se empleará el término frecuencia con dos significados diferentes. Por un lado, la frecuencia de muestreo, expresada en hercios, indica el número de valores de la señal registrados por segundo y determina su resolución temporal. Por otro, la frecuencia de las componentes de la señal describe el número de oscilaciones por segundo de la actividad registrada, como las asociadas a las distintas bandas cerebrales o a fuentes de ruido. Aunque ambas magnitudes se expresan en hercios, representan conceptos distintos: la primera describe cómo se digitaliza la señal, mientras que la segunda caracteriza su contenido espectral.
-
 El primer paso suele ser comprobar la calidad de la grabación. Durante esta revisión se identifican canales planos, saturados o excesivamente ruidosos. Estos canales pueden eliminarse, interpolarse a partir de sensores vecinos o marcarse para que el modelo no los utilice. A su misma vez es importante verificar la sincronización entre la señal cerebral y los eventos del experimento, especialmente cuando las ventanas se alinean con el inicio de una palabra, un estímulo auditivo o una fijación ocular.
 
 En EEG, el preprocesamiento puede incluir una nueva referencia de los canales. La referencia promedio es una opción común en sistemas de alta densidad, aunque su idoneidad depende de la cobertura de electrodos. Del mismo modo se revisan las impedancias y se eliminan canales periféricos muy afectados por actividad muscular. En MEG no existe una referencia eléctrica equivalente, pero son habituales la corrección del movimiento de la cabeza y los métodos que separan las fuentes internas y externas al casco. En LibriBrain, por ejemplo, se aplica filtrado de Maxwell, eliminación de canales defectuosos, filtros para la red eléctrica y reducción de la frecuencia de muestreo \cite{ozdogan2025libribrain}.
@@ -204,13 +204,13 @@ El contexto largo no implica conservar únicamente frecuencias lentas. Un filtro
 
 \section{Aprendizaje profundo para señales cerebrales}
 
-El aprendizaje profundo permite aprender representaciones directamente a partir de señales de alta dimensión. Frente a los métodos tradicionales, que dependen de características diseñadas manualmente, una red neuronal puede optimizar conjuntamente la extracción de patrones y la tarea final. Esta capacidad es especialmente útil en EEG y MEG, donde las relaciones relevantes pueden aparecer de forma distribuida entre canales, frecuencias y momentos temporales.
+El aprendizaje profundo permite aprender representaciones directamente a partir de señales de alta dimensión. Comparada con los métodos clásicos, que dependen de características diseñadas manualmente, una red neuronal puede optimizar conjuntamente la extracción de patrones y la tarea final. Esta capacidad es especialmente útil en EEG y MEG, donde las relaciones relevantes pueden aparecer de forma distribuida entre canales, frecuencias y momentos temporales.
 
-Sin embargo, utilizar modelos más grandes no garantiza un mejor resultado. Como se ha ido explicando, las señales cerebrales presentan pocos ejemplos etiquetados, una variabilidad elevada y una relación señal-ruido reducida. Una arquitectura con demasiados parámetros puede memorizar sujetos, sesiones o estímulos. Por este motivo, el diseño del modelo debe acompañarse de regularización, particiones rigurosas, múltiples semillas y comparaciones frente a modelos sencillos.
+Sin embargo, utilizar modelos más grandes no siempre significa obtener un mejor resultado. Como ya se ha explicado, las señales cerebrales presentan pocos ejemplos etiquetados, una variabilidad elevada y una relación señal-ruido reducida. Una arquitectura con demasiados parámetros puede memorizar sujetos, sesiones o estímulos. Por este motivo, el diseño del modelo debe acompañarse de regularización, particiones rigurosas, múltiples semillas y comparaciones frente a modelos sencillos.
 
 \subsection{Redes neuronales y Transformers}
 
-Una red neuronal transforma una entrada mediante una sucesión de capas parametrizadas. Cada capa combina los valores de la anterior y aplica una función no lineal. Durante el entrenamiento, los parámetros se ajustan para reducir una función de pérdida. En clasificación, esta pérdida mide la diferencia entre las predicciones del modelo y las etiquetas reales. En aprendizaje de representaciones, puede medir la capacidad para reconstruir una señal o acercar ejemplos relacionados.
+Una red neuronal transforma una entrada mediante una sucesión de capas parametrizadas. Cada capa combina los valores de la anterior y aplica una función no lineal. Durante el entrenamiento, los parámetros se ajustan para reducir una función de pérdida (\textit{loss}). En clasificación, esta \textit{loss} mide la diferencia entre las predicciones del modelo y las etiquetas reales. En aprendizaje de representaciones, puede medir la capacidad para reconstruir una señal o acercar ejemplos relacionados.
 
 Las redes totalmente conectadas pueden utilizarse sobre vectores de características, pero no aprovechan de forma explícita la estructura temporal. Las redes convolucionales, conocidas como CNNs, aplican filtros locales que se desplazan por la señal. En EEG y MEG, una convolución temporal puede detectar patrones cortos que aparecen en distintos momentos. Las convoluciones dilatadas aumentan el campo receptivo sin necesitar un número excesivo de capas y se han utilizado como codificadores de señal en modelos de decodificación del habla \cite{defossez2023speech,dascoli2024words}.
 
@@ -243,7 +243,7 @@ MEG-XL aplica predicción enmascarada sobre tokens discretos. Durante el preentr
 
 Después del preentrenamiento se realiza una adaptación o \textit{fine-tuning}. El modelo recibe ejemplos de la tarea final y sus parámetros se ajustan para predecir palabras. Si las representaciones aprendidas son útiles, el modelo necesita menos datos etiquetados que uno inicializado aleatoriamente. Otra forma de evaluación es el \textit{linear probing}, donde el modelo preentrenado se mantiene congelado y solo se entrena una capa lineal. Este procedimiento mide la calidad de las representaciones sin permitir que toda la red se adapte a la nueva tarea.
 
-La transferencia de aprendizaje puede realizarse entre tareas, sujetos, conjuntos de datos o modalidades. La transferencia entre sujetos pretende que patrones aprendidos con varias personas ayuden a un nuevo participante. La transferencia entre conjuntos introduce además diferencias de hardware, protocolo y estímulos. La transferencia de MEG a EEG es todavía más exigente, porque cambia la propia magnitud física registrada.
+La transferencia de aprendizaje (\textit{transfer learning}) puede realizarse entre tareas, sujetos, conjuntos de datos o modalidades. La transferencia entre sujetos pretende que patrones aprendidos con varias personas ayuden a un nuevo participante. Mientras que la transferencia entre conjuntos introduce, además, diferencias de hardware, protocolo y estímulos. La transferencia de MEG a EEG es todavía más exigente, porque cambia la propia magnitud física registrada.
 
 Para que la transferencia sea efectiva, es necesario distinguir entre componentes generales y específicos. Las primeras capas pueden aprender patrones temporales básicos, mientras que las capas espaciales pueden depender fuertemente del sistema de sensores. Una estrategia consiste en reutilizar el Transformer temporal y adaptar la proyección de canales o los \textit{embeddings} de sensores. Otra posibilidad es ajustar toda la red con una tasa de aprendizaje pequeña, manteniendo una tasa mayor para la nueva cabeza de clasificación.
 
@@ -312,7 +312,7 @@ Si \(\mathbf{r}_i\) es la representación cerebral del ejemplo \(i\) y \(\mathbf
     \frac{\mathbf{r}_i^{\top}\mathbf{w}_j}
     {\lVert\mathbf{r}_i\rVert\lVert\mathbf{w}_j\rVert}.
 \]
-Los elementos de la diagonal corresponden normalmente a pares positivos y el resto actúa como negativos. La función de pérdida aumenta la similitud de los positivos y reduce la de los negativos.
+Los elementos de la diagonal corresponden normalmente a pares positivos y el resto actúa como negativos. La \textit{loss} aumenta la similitud de los positivos y reduce la de los negativos.
 
 Una dificultad aparece cuando una misma palabra se repite dentro del lote. Dos segmentos asociados a la palabra \textit{the}, por ejemplo, no deberían considerarse negativos entre sí. Las variantes de SigLIP utilizadas en decodificación de palabras introducen máscaras para evitar que las repeticiones se penalicen incorrectamente \cite{zhai2023siglip,dascoli2024words}. MEG-XL emplea D-SigLIP durante el ajuste fino para predecir representaciones T5 \cite{jayalath2026megxl}.
 
@@ -320,7 +320,7 @@ El aprendizaje contrastivo presenta varias ventajas. No obliga a utilizar una ca
 
 Sin embargo, la elección de negativos afecta considerablemente al entrenamiento. Si los negativos son demasiado fáciles, el modelo puede aprender diferencias generales sin distinguir palabras parecidas. Si contienen falsos negativos, se penalizan relaciones válidas. El tamaño del lote, la temperatura de la similitud y el equilibrio de clases también influyen en el resultado.
 
-El contexto se incorpora antes de aplicar la pérdida. Cada ventana cerebral se codifica localmente y las representaciones de varias palabras consecutivas se introducen en un Transformer bidireccional. La salida correspondiente a cada posición contiene información de toda la secuencia. Después, cada una se compara con el \textit{embedding} lingüístico de su palabra. De este modo, el modelo aprende simultáneamente relaciones neuronales entre ventanas y relaciones semánticas entre palabras.
+El contexto se incorpora antes de aplicar la \textit{loss}. Cada ventana cerebral se codifica localmente y las representaciones de varias palabras consecutivas se introducen en un Transformer bidireccional. La salida correspondiente a cada posición contiene información de toda la secuencia. Después, cada una se compara con el \textit{embedding} lingüístico de su palabra. De este modo, el modelo aprende simultáneamente relaciones neuronales entre ventanas y relaciones semánticas entre palabras.
 
 \subsection{Evaluación de la clasificación de palabras}
 

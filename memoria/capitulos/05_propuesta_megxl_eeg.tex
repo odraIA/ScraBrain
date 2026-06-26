@@ -1,30 +1,188 @@
-\chapter{Propuesta: adaptación de MEG-XL a EEG}
+\chapter{Adaptación de MEG-XL a ``EEG-XL''}
+\providecommand{\codepath}[1]{\nolinkurl{#1}}
 
 \section{Descripción general de la propuesta}
 
-\section{Preparación de los datasets}
-\subsection{Datasets de lectura}
-\subsection{Datasets de escucha}
-\subsection{Representación unificada de los datos}
+Como se ha ido comentando a lo largo de los anteriores capítulos, la propuesta de este trabajo consiste en adaptar MEG-XL a registros EEG. La idea es mantener, dentro de lo que sea posible, aquello que hace valioso al modelo original, como por ejemplo el aprendizaje autosupervisado con contexto largo. MEG-XL no se limita a procesar ventanas breves alineadas con palabras, sino que aprende representaciones a partir de fragmentos continuos de dos minutos y medio. Esta propiedad resulta especialmente interesante para EEG, donde la señal es más ruidosa y la información lingüística puede aparecer distribuida en patrones débiles a lo largo del tiempo.
+
+Esta adaptación se puede entender como un cambio de dominio. El modelo de partida fue entrenado con MEG, utilizando sensores magnéticos, geometrías específicas y una relación señal-ruido distinta. En EEG cambian la magnitud física, la referencia, la disposición de los sensores, el número de canales y los artefactos más frecuentes. Por tanto, es necesario construir una interfaz común que permita representar diferentes montajes EEG dentro de la misma arquitectura.
+
+El entrenamiento final lanzado en este trabajo corresponde a un preentrenamiento continuo en dos etapas. Primero se utilizan datasets de lectura y después datasets de escucha. La etapa de lectura sirve como una adaptación inicial a EEG lingüístico en condiciones más controladas. La etapa de escucha aproxima el modelo al dominio final, que es la clasificación de palabras durante percepción auditiva continua.
+
+Además, el experimento compara dos inicializaciones. En una de ellas el modelo parte del modelo que presenta MEG-XL. En la otra, la misma arquitectura se inicializa desde cero. Ambas siguen exactamente el mismo orden, lectura seguida de escucha, de modo que la comparación permite estudiar si el preentrenamiento con MEG aporta algún tipo de ventaja al pasar a EEG o si las diferencias entre modalidades impiden aprovecharlo.
+
+La propuesta final se puede resumir en la imitación de cuatro decisiones:
+
+\begin{itemize}
+\setlength{\itemsep}{0pt}
+\setlength{\parsep}{0pt}
+\setlength{\topsep}{2pt}
+\setlength{\partopsep}{0pt}
+\item utilizar ventanas continuas de 150 segundos, como en MEG-XL;
+\item filtrar la señal entre 0,1 y 40 Hz y remuestrearla a 50 Hz;
+\item tokenizar cada canal con BioCodec y entrenar mediante predicción de tokens enmascarados;
+\item realizar el entrenamiento en dos fases, primero lectura y después escucha, comparando inicialización desde MEG-XL e inicialización aleatoria.
+\end{itemize}
+
+De esta forma, la parte supervisada de clasificación de palabras queda separada del preentrenamiento, como sucede con MEG-XL. Los cinco datasets descritos en el capítulo anterior se utilizan para intentar aprender una representación "general" de EEG. Posteriormente, Weissbart et al. permite ajustar esa representación a una tarea \textit{word-aligned} concreta, con ventanas asociadas al inicio de cada palabra y evaluación mediante recuperación de embeddings lingüísticos.
 
 \section{Preprocesamiento del EEG}
+
 \subsection{Filtrado y remuestreo}
+
+% Todos los datasets de entrenamiento se transforman a una frecuencia común de 50 Hz. Esta elección sigue la configuración de MEG-XL y reduce el coste computacional de las ventanas largas. Un segmento de 150 segundos contiene 7500 muestras por canal antes de la tokenización, por lo que aumentar la frecuencia de muestreo incrementaría de forma directa la memoria necesaria y el número de tokens que debe procesar el Transformer.
+
+Todos los datasets de entrenamiento se transforman a una frecuencia de muestreo común de 50 Hz. Esta elección
+
+% El entrenamiento final utiliza un filtrado paso banda de 0,1--40 Hz. La señal se filtra en su frecuencia de muestreo original y después se remuestrea a 50 Hz. Esta decisión conserva la lógica del preprocesamiento original de MEG-XL: primero se trabaja sobre la señal disponible en origen y posteriormente se reduce la frecuencia para construir una entrada homogénea. En la práctica, el remuestreo aplica el filtrado antialiasing necesario para obtener una señal compatible con la frecuencia final.
+
+% En fases previas se habían considerado entrenamientos restringidos a bandas concretas, como beta o gamma, y configuraciones con frecuencias de muestreo distintas. Sin embargo, el experimento final no utiliza una arquitectura distinta para cada banda ni un barrido espectral como resultado principal. Se entrena sobre la banda amplia 0,1--40Hz para conservar la mayor cantidad posible de información temporal y evitar introducir una hipótesis demasiado fuerte sobre qué componentes son útiles para lectura o escucha.
+
+% Esta decisión tiene una consecuencia importante: la frecuencia de muestreo y el contexto temporal quedan desacoplados. Aunque el modelo trabaje a 50 Hz, cada ejemplo cubre dos minutos y medio de señal. Por tanto, no se pretende representar oscilaciones arbitrariamente rápidas, sino aprender relaciones temporales extensas entre patrones de EEG, estados de la sesión y actividad relacionada con el procesamiento lingüístico.
+
 \subsection{Normalización y segmentación}
+
+% Después del filtrado y el remuestreo, cada grabación se divide en ventanas completas de 150 segundos. El entrenamiento final utiliza ventanas físicas continuas y no solapadas dentro de cada registro. Los fragmentos finales que no alcanzan la duración requerida se descartan. Esta decisión evita introducir relleno artificial o repetir muestras para completar una ventana.
+
+% Cada segmento se subdivide internamente en bloques de tres segundos. Esta subdivisión mantiene la escala temporal utilizada por MEG-XL y coincide con la duración de las ventanas que más tarde se utilizan en clasificación de palabras. Durante el preentrenamiento continuo, esos bloques no se asocian a palabras concretas; funcionan como unidades temporales sobre las que se puede aplicar el enmascaramiento.
+
+% La normalización se aplica de forma robusta para reducir diferencias de escala entre canales, sesiones y datasets. Este paso es especialmente importante en EEG porque cada conjunto puede haber sido registrado con amplificadores, referencias y montajes distintos. La normalización no elimina por completo estas diferencias, pero evita que el modelo dependa de magnitudes absolutas que no son comparables entre datasets.
+
+% Los datasets se cargan mediante una interfaz común. Cada ejemplo contiene la señal EEG, las posiciones de los sensores y una máscara que indica qué canales son reales. Cuando un conjunto tiene menos sensores que otro, no se fuerza una interpolación espacial previa; se representa dentro de una dimensión común y se enmascaran los canales ausentes. Así, el modelo puede entrenar con montajes heterogéneos sin confundir sensores inexistentes con señales de valor cero.
+
 \subsection{Alineamiento con las palabras}
 
+% El entrenamiento autosupervisado final no utiliza palabras, transcripciones ni alineaciones lingüísticas como etiquetas. Esta es una diferencia fundamental respecto a la clasificación contextual descrita en capítulos anteriores. Durante las etapas de lectura y escucha, el modelo recibe EEG continuo y aprende a reconstruir códigos neuronales ocultos. Por tanto, pueden combinarse datasets con idiomas y paradigmas diferentes sin construir un vocabulario común.
+
+% En los conjuntos de lectura, las anotaciones de presentación visual o fijación sirven para seleccionar tareas relacionadas con procesamiento lingüístico, pero no se utilizan como objetivo de entrenamiento. En ZuCo se emplea la tarea de lectura natural, y en la copia EEGDash del conjunto de Nieuwland et al. las tareas \textit{delong} y \textit{control}. En los conjuntos de escucha, se seleccionan tareas de percepción auditiva continua. En OpenNeuro ds007808, los registros \textit{listeningcovert} se tratan con cuidado: la grabación completa puede proporcionar contexto, pero solo los intervalos etiquetados como escucha son candidatos para ser enmascarados y reconstruidos.
+
+% El alineamiento palabra a palabra aparece después, en la etapa de \textit{fine-tuning} con Weissbart et al. En ese caso sí se extraen ventanas de tres segundos alrededor del inicio de cada palabra y se agrupan 50 palabras consecutivas para formar una entrada de 150 segundos. Esta separación evita mezclar dos objetivos distintos: primero aprender regularidades generales de EEG continuo y después especializar el modelo en recuperación de palabras.
+
 \section{Adaptación de la arquitectura MEG-XL}
-\subsection{Adaptación de los canales EEG}
+
+\subsection{Componentes conservados}
+
+% La adaptación final mantiene la arquitectura principal de MEG-XL. La señal se tokeniza con BioCodec, que transforma cada canal en una secuencia discreta de códigos mediante cuantización vectorial residual. En la configuración utilizada, BioCodec emplea un vocabulario de 256 códigos, seis cuantizadores y un factor de reducción temporal de 12. De esta forma, los 7500 puntos temporales de una ventana de 150 segundos a 50 Hz se convierten en una secuencia de tokens más corta, manejable por el Transformer.
+
+% Sobre esos tokens se aplica el Transformer con atención \textit{criss-cross}. La atención temporal permite relacionar momentos dentro de un mismo sensor, mientras que la atención espacial combina información entre sensores para un mismo instante. Esta factorización conserva la idea original de MEG-XL: modelar dependencias largas sin construir una atención completa sobre todos los pares canal-tiempo.
+
+% También se conserva el objetivo autosupervisado. El modelo oculta bloques temporales y debe predecir los códigos de BioCodec correspondientes a esas posiciones. La pérdida es una entropía cruzada sobre los códigos discretos de los cuantizadores. En el entrenamiento final se enmascaran subsegmentos de tres segundos, de forma que el modelo no puede resolver la tarea únicamente interpolando muestras vecinas inmediatas.
+
+% Por tanto, el cambio principal no está en sustituir el Transformer ni en introducir un decodificador lingüístico durante el preentrenamiento. La contribución de la adaptación está en hacer que la misma arquitectura pueda recibir EEG heterogéneo y en definir un curriculum de entrenamiento adecuado para pasar de lectura a escucha.
+
+\subsection{Cambios para trabajar con canales EEG}
+
+% MEG-XL fue diseñado para trabajar con magnetómetros y gradiómetros. En EEG solo existe un tipo de sensor dentro del modelo, pero los montajes varían mucho entre datasets. Por ello se introduce el tipo de sensor EEG dentro del espacio de tipos ya utilizado por la arquitectura. La configuración final mantiene tres tipos posibles: gradiómetro, magnetómetro y EEG. En los datos de este trabajo todos los canales reales pertenecen al tipo EEG, pero conservar los otros tipos permite cargar parcialmente los pesos de MEG-XL sin rediseñar el modelo.
+
+% La posición de cada electrodo se utiliza como información espacial. Esto es necesario porque el índice de un canal no tiene el mismo significado en todos los conjuntos. Un canal situado en una región frontal no debería tratarse como equivalente a otro canal occipital solo porque ocupa la misma posición en una matriz. Al proporcionar coordenadas y máscara de sensores, el modelo puede aprender relaciones espaciales en función de la geometría real disponible en cada registro.
+
+% Otra diferencia respecto a MEG es el número de canales. Los datasets utilizados contienen montajes de 64, 105, 128 o configuraciones variables según el laboratorio y la sesión. La dimensión máxima de canales se infiere a partir de los datos disponibles y cada ejemplo incorpora una máscara. Esta máscara se aplica tanto durante el procesamiento como en el cálculo de la pérdida, evitando que los canales añadidos para igualar dimensiones contribuyan al entrenamiento.
+
+% El modelo preentrenado con MEG se carga de forma parcial. Los pesos compatibles, como los del Transformer y gran parte de las proyecciones internas, pueden reutilizarse. Los componentes que dependen de la nueva configuración EEG o que no encajan exactamente se inicializan de nuevo. Esta carga parcial es importante porque permite estudiar transferencia sin forzar una equivalencia falsa entre sensores MEG y EEG.
+
 \subsection{Tokenización de la señal}
+
+% Durante el desarrollo se contemplaron otros tokenizadores, como BrainOmni o BrainTokenizer, porque están diseñados para representar bioseñales heterogéneas y podrían ser adecuados para combinar modalidades. Sin embargo, el entrenamiento final utiliza BioCodec. Esta decisión mantiene la compatibilidad con MEG-XL y reduce el número de cambios simultáneos: si se cambiara a la vez la modalidad, el tokenizer y la arquitectura, sería más difícil interpretar el efecto de la transferencia.
+
+% BioCodec se aplica canal a canal. Cada canal EEG se convierte en una secuencia de códigos discretos y el Transformer aprende sobre esos códigos junto con la información de posición y tipo de sensor. El uso de seis cuantizadores permite representar la señal mediante varios niveles discretos. La salida del modelo predice, para cada posición enmascarada, el código correspondiente en cada cuantizador.
+
+% El empleo de un tokenizer discreto tiene dos ventajas prácticas. Primero, transforma la reconstrucción de señal continua en un problema de clasificación sobre vocabularios finitos, lo que estabiliza el entrenamiento. Segundo, permite reutilizar el mismo objetivo de MEG-XL sin diseñar una pérdida específica para amplitudes EEG. El modelo no intenta reconstruir directamente microvoltios, sino recuperar una representación cuantizada de la señal.
+
 \subsection{Modelado temporal y espacial}
 
-\section{Entrenamiento del modelo}
-\subsection{Preentrenamiento autosupervisado}
-\subsection{Clasificación contextual de palabras}
-\subsection{Inicialización desde cero y desde MEG-XL}
+% La arquitectura final trabaja con segmentos largos de 150 segundos. Esta escala es mucho mayor que la utilizada por la mayoría de modelos EEG centrados en ventanas de pocos segundos. El objetivo es que las capas del Transformer aprendan tanto patrones locales como dependencias más amplias relacionadas con el estado de la grabación, la continuidad del estímulo y la dinámica temporal del procesamiento lingüístico.
 
-\clearpage
+% La atención \textit{criss-cross} separa explícitamente dos dimensiones. En la dimensión temporal, el modelo analiza cómo evoluciona la señal dentro de un sensor. En la dimensión espacial, integra información entre sensores manteniendo el mismo instante tokenizado. Esta separación reduce el coste respecto a una atención completa y se adapta de forma natural a la representación canal-tiempo del EEG.
+
+% En los registros \textit{listeningcovert} de ds007808 se añade una restricción adicional mediante una máscara de objetivo. El contexto puede incluir toda la grabación, pero la pérdida solo se aplica sobre intervalos de escucha. Esto evita que el modelo sea entrenado para reconstruir como objetivo principal periodos de habla encubierta, que no corresponden directamente a la percepción auditiva que se quiere transferir a Weissbart.
+
+\section{Entrenamiento del modelo}
+
+\subsection{Preentrenamiento autosupervisado}
+
+% El entrenamiento lanzado con \codepath{run_eeg_full_band_reading_then_listening_sweep.sh} consta de dos pipelines paralelos. Uno se inicializa desde el checkpoint de MEG-XL y el otro desde cero. Cada pipeline ejecuta dos fases consecutivas:
+
+% \begin{enumerate}
+% \setlength{\itemsep}{0pt}
+% \setlength{\parsep}{0pt}
+% \setlength{\topsep}{2pt}
+% \setlength{\partopsep}{0pt}
+% \item entrenamiento continuo con datasets de lectura;
+% \item entrenamiento continuo con datasets de escucha, inicializado desde el mejor checkpoint de la fase de lectura correspondiente.
+% \end{enumerate}
+
+% La fase de lectura utiliza la copia EEGDash de Nieuwland et al., con las tareas \textit{delong} y \textit{control}, y ZuCo 2.0 en lectura natural. La fase de escucha utiliza OpenNeuro ds004408, OpenNeuro ds007808 y SparrKULee. La validación respeta separaciones por sujeto o sesión según el dataset, como se describió en el capítulo anterior.
+
+% El orden lectura $\rightarrow$ escucha responde a una razón práctica. Los datasets de lectura proporcionan una primera adaptación a EEG lingüístico con estímulos visuales y condiciones relativamente controladas. Después, los datasets de escucha ajustan la representación al dominio auditivo continuo, que es el más próximo a la evaluación final con Weissbart. El checkpoint producido por lectura se pasa explícitamente a la etapa de escucha, por lo que no se reutilizan checkpoints de experimentos anteriores de escucha aislada.
+
+% Ambas fases usan la misma configuración común: BioCodec, frecuencia final de 50 Hz, banda 0,1--40 Hz, ventanas de 150 segundos, batch size 4 en lectura y escucha salvo que se sobrescriba por variable de entorno, validación cada 500 pasos y guardado periódico de checkpoints. El entrenamiento se ejecuta con una GPU por inicialización, de forma que las dos condiciones se lanzan al mismo tiempo pero no comparten pesos entre sí.
+
+\subsection{Clasificación contextual de palabras}
+
+% La clasificación contextual de palabras no forma parte del script de preentrenamiento continuo, pero sí constituye la evaluación final prevista para la representación obtenida. Una vez completada la fase de escucha, el checkpoint resultante puede utilizarse para inicializar el ajuste supervisado sobre Weissbart et al.
+
+% En esa etapa, cada palabra se representa mediante una ventana de tres segundos, desde 0,5 segundos antes de su inicio hasta 2,5 segundos después. Se concatenan 50 palabras consecutivas para mantener una entrada total de 150 segundos. Así, el modelo recibe el mismo horizonte temporal que durante el preentrenamiento, pero ahora cada subsegmento tiene una etiqueta lingüística.
+
+% El objetivo supervisado sigue la formulación de clasificación contextual descrita previamente. La red neuronal produce una representación para cada palabra y una cabeza de proyección aprende a aproximarla al embedding lingüístico correspondiente, obtenido con T5. Durante la evaluación, la predicción se compara con un conjunto de embeddings candidatos y se mide si la palabra correcta aparece entre las primeras posiciones. Esta formulación evita entrenar un clasificador cerrado independiente para cada vocabulario y permite comparar con los trabajos de MEG-XL y d'Ascoli et al.
+
+% La separación entre preentrenamiento y \textit{fine-tuning} es importante. Si el modelo obtiene mejores resultados después de pasar por lectura y escucha continuas, esa mejora puede atribuirse a representaciones aprendidas sin etiquetas palabra a palabra. Si, por el contrario, la inicialización desde cero alcanza resultados similares, entonces la transferencia desde MEG o el curriculum lectura-escucha tendrían un valor limitado para esta configuración.
+
+% \subsection{Inicialización desde cero y desde MEG-XL}
+
+% La comparación entre inicialización preentrenada y desde cero es el eje experimental de la propuesta. La condición preentrenada carga parcialmente el checkpoint \texttt{meg-xl-med.ckpt}. Esta carga aprovecha los pesos compatibles del Transformer y de los componentes generales de la arquitectura, pero permite reinicializar las partes que no encajan con la configuración EEG. La condición desde cero utiliza la misma arquitectura y el mismo pipeline, pero sin cargar pesos previos.
+
+% En la fase de lectura, la diferencia entre ambas condiciones es clara: una parte del checkpoint de MEG-XL y la otra comienza con pesos aleatorios. En la fase de escucha, ambas condiciones continúan desde su propio checkpoint de lectura. Por tanto, la comparación final no enfrenta simplemente MEG-XL contra un modelo aleatorio, sino dos trayectorias completas de adaptación:
+
+% \begin{itemize}
+% \setlength{\itemsep}{0pt}
+% \setlength{\parsep}{0pt}
+% \setlength{\topsep}{2pt}
+% \setlength{\partopsep}{0pt}
+% \item MEG-XL $\rightarrow$ lectura EEG $\rightarrow$ escucha EEG;
+% \item inicialización aleatoria $\rightarrow$ lectura EEG $\rightarrow$ escucha EEG.
+% \end{itemize}
+
+% Este diseño controla el efecto del curriculum. Si ambos modelos mejoran por entrenar primero con lectura y después con escucha, la diferencia restante se debe a la inicialización. También permite detectar transferencia negativa: podría ocurrir que los pesos aprendidos en MEG introduzcan sesgos espaciales o estadísticos poco adecuados para EEG y ralenticen la adaptación frente al entrenamiento desde cero.
+
+% \clearpage
 
 \section{Implementación del sistema}
+
 \subsection{Organización del repositorio}
+
+% La implementación se organiza alrededor de scripts de lanzamiento, configuraciones Hydra y módulos de datos específicos para EEG continuo. El punto de entrada del experimento final es:
+
+% \begin{center}
+% \codepath{scripts/run_eeg_full_band_reading_then_listening_sweep.sh}
+% \end{center}
+
+% Este script define el directorio de resultados, logs y checkpoints, prepara la caché de datos preprocesados y lanza dos contenedores de entrenamiento: uno para la inicialización \texttt{pretrained} y otro para \texttt{from\_scratch}. La lógica común se encuentra en \codepath{scripts/eeg_full_band_pipeline/}, separada en módulos de entorno, preprocesamiento, lanzamiento y ejecución.
+
+% El preprocesamiento se realiza con \codepath{scripts/preprocess_eeg_reading_listening.py}. Para la etapa de lectura se usa la configuración \codepath{train_criss_cross_eeg_reading_continuous}; para la etapa de escucha, \codepath{train_criss_cross_eeg_listening_continuous}. Ambas heredan de la configuración común de EEG continuo, donde se definen las ventanas de 150 segundos, el tokenizer BioCodec, la frecuencia de 50 Hz y la arquitectura \textit{criss-cross}.
+
+% El entrenamiento se ejecuta mediante \codepath{brainstorm.train_criss_cross_eeg_continuous}. Este punto de entrada crea el \textit{DataModule} continuo, carga BioCodec, instancia el módulo \textit{CrissCrossTransformerModule} y gestiona la carga parcial de checkpoints. También escribe una copia de la configuración usada en cada ejecución, métricas intermedias, checkpoints y un fichero final con el estado del entrenamiento.
+
+% La estructura de salida separa resultados, logs y checkpoints por fecha y por condición experimental. Cada pipeline guarda el checkpoint de lectura utilizado para inicializar escucha, lo que permite reconstruir posteriormente la trayectoria exacta del entrenamiento. Esta trazabilidad resulta necesaria porque el experimento no es un único entrenamiento, sino una secuencia de dos fases para dos inicializaciones distintas.
+
 \subsection{Ejecución y monitorización de experimentos}
 
+% El lanzador final construye primero las imágenes Docker necesarias y ejecuta el preprocesamiento si no se indica lo contrario. Después lanza los dos entrenamientos en paralelo, asignando una GPU a la condición preentrenada y otra a la condición desde cero. Por defecto se espera una configuración con dos GPUs, indicadas mediante la variable \texttt{EEG\_GPUS}.
+
+% Los nombres de experimento codifican las decisiones principales: banda 0,1--40 Hz, frecuencia final de 50 Hz, tokenizer BioCodec, modo de inicialización y semilla. Por ejemplo, las ejecuciones de lectura y escucha se nombran como:
+
+% \begin{itemize}
+% \setlength{\itemsep}{0pt}
+% \setlength{\parsep}{0pt}
+% \setlength{\topsep}{2pt}
+% \setlength{\partopsep}{0pt}
+% \item \codepath{eeg_full_band_0p1_40_fixed50_50hz_biocodec_pretrained_reading_seed42};
+% \item \codepath{eeg_full_band_0p1_40_fixed50_50hz_biocodec_pretrained_listening_seed42};
+% \item \codepath{eeg_full_band_0p1_40_fixed50_50hz_biocodec_from_scratch_reading_seed42};
+% \item \codepath{eeg_full_band_0p1_40_fixed50_50hz_biocodec_from_scratch_listening_seed42}.
+% \end{itemize}
+
+% El sistema permite reanudar entrenamientos mediante checkpoints existentes. Si una fase ya aparece marcada como completada, se reutiliza su mejor checkpoint. Si está incompleta y existe un checkpoint reciente, se reanuda desde él. Este comportamiento es importante en entrenamientos largos, donde una interrupción no debería obligar a repetir desde el principio la fase de lectura antes de poder continuar con escucha.
+
+% La monitorización se realiza mediante logs locales, métricas CSV y, cuando está disponible, WandB en modo local u offline. Los checkpoints se guardan periódicamente y se conserva el mejor modelo según la pérdida de validación. Al finalizar cada fase se escribe un resumen con el estado, la configuración, la ruta del checkpoint y la información de carga de pesos. Con ello se puede comprobar si la condición preentrenada cargó correctamente el checkpoint de MEG-XL y si la fase de escucha recibió el checkpoint producido por su fase de lectura correspondiente.
+
+% En conjunto, la implementación final busca reducir el número de variables simultáneas. La arquitectura, el tokenizer, la duración de ventana y el objetivo autosupervisado se mantienen lo más cerca posible de MEG-XL. Los cambios se concentran en la entrada EEG, las máscaras de sensores, la selección de datasets y el entrenamiento por etapas. Esta separación permite interpretar mejor los resultados: el experimento no evalúa una arquitectura completamente nueva, sino la capacidad de MEG-XL para adaptarse a EEG mediante un pipeline continuo de lectura y escucha.
