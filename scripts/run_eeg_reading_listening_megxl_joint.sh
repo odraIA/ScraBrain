@@ -29,7 +29,7 @@ echo "Checkpoint: ${CRISS_CROSS_CHECKPOINT:-./checkpoints/baseline/meg-xl-med.ck
 echo "Log: $RUN_LOG"
 
 EEG_GPU="$GPU" WANDB_MODE="$WANDB_MODE" \
-  docker compose -f "$COMPOSE_FILE" run --rm --no-deps \
+  docker compose -d -f "$COMPOSE_FILE" run --rm --no-deps \
     -e "WANDB_MODE=${WANDB_MODE}" \
     -e "CRISS_CROSS_CHECKPOINT=${CRISS_CROSS_CHECKPOINT:-./checkpoints/baseline/meg-xl-med.ckpt}" \
     "$SERVICE" \
