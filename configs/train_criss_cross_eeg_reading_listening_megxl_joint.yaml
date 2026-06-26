@@ -1,0 +1,102 @@
+# Continue MEG-XL pre-training with all available EEG language datasets while
+# replaying LibriBrain MEG batches through the same unchanged backbone.
+#
+# EEG datasets inherited from train_criss_cross_eeg_reading_listening_continuous:
+#   reading:  EEGDash NM000228 + ZuCo 2.0 NR
+#   listening: ds004408 + ds007808 + SparrKULee
+#
+# data.mix_eeg_meg is false in the base configuration and is enabled only here.
+
+defaults:
+  - train_criss_cross_eeg_reading_listening_continuous
+  - _self_
+
+
+meg_datasets_config:
+  - type: "libribrain"
+    data_root: "/workspace/datasets/libribrain"
+    subjects: null
+    sessions: null
+    tasks: null
+    val_session: "ses-2"
+
+
+data:
+  mix_eeg_meg: true
+  meg_cache_dir: "./data/cache/eeg_reading_listening_megxl_joint/meg"
+  cache_dir: "./data/cache/eeg_reading_listening_megxl_joint/eeg"
+
+  # Filter at the source sampling rate and then resample to 50 Hz, matching the
+  # existing continuous MEG-XL adaptation. Frequencies above final Nyquist are
+  # removed by anti-alias filtering during resampling.
+  l_freq: 0.1
+  h_freq: 40.0
+  target_sfreq: 50.0
+
+  meg_recording_subsample_prop: null
+  recording_subsample_prop: null
+  shuffle_segments: false
+  shuffle_segment_duration: 3.0
+
+
+model:
+  sampling_rate: 50
+  num_sensor_types: 3
+
+  # Load the MEG-XL checkpoint instead of starting from scratch. The two-row
+  # GRAD/MAG sensor table is expanded to GRAD/MAG/EEG and MAG is copied to EEG.
+  train_from_scratch: false
+  criss_cross_checkpoint: ${oc.env:CRISS_CROSS_CHECKPOINT,./checkpoints/baseline/meg-xl-med.ckpt}
+  initialize_eeg_from_meg: true
+
+  # Keep sensor_type=2 for the base model's EEG orientation masking, but replace
+  # only its learned type embedding with the MAG embedding after construction.
+  eeg_as_meg_sensor_type: true
+  eeg_meg_sensor_type_id: 1
+  use_gradient_checkpointing: false
+
+
+joint:
+  meg_batch_size: 1
+  eeg_batch_size: 1
+  meg_loss_weight: 1.0
+  eeg_loss_weight: 1.0
+  train_loader_mode: "max_size_cycle"
+  val_loader_mode: "min_size"
+
+
+logging:
+  experiment_name: "megxl-to-all-eeg-with-meg-replay-50hz-seed42"
+  save_dir: "./logs/eeg_reading_listening_megxl_joint"
+
+
+checkpoint:
+  save_dir: "./checkpoints/eeg_reading_listening_megxl_joint"
+  monitor: "val/loss"
+  mode: "min"
+  save_top_k: 1
+  save_last: true
+  every_n_train_steps: 5000
+
+
+trainer:
+  accelerator: "gpu"
+  devices: 1
+  strategy: "auto"
+  precision: "bf16-mixed"
+  accumulate_grad_batches: 1
+  val_check_interval: 500
+
+
+training:
+  batch_size: 1
+  num_epochs: 50
+  max_steps: null
+  learning_rate: 1.0e-4
+  warmup_steps: 250
+  gradient_clip_val: 1.0
+  num_workers: 6
+  pin_memory: true
+  persistent_workers: true
+  use_recording_sampler: true
+  sampler_seed: 42
