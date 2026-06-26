@@ -226,7 +226,7 @@ run_experiment() {
       -e "WANDB_MODE=$WANDB_MODE" \
       "${extra_container_env[@]}" \
       eval_eeg_listening \
-      uv run --no-sync python -m brainstorm.evaluate_criss_cross_word_classification_alice_reported \
+      uv run --no-sync python -m brainstorm.evaluate_criss_cross_word_classification_alice_fixed \
         --config-name=eval_criss_cross_word_classification_alice_eeg \
         "model.train_from_scratch=$train_from_scratch" \
         model.use_promoted_checkpoint=false \
