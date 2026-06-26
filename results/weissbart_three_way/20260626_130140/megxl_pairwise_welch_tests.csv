@@ -1,0 +1,7 @@
+train_pct,retrieval_size,top_k,model_a,model_a_display,n_a,mean_a,model_b,model_b_display,n_b,mean_b,welch_t,p_value,significant_p_lt_0_05,note
+1.0,50,10,eeg_from_scratch,Checkpoint EEG desde cero,1,0.4336527001882053,eeg_pretrained,Checkpoint EEG preentrenado,1,0.47967267708609934,nan,nan,,Requires at least two seeds per model
+1.0,50,10,eeg_from_scratch,Checkpoint EEG desde cero,1,0.4336527001882053,random_init,Arquitectura aleatoria,1,0.1956521739130435,nan,nan,,Requires at least two seeds per model
+1.0,50,10,eeg_pretrained,Checkpoint EEG preentrenado,1,0.47967267708609934,random_init,Arquitectura aleatoria,1,0.1956521739130435,nan,nan,,Requires at least two seeds per model
+1.0,250,10,eeg_from_scratch,Checkpoint EEG desde cero,1,0.17125264872820714,eeg_pretrained,Checkpoint EEG preentrenado,1,0.19231858044767228,nan,nan,,Requires at least two seeds per model
+1.0,250,10,eeg_from_scratch,Checkpoint EEG desde cero,1,0.17125264872820714,random_init,Arquitectura aleatoria,1,0.04487179487179487,nan,nan,,Requires at least two seeds per model
+1.0,250,10,eeg_pretrained,Checkpoint EEG preentrenado,1,0.19231858044767228,random_init,Arquitectura aleatoria,1,0.04487179487179487,nan,nan,,Requires at least two seeds per model

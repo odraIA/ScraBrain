@@ -1072,3 +1072,8 @@ Building Docker service eeg_train_reading_listening...
 #14 exporting to image
 #14 exporting layers
 
+Experiment: megxl_to_all_eeg_with_meg_replay_20260626_160536
+GPU: 1
+Checkpoint: ./checkpoints/baseline/meg-xl-med.ckpt
+Log: logs/eeg_reading_listening_megxl_joint/megxl_to_all_eeg_with_meg_replay_20260626_160536.log
+unknown shorthand flag: 'd' in -d
