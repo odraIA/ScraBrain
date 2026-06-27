@@ -236,6 +236,8 @@ logs/
 results/*
 !results/weissbart_three_way/
 !results/weissbart_three_way/**
+!results/alice_three_way/**
+!results/alice_three_way/
 
 promotions/
 wandb/
