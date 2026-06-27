@@ -1,0 +1,7 @@
+model,model_display,run_dir,seed,train_pct,retrieval_size,top_k,balanced_top_k_accuracy,top_k_accuracy,chance_accuracy,balanced_accuracy_x_chance,accuracy_x_chance,n_samples,n_skipped
+random_init,Arquitectura aleatoria,logs/word_classification_alice_eeg/20260626_203533/random_init,42,1.0,50,10,0.20408163265306123,0.09863724559545517,0.2,1.0204081632653061,0.49318622797727585,4623,4727
+random_init,Arquitectura aleatoria,logs/word_classification_alice_eeg/20260626_203533/random_init,42,1.0,250,10,0.018518518518518517,0.0038895371835678816,0.04,0.4629629629629629,0.09723842958919704,7713,1637
+eeg_from_scratch,Checkpoint EEG desde cero,logs/word_classification_alice_eeg/20260626_203533/eeg_from_scratch,42,1.0,50,10,0.20408163265306123,0.09863724559545517,0.2,1.0204081632653061,0.49318622797727585,4623,4727
+eeg_from_scratch,Checkpoint EEG desde cero,logs/word_classification_alice_eeg/20260626_203533/eeg_from_scratch,42,1.0,250,10,0.018518518518518517,0.0038895371835678816,0.04,0.4629629629629629,0.09723842958919704,7713,1637
+eeg_pretrained,Checkpoint EEG preentrenado,logs/word_classification_alice_eeg/20260626_203533/eeg_pretrained,42,1.0,50,10,0.20408163265306123,0.09863724559545517,0.2,1.0204081632653061,0.49318622797727585,4623,4727
+eeg_pretrained,Checkpoint EEG preentrenado,logs/word_classification_alice_eeg/20260626_203533/eeg_pretrained,42,1.0,250,10,0.018518518518518517,0.0038895371835678816,0.04,0.4629629629629629,0.09723842958919704,7713,1637
