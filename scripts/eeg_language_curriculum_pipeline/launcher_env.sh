@@ -19,7 +19,8 @@ mkdir -p "$RUN_ROOT" "$LOG_ROOT" "$CKPT_ROOT" "$STAGING" "$CACHE"
 cat > "$RUN_ROOT/metadata.txt" <<META
 Order: reading -> language listening
 Reading: EEGDash + ZuCo
-Language listening: SparrKULee + Weissbart + Alice EEG + ds007808
+Language listening: SparrKULee + ds007808
+Excluded from stage 2: Alice EEG + Weissbart EEG (current loaders concatenate short word-aligned windows)
 Held out: ds004408
 Models: from_scratch/eeg2, MEG-XL/eeg2, MEG-XL/eeg1
 Physical EEG sensor id remains 2; eeg1 only redirects the type embedding lookup.
