@@ -1,7 +1,10 @@
-# Stage 2 of the EEG curriculum: language listening without ds004408.
+# Stage 2 of the EEG curriculum: continuous language listening without ds004408.
 #
 # ds004408 is deliberately held out for later supervised fine-tuning and
 # comparison with published results.
+# Alice EEG and Weissbart EEG are also excluded from this stage because the
+# current loaders build 150-second examples by concatenating short word-aligned
+# windows rather than preserving a genuinely continuous recording.
 
 defaults:
   - train_criss_cross_eeg_reading_listening_continuous
@@ -22,71 +25,6 @@ datasets_config:
       - "sub-105"
     cover_all_samples: false
     short_stream_policy: "error"
-
-  - type: "weissbart_eeg"
-    data_root: "/workspace/datasets/WeissbartEEG"
-    subjects:
-      - "P01"
-      - "P02"
-      - "P03"
-      - "P04"
-      - "P05"
-      - "P06"
-      - "P07"
-      - "P08"
-      - "P09"
-      - "P10"
-      - "P12"
-      - "P13"
-      - "P14"
-    sessions: null
-    tasks: null
-    val_subjects: ["P13", "P14"]
-    eeg_sensor_type: "eeg"
-    task_mode: "listening"
-
-  - type: "alice_eeg"
-    data_root: "/workspace/datasets/alice_eeg"
-    subjects:
-      - "S01"
-      - "S03"
-      - "S04"
-      - "S05"
-      - "S06"
-      - "S08"
-      - "S10"
-      - "S11"
-      - "S12"
-      - "S13"
-      - "S14"
-      - "S15"
-      - "S16"
-      - "S17"
-      - "S18"
-      - "S19"
-      - "S20"
-      - "S21"
-      - "S22"
-      - "S25"
-      - "S26"
-      - "S34"
-      - "S35"
-      - "S36"
-      - "S37"
-      - "S38"
-      - "S39"
-      - "S40"
-      - "S41"
-      - "S42"
-      - "S44"
-      - "S45"
-      - "S48"
-    sessions: null
-    tasks: ["listening"]
-    val_subjects: ["S41", "S42", "S44", "S45", "S48"]
-    subject_selection: "main"
-    eeg_sensor_type: "eeg"
-    task_mode: "listening"
 
   - type: "openneuro_ds007808"
     data_root: "/workspace/datasets/OpenNeuroEEG_ds007808"
