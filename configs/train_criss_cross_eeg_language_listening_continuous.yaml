@@ -1,0 +1,144 @@
+# Stage 2 of the EEG curriculum: language listening without ds004408.
+#
+# ds004408 is deliberately held out for later supervised fine-tuning and
+# comparison with published results.
+
+defaults:
+  - train_criss_cross_eeg_reading_listening_continuous
+  - _self_
+
+
+datasets_config:
+  - type: "sparrkulee"
+    data_root: "/workspace/datasets/sparrkulee"
+    subjects: null
+    sessions: null
+    tasks: ["listeningActive"]
+    val_subjects:
+      - "sub-101"
+      - "sub-102"
+      - "sub-103"
+      - "sub-104"
+      - "sub-105"
+    cover_all_samples: false
+    short_stream_policy: "error"
+
+  - type: "weissbart_eeg"
+    data_root: "/workspace/datasets/WeissbartEEG"
+    subjects:
+      - "P01"
+      - "P02"
+      - "P03"
+      - "P04"
+      - "P05"
+      - "P06"
+      - "P07"
+      - "P08"
+      - "P09"
+      - "P10"
+      - "P12"
+      - "P13"
+      - "P14"
+    sessions: null
+    tasks: null
+    val_subjects: ["P13", "P14"]
+    eeg_sensor_type: "eeg"
+    task_mode: "listening"
+
+  - type: "alice_eeg"
+    data_root: "/workspace/datasets/alice_eeg"
+    subjects:
+      - "S01"
+      - "S03"
+      - "S04"
+      - "S05"
+      - "S06"
+      - "S08"
+      - "S10"
+      - "S11"
+      - "S12"
+      - "S13"
+      - "S14"
+      - "S15"
+      - "S16"
+      - "S17"
+      - "S18"
+      - "S19"
+      - "S20"
+      - "S21"
+      - "S22"
+      - "S25"
+      - "S26"
+      - "S34"
+      - "S35"
+      - "S36"
+      - "S37"
+      - "S38"
+      - "S39"
+      - "S40"
+      - "S41"
+      - "S42"
+      - "S44"
+      - "S45"
+      - "S48"
+    sessions: null
+    tasks: ["listening"]
+    val_subjects: ["S41", "S42", "S44", "S45", "S48"]
+    subject_selection: "main"
+    eeg_sensor_type: "eeg"
+    task_mode: "listening"
+
+  - type: "openneuro_ds007808"
+    data_root: "/workspace/datasets/OpenNeuroEEG_ds007808"
+    subjects: null
+    sessions: null
+    tasks: ["listening", "listeningcovert"]
+    val_sessions:
+      - "ses-20240621"
+      - "ses-20240624"
+      - "ses-20240625"
+      - "ses-20240626"
+      - "ses-20240627"
+      - "ses-20240628"
+      - "ses-20240701"
+      - "ses-20241119"
+      - "ses-20241227"
+    listeningcovert_policy: "full_recording_listening_targets"
+    listening_trial_type: "listening"
+    listening_interval_start: "onset"
+    group_listeningcovert_by: "recording"
+    merge_gap_seconds: 0.0
+    cover_all_samples: false
+    short_stream_policy: "error"
+
+
+data:
+  task_mode: "language_listening"
+  cache_dir: "./data/cache/eeg_preprocessed"
+  max_channel_dim: 128
+  infer_max_channel_dim: false
+
+
+model:
+  train_from_scratch: false
+  use_promoted_checkpoint: true
+  promoted_checkpoint: null
+  num_sensor_types: 3
+
+
+logging:
+  experiment_name: "criss-cross-eeg-language-listening-stage"
+  save_dir: "./logs/eeg_language_curriculum"
+
+
+checkpoint:
+  save_dir: "./checkpoints/eeg_language_curriculum"
+
+
+trainer:
+  devices: 1
+  strategy: "auto"
+
+
+training:
+  batch_size: 1
