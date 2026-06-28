@@ -4,7 +4,7 @@ preprocess_stage() {
   docker rm -f "$name" >/dev/null 2>&1 || true
   id="$(docker compose -f "$PRE_YML" run -d --no-deps --name "$name" eeg_preprocess \
     uv run --no-sync python scripts/preprocess_eeg_language_curriculum.py \
-    --config-name "$config" --target-sfreq 50 --l-freq 0.1 --h-freq 50 \
+    --config-name "$config" --target-sfreq 50 --l-freq 0.1 --h-freq 40 \
     --cache-dir "$STAGING/$label" --main-cache-dir "$CACHE" | tail -1)"
   status="$(docker wait "$id")"
   docker logs "$id" > "$RUN_ROOT/preprocessing_${label}.log" 2>&1 || true
