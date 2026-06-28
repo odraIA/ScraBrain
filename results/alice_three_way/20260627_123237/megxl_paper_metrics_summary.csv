@@ -1,0 +1,7 @@
+model,model_display,train_pct,retrieval_size,top_k,n_seeds,balanced_mean,balanced_std,balanced_sem,balanced_ci95_low,balanced_ci95_high,accuracy_mean,accuracy_std,accuracy_sem,chance_accuracy,balanced_mean_x_chance
+eeg_from_scratch,Checkpoint EEG desde cero,1.0,50,10,1,0.8261270669041848,nan,nan,nan,nan,0.7888816595077515,nan,nan,0.2,4.130635334520924
+eeg_pretrained,Checkpoint EEG preentrenado,1.0,50,10,1,0.8871862406709364,nan,nan,nan,nan,0.787800133228302,nan,nan,0.2,4.435931203354682
+random_init,Arquitectura aleatoria,1.0,50,10,1,0.18639153432177039,nan,nan,nan,nan,0.16266493499279022,nan,nan,0.2,0.9319576716088519
+eeg_from_scratch,Checkpoint EEG desde cero,1.0,250,10,1,0.7840403405788504,nan,nan,nan,nan,0.7587190270423889,nan,nan,0.04,19.60100851447126
+eeg_pretrained,Checkpoint EEG preentrenado,1.0,250,10,1,0.8115261549555501,nan,nan,nan,nan,0.7633864879608154,nan,nan,0.04,20.288153873888753
+random_init,Arquitectura aleatoria,1.0,250,10,1,0.03848213811094562,nan,nan,nan,nan,0.043692465871572495,nan,nan,0.04,0.9620534527736405
