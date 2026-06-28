@@ -115,7 +115,7 @@ def common_overrides(experiment: str, batch_size: str, embedding_id: int) -> lis
         "data.target_sfreq=50.0",
         "model.sampling_rate=50",
         "data.l_freq=0.1",
-        "data.h_freq=50.0",
+        "data.h_freq=40.0",
         f"data.cache_dir={CACHE}",
         f"training.batch_size={batch_size}",
         f"training.num_workers={WORKERS}",
