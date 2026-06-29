@@ -215,9 +215,10 @@ En el entrenamiento se utiliza la tarea completa de escucha. Cada bloque se filt
 
 Los participantes 17, 18 y 19 se reservan para validación. Esta división proporciona una evaluación sobre sujetos no utilizados durante el entrenamiento y mantiene el resto de las grabaciones disponible para aprender representaciones de escucha en inglés.
 
-\section{Dataset de fine-tuning: Weissbart et al.}
+\section{Datasets de fine-tuning}
 
-Una vez realizado el entrenamiento con los cinco conjuntos anteriores, el modelo se ajusta sobre el conjunto de Weissbart et al. \cite{weissbart2020surprisal}. Este conjunto contiene EEG de 13 participantes mientras escuchaban narraciones continuas en inglés. La señal se registró con 64 canales a 1000 Hz y los estímulos se dividieron en 15 fragmentos de historias. En total se dispone de aproximadamente 520 minutos de escucha, equivalentes a unas 8,7 horas de estímulo.
+\subsection{Weissbart et al.}
+Una vez realizado el entrenamiento con los cinco conjuntos anteriores, comenzó la búsqueda para un dataset de validación sobre el que hacer fine-tuning al estilo de MEG-XL. Así se encontró el conjunto de Weissbart et al. \cite{weissbart2020surprisal}. Este conjunto contiene EEG de 13 participantes mientras escuchaban narraciones continuas en inglés. La señal se registró con 64 canales a 1000 Hz y los estímulos se dividieron en 15 fragmentos de historias. En total se dispone de aproximadamente 520 minutos de escucha, equivalentes a unas 8,7 horas de estímulo.
 
 El estudio original analizaba cómo la actividad cortical seguía la \textit{surprisal} o grado de sorpresa asociado a cada palabra. Para ello, las narraciones fueron alineadas temporalmente palabra por palabra. Estas anotaciones hacen que el conjunto sea apropiado para la etapa supervisada del trabajo, ya que permiten extraer una respuesta EEG concreta alrededor del inicio de cada elemento lingüístico.
 
@@ -230,6 +231,20 @@ Las palabras se representan mediante embeddings obtenidos con T5. El modelo neur
 Los datos se dividen en entrenamiento, validación y test siguiendo una proporción de 80/10/10. La división no se realiza de manera independiente para cada participante, sino a partir del fragmento textual formado por las 50 palabras. Por tanto, si varias personas han escuchado el mismo fragmento, todas sus repeticiones se asignan a la misma partición. Esta precaución evita que el modelo vea durante el entrenamiento exactamente la misma secuencia de palabras que después aparece en validación o prueba.
 
 La elección de Weissbart permite que el ajuste final se realice sobre escucha continua, que es el dominio objetivo del trabajo. Además, su alineación temporal hace posible pasar de un entrenamiento autosupervisado sobre señal continua a una tarea concreta de clasificación de palabras. Así, el modelo primero aprende una representación general a partir de los cinco conjuntos EEG y después especializa esa representación para recuperar contenido lingüístico.
+
+\subsection{OpenNeuro ds004408}
+
+Como alternativa al ajuste supervisado con Weissbart et al., también se podría utilizar OpenNeuro ds004408 como dataset de \textit{fine-tuning}. En este escenario el conjunto dejaría de emplearse como señal continua de escucha durante el entrenamiento autosupervisado y pasaría a utilizarse en formato \textit{word-aligned}, aprovechando las alineaciones temporales entre el audiolibro y las palabras escuchadas por los participantes.
+
+Esta configuración resulta interesante porque ds004408 comparte varias propiedades con la tarea final: contiene escucha natural en inglés, utiliza una narración continua y dispone de un número de participantes mayor que otros conjuntos profundos centrados en uno o pocos sujetos. Además, los trabajos originales asociados al dataset muestran que la señal EEG contiene información relacionada tanto con propiedades fonéticas como con variables semánticas de las palabras dentro del discurso.
+
+En modo \textit{word-aligned}, cada palabra del estímulo se usaría para extraer una ventana EEG alrededor de su inicio temporal. De forma análoga al procesamiento aplicado a Weissbart et al., se podría tomar una ventana de tres segundos, comenzando 0,5 segundos antes de la palabra y finalizando 2,5 segundos después. Tras la corrección de línea base, la normalización robusta y el recorte de valores extremos, varias palabras consecutivas se agruparían hasta formar entradas largas de 150 segundos.
+
+Las palabras se representarían mediante embeddings lingüísticos de T5 y el modelo se ajustaría con una pérdida contrastiva para acercar cada representación EEG a la palabra correspondiente. La evaluación seguiría el mismo planteamiento de recuperación utilizado con Weissbart: dada una ventana EEG alineada a una palabra, se mediría si el embedding correcto aparece entre las primeras posiciones de un vocabulario candidato.
+
+Cuando se adopta esta variante, ds004408 no aparece simultáneamente como dataset de entrenamiento autosupervisado y como dataset de \textit{fine-tuning}. El dataset se excluye completamente del entrenamiento continuo y se reserva por completo para el ajuste supervisado. 
+
+La ventaja principal de esta alternativa es que existen trabajos estado del arte con rigor científico (publicados en congresos o revistas) para poder realizar una comparación cuantitativa entre diferentes arquitecturas.
 
 \section{Tabla resumen}
 
@@ -261,15 +276,6 @@ los conjuntos descritos y la función que desempeña cada uno dentro del trabajo
 \textbf{Duración} &
 \textbf{Uso en el trabajo} \\
 \midrule
-
-LibriBrain &
-MEG &
-Escucha &
-Inglés &
-1 &
-306 &
-52,32 h &
-Nada \\
 
 ZuCo 2.0 &
 EEG &
@@ -314,7 +320,7 @@ Inglés &
 19 &
 128 &
 20,6 h &
-Entrenamiento \\
+Entrenamiento / Fine-tuning \\
 
 Weissbart et al. &
 EEG &
