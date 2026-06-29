@@ -82,10 +82,7 @@ def main() -> Any:
         argument == "--config-name" or argument.startswith("--config-name=")
         for argument in sys.argv[1:]
     ):
-        sys.argv.insert(
-            1,
-            "--config-name=eval_criss_cross_word_classification_ds004408_eeg",
-        )
+        sys.argv.insert(1, "--config-name=ds004408_word_finetuning")
 
     result = evaluator.main()
 
