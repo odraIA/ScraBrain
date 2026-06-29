@@ -33,10 +33,6 @@ DEFAULT_TASKS: List[str] = ["listening"]
 DEFAULT_WORD_TIER_NAMES: Tuple[str, ...] = ("word", "words")
 DEFAULT_MONTAGE = "biosemi128"
 CACHE_VERSION = "ds004408_word_aligned_v2"
-
-# No canonical participant split is supplied by the dataset. Fine-tuning configs
-# should split by shared text segment, not by subject, because all participants
-# listened to the same 20 audio fragments.
 DEFAULT_VAL_SUBJECTS: List[str] = []
 DEFAULT_VAL_SESSIONS: List[str] = []
 
@@ -73,13 +69,9 @@ def _sensor_type_id(value: str) -> int:
 class OpenNeuroEEGDs004408WordAlignedDataset(OpenNeuroEEGWordAlignedDataset):
     """Expose ds004408 as consecutive word-onset-aligned EEG windows.
 
-    In addition to the shared BIDS EEG behaviour, this wrapper:
-
-    * selects only the word tier from the word+phoneme TextGrid files;
-    * applies the BioSemi-128 montage so CrissCross receives real sensor geometry;
-    * optionally drops channels marked ``bad`` in each BIDS ``channels.tsv``;
-    * can reuse MEG-XL's gradiometer sensor-type embedding (the transfer setup
-      used by the Weissbart and Alice EEG experiments).
+    The wrapper selects only the word tier, applies BioSemi-128 geometry,
+    optionally removes channels marked bad, and supports reusing MEG-XL's
+    gradiometer sensor-type embedding as in the Weissbart/Alice transfer setup.
     """
 
     def __init__(
@@ -117,6 +109,7 @@ class OpenNeuroEEGDs004408WordAlignedDataset(OpenNeuroEEGWordAlignedDataset):
         self.eeg_sensor_type = str(eeg_sensor_type)
         self.eeg_sensor_type_id = _sensor_type_id(eeg_sensor_type)
         self.cache_version = str(cache_version)
+        self._sensor_type_caches_ready: set[Path] = set()
 
         super().__init__(
             data_root=data_root,
@@ -143,7 +136,6 @@ class OpenNeuroEEGDs004408WordAlignedDataset(OpenNeuroEEGWordAlignedDataset):
         )
 
     def _cache_path(self, subject: str, session: str, task: str, run: str) -> Path:
-        """Use a ds004408-specific cache key to invalidate older flat-tier caches."""
         base_path = super()._cache_path(subject, session, task, run)
         identity = {
             "cache_version": self.cache_version,
@@ -160,12 +152,6 @@ class OpenNeuroEEGDs004408WordAlignedDataset(OpenNeuroEEGWordAlignedDataset):
     def _select_word_tier(
         self, textgrid_path: Path, text: str
     ) -> Tuple[str, List[re.Match[str]]]:
-        """Return the configured word tier and its interval matches.
-
-        A flat TextGrid fragment is accepted as a backwards-compatible fallback
-        for synthetic smoke tests. Multi-tier files without a recognisable word
-        tier fail loudly rather than silently mixing phonemes into word labels.
-        """
         tiers: List[Tuple[str, List[re.Match[str]]]] = []
         for item_match in _TEXTGRID_ITEM_RE.finditer(text):
             body = item_match.group("body")
@@ -187,7 +173,6 @@ class OpenNeuroEEGDs004408WordAlignedDataset(OpenNeuroEEGWordAlignedDataset):
         for name, intervals in tiers:
             if _normalise_tier_name(name) in preferred:
                 return name, intervals
-
         for name, intervals in tiers:
             if "word" in _normalise_tier_name(name):
                 return name, intervals
@@ -218,8 +203,6 @@ class OpenNeuroEEGDs004408WordAlignedDataset(OpenNeuroEEGWordAlignedDataset):
         if textgrid_path.stat().st_size == 0:
             raise ValueError(f"TextGrid sidecar is empty: {textgrid_path}")
 
-        # ds004408 aligns the beginning of each EEG run with its corresponding
-        # audio file. Retain support for an events.tsv offset if one is supplied.
         audio_onset = 0.0
         events_frame = self._read_events(rec)
         if events_frame is not None and "onset" in events_frame.columns and len(events_frame):
@@ -270,7 +253,6 @@ class OpenNeuroEEGDs004408WordAlignedDataset(OpenNeuroEEGWordAlignedDataset):
 
     def _read_raw(self, raw_path: Path) -> mne.io.BaseRaw:
         raw = super()._read_raw(raw_path)
-
         try:
             montage = mne.channels.make_standard_montage(self.montage_name)
             raw.set_montage(
@@ -291,11 +273,12 @@ class OpenNeuroEEGDs004408WordAlignedDataset(OpenNeuroEEGWordAlignedDataset):
             ]
             if bad_channels:
                 raw.drop_channels(bad_channels)
-
         return raw
 
     def _ensure_cache(self, rec: Dict[str, Any]) -> Path:
         cache_path = super()._ensure_cache(rec)
+        if cache_path in self._sensor_type_caches_ready:
+            return cache_path
         with h5py.File(cache_path, "r+") as h5_file:
             sensor_types = h5_file["sensor_types"]
             expected = np.full(sensor_types.shape, self.eeg_sensor_type_id, dtype=np.int64)
@@ -307,13 +290,12 @@ class OpenNeuroEEGDs004408WordAlignedDataset(OpenNeuroEEGWordAlignedDataset):
             h5_file.attrs["ds004408_drop_bad_channels"] = int(self.drop_bad_channels)
             h5_file.attrs["ds004408_eeg_sensor_type"] = self.eeg_sensor_type
             h5_file.flush()
+        self._sensor_type_caches_ready.add(cache_path)
         return cache_path
 
 
-# Compatibility aliases for configs/imports that use the dataset id literally.
 OpenNeuroEEG_ds004408_WordAlignedDataset = OpenNeuroEEGDs004408WordAlignedDataset
 OpenNeuroEEGDS004408WordAlignedDataset = OpenNeuroEEGDs004408WordAlignedDataset
-
 
 __all__ = [
     "DATASET_ID",
