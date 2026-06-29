@@ -1,0 +1,97 @@
+# CrissCross Word Classification Fine-Tuning - OpenNeuro ds004408 Listening EEG
+
+model:
+  train_from_scratch: false
+  criss_cross_checkpoint: "./checkpoints/baseline/meg-xl-med.ckpt"
+  use_promoted_checkpoint: false
+  promoted_checkpoint: null
+  tokenizer_name: "biocodec"
+  tokenizer_checkpoint: "./brainstorm/neuro_tokenizers/biocodec_ckpt.pt"
+  word_mlp:
+    hidden_dim: 2048
+    embed_dim: 1024
+    dropout: 0.1
+
+data:
+  dataset_type: "openneuro_ds004408"
+  dataset_name: "openneuroEEG_ds004408"
+  task_mode: "listening"
+  root: "./datasets/OpenNeuroEEG_ds004408"
+  cache_dir: "./data/cache/ds004408_word_aligned_v2"
+  cache_version: "ds004408_word_aligned_v2"
+
+  max_channel_dim: 128
+  montage_name: "biosemi128"
+  drop_bad_channels: true
+  eeg_sensor_type: "grad"
+
+  # TextGrids contain word and phoneme tiers. Only these word tiers are labels.
+  word_tier_names: ["word", "words"]
+  subjects: null
+  sessions: null
+  tasks: ["listening"]
+
+  # All participants heard the same audio. Group by the complete 50-word text
+  # sequence so repetitions never cross train, validation, and test partitions.
+  use_hashed_split: true
+  split_group: "sentence"
+  split_ratios: [0.8, 0.1, 0.1]
+  all_sessions: null
+  train_pct: 1.0
+  train_sessions: null
+  val_sessions: null
+  test_sessions: null
+
+  l_freq: 0.1
+  h_freq: 40.0
+  target_sfreq: 50.0
+  segment_length: 150.0
+  subsegment_duration: 3.0
+  words_per_segment: 50
+  window_onset_offset: -0.5
+
+t5:
+  model_name: "t5-large"
+  layer: 12
+  cache_dir: "./embeddings_cache"
+
+training:
+  batch_size: 1
+  num_epochs: 50
+  resume_checkpoint: null
+  criss_cross_lr: 1.0e-5
+  word_mlp_lr: 1.0e-3
+  from_scratch_lr: 1.0e-4
+  weight_decay: 1.0e-4
+  gradient_clip_val: 1.0
+  patience: 10
+  min_delta: 0.001
+  num_workers: 0
+  pin_memory: true
+  mixed_precision: true
+  amp_dtype: "bfloat16"
+  gradient_checkpointing: false
+  features_only_forward: true
+  matmul_precision: "high"
+  allow_tf32: true
+
+loss:
+  norm_kind: "xy"
+  temperature: true
+  bias: true
+  reduction: "sum"
+
+evaluation:
+  retrieval_set_sizes: [50, 250]
+  k: 10
+  evaluate_test_during_training: false
+
+logging:
+  wandb_project: "brainstorm-eeg-eval"
+  experiment_name: "criss-cross-word-classification-ds004408-eeg-50Hz-biocodec-pretrained"
+  log_every_n_steps: 10
+  save_dir: "./logs/word_classification_ds004408_eeg"
+  checkpoint_dir: "./checkpoints/word_classification_ds004408_eeg"
+
+device: "cuda"
+seed: 42
