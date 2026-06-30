@@ -2,49 +2,11 @@
 
 Como se ha descrito anteriormente, una de las limitaciones de la decodificación cerebral no invasiva es la disponibilidad de datos. La adquisición de EEG y sobre todo de MEG requiere equipamiento especializado, tiempo de preparación y la participación de voluntarios en sesiones que pueden resultar largas. Además, los conjuntos de datos disponibles presentan diferencias importantes en el número y la posición de los sensores, la frecuencia de muestreo, el idioma, la tarea realizada y la cantidad de información disponible por participante.
 
-% En este trabajo se han combinado varios conjuntos de datos con el objetivo de
-% aumentar la cantidad y la diversidad de registros disponibles. No obstante, no
-% todos desempeñan la misma función dentro del proceso experimental. LibriBrain
-% representa el dominio MEG sobre el que se desarrollaron los modelos de contexto
-% largo utilizados como punto de partida. A continuación, cinco conjuntos de EEG
-% se emplean para entrenar la adaptación a esta nueva modalidad. Finalmente, el
-% conjunto de Weissbart et al. se reserva para realizar el \textit{fine-tuning}
-% supervisado y evaluar la clasificación de palabras durante la escucha de habla
-% continua.
-
 En este trabajo era necesario combinar varios conjuntos de datos para aumentar la cantidad y la diversidad de registros disponibles. No obstante, diferentes  datasets desempeñan distintas funciones dentro del proceso experimental. Los cinco conjuntos de EEG se emplean para entrenar la adaptación de MEG-XL a esta nueva modalidad. Finalmente, el conjunto de Weissbart et al. se reserva para realizar el \textit{fine-tuning} supervisado y evaluar la clasificación de palabras durante la escucha de habla continua.
-
-% Los cinco conjuntos utilizados durante el entrenamiento se dividen en dos
-% grupos. En primer lugar se incorporan los conjuntos de lectura, ZuCo 2.0 y
-% Nieuwland et al. Posteriormente se introducen los conjuntos de escucha,
-% SparrKULee, OpenNeuro ds007808 y OpenNeuro ds004408. La adaptación comienza
-% por lectura porque ofrece condiciones experimentales relativamente controladas
-% y permite comprobar inicialmente el funcionamiento del modelo con EEG
-% relacionado con procesamiento lingüístico. Después se aproxima el dominio de
-% entrenamiento a la tarea final mediante registros obtenidos durante la percepción
-% auditiva del habla.
 
 Los cinco conjuntos utilzizados en entrenamiento se dividen en dos grupos en función de la tarea realizada. En primer lugar se incorporan los conjuntos de lectura: ZuCo 2.0 y el de Nieuwland et al. Posteriormente se introducen los conjuntos de escucha: SparrKULee, OpenNeuro ds007808 y OpenNeuro ds004408. La adaptación comienza por lectura porque ofrece condiciones de experimentación relativamente controladas y permite realizar un primer entrenamiento con EEG relacionado con procesamiento lingüístico. Después se aproxima el dominio de entrenamiento a la tarea final mediante registros obtenidos durante la percepción auditiva del habla.
 
-% A pesar de sus diferencias, todos estos conjuntos se transforman a una interfaz
-% común. Se conservan únicamente los canales EEG, junto con sus posiciones y una
-% máscara que diferencia los sensores reales de los añadidos para igualar
-% dimensiones. La señal se filtra inicialmente en su frecuencia de muestreo
-% original y después se remuestrea a 50 Hz. A partir de cada grabación se extraen
-% ventanas completas y no solapadas de 150 segundos. Los fragmentos finales que
-% no alcanzan esta duración se descartan para evitar introducir muestras repetidas
-% o relleno artificial.
-
 A pesar de las diferencias entre ellos, todos estos conjuntos se transforman a una interfaz común. Se conservan únicamente los canales EEG, junto con sus posiciones y una máscara para que el modelo tenga un único número de sensores de entrada, de forma que se enmascaran los sensores que no están presentes en un conjunto concreto. La señal se filtra inicialmente en su frecuencia de muestreo original y después se remuestrea a 50 Hz -- al igual que en MEG-XL. A partir de cada grabación se extraen ventanas completas y no solapadas de 150 segundos. Los fragmentos finales que no alcanzan esta duración se descartan.
-
-% Durante esta etapa no se utilizan las palabras, las transcripciones ni las
-% alineaciones lingüísticas como etiquetas. BioCodec transforma la señal en una
-% secuencia discreta de códigos neuronales y el modelo aprende a reconstruir los
-% códigos que han sido ocultados. De esta forma, los cinco conjuntos pueden
-% combinarse aunque estén asociados a idiomas y paradigmas experimentales
-% diferentes. El objetivo no es que el modelo memorice el texto presentado, sino
-% que aprenda regularidades temporales y espaciales de la señal EEG que puedan
-% transferirse posteriormente a una tarea supervisada.
 
 Durante esta etapa no se entrena utilizando ni las palabras, ni las transcripciones, ni las alineaciones lingüísticas como etiquetas. BioCodec transforma la señal en una secuencia discreta de códigos neuronales y el modelo aprende a reconstruir los códigos que han sido ocultados. De esta forma, los cinco conjuntos pueden combinarse aunque estén asociados a idiomas y paradigmas experimentales diferentes. Esto se hace para que el modelo aprenda regularidades temporales y espaciales de la señal EEG que puedan transferirse posteriormente a una tarea supervisada.
 
@@ -181,7 +143,6 @@ En este caso la validación vuelve a realizarse por participante. Se reserva un 
 \subsection{Datasets de escucha}
 
 \subsubsection{SparrKULee}
-
 
 SparrKULee es el primer dataset de escucha continua en el entrenamiento, se trata de un repositorio de respuestas EEG evocadas por habla creado en KU Leuven \cite{accou2024sparrkulee}. Contiene datos de 85 participantes jóvenes, con audición normal y neerlandés o flamenco como lengua materna. Cada participante escuchó entre 90 y 150 minutos de habla natural, distribuidos en varios bloques de aproximadamente 15 minutos.
 
