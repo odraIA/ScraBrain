@@ -28,33 +28,41 @@ De esta forma, la parte supervisada de clasificación de palabras queda separada
 
 \section{Preprocesamiento del EEG}
 
-\subsection{Preprocesado de la señal}
+\subsection{Filtrado y remuestreo}
 
-Todos los datasets de entrenamiento se transforman a una frecuencia de muestreo común de 50 Hz tal y como lo hace MEG-XL. Esta elección reduce el coste computacional de las ventanas largas. Un segmento de 150 segundos contiene 7500 muestras por canal antes de la tokenización, por lo que aumentar la frecuencia de muestreo incrementaría de forma directa la memoria necesaria y el número de tokens que debe procesar el Transformer.
+% Todos los datasets de entrenamiento se transforman a una frecuencia común de 50 Hz. Esta elección sigue la configuración de MEG-XL y reduce el coste computacional de las ventanas largas. Un segmento de 150 segundos contiene 7500 muestras por canal antes de la tokenización, por lo que aumentar la frecuencia de muestreo incrementaría de forma directa la memoria necesaria y el número de tokens que debe procesar el Transformer.
 
-El entrenamiento realizado utiliza un filtrado paso banda de 0,1--40 Hz. La señal se filtra en su frecuencia de muestreo original y después se remuestrea a 50 Hz. Esta decisión conserva la lógica del preprocesamiento original de MEG-XL: primero se trabaja sobre la señal disponible en origen y posteriormente se reduce la frecuencia para construir una entrada homogénea. En la práctica, el remuestreo aplica el filtrado antialiasing necesario para obtener una señal compatible con la frecuencia final. Además, se tiene en cuenta que esta combinación rompe la frecuencia de Nyquist, pero en MEG-XL \cite{dascoli2023megxl} se pueden ver los experimentos que hicieron que reportaban peores resultados con frecuencias de muestreo más altas. Por tanto, se decidió mantener la frecuencia de 50 Hz para poder comparar los resultados con los obtenidos en MEG-XL.
+Todos los datasets de entrenamiento se transforman a una frecuencia de muestreo común de 50 Hz. Esta elección
 
-Después del filtrado y el remuestreo, cada grabación se divide en ventanas completas de 150 segundos. Para montar estas ventanas se utilizan segmentos continuos y no solapados dentro de cada registro. Los fragmentos finales que no alcanzan la duración requerida se descartan. Esta decisión evita introducir relleno artificial, repetir muestras para completar una ventana o unir partes de la señal que no son contiguas, lo que podría introducir artefactos y sesgos en el entrenamiento.
+% El entrenamiento final utiliza un filtrado paso banda de 0,1--40 Hz. La señal se filtra en su frecuencia de muestreo original y después se remuestrea a 50 Hz. Esta decisión conserva la lógica del preprocesamiento original de MEG-XL: primero se trabaja sobre la señal disponible en origen y posteriormente se reduce la frecuencia para construir una entrada homogénea. En la práctica, el remuestreo aplica el filtrado antialiasing necesario para obtener una señal compatible con la frecuencia final.
 
-A partir de cada ventana de 150 segundos, se subdivide la señal en bloques de tres segundos. Esta subdivisión mantiene la escala temporal utilizada por MEG-XL y coincide con la duración de las ventanas que más tarde se utilizan en clasificación de palabras. Durante el preentrenamiento continuo, esos bloques no se asocian a palabras concretas; funcionan como unidades temporales sobre las que se puede aplicar el enmascaramiento.
+% En fases previas se habían considerado entrenamientos restringidos a bandas concretas, como beta o gamma, y configuraciones con frecuencias de muestreo distintas. Sin embargo, el experimento final no utiliza una arquitectura distinta para cada banda ni un barrido espectral como resultado principal. Se entrena sobre la banda amplia 0,1--40Hz para conservar la mayor cantidad posible de información temporal y evitar introducir una hipótesis demasiado fuerte sobre qué componentes son útiles para lectura o escucha.
 
-La normalización se aplica para reducir diferencias de escala entre canales, sesiones y datasets. Este paso es de vital importancia en EEG porque cada conjunto puede haber sido registrado con amplificadores, referencias y montajes distintos. La normalización no elimina por completo estas diferencias, pero evita que el modelo dependa de magnitudes absolutas que no son comparables entre datasets.
+% Esta decisión tiene una consecuencia importante: la frecuencia de muestreo y el contexto temporal quedan desacoplados. Aunque el modelo trabaje a 50 Hz, cada ejemplo cubre dos minutos y medio de señal. Por tanto, no se pretende representar oscilaciones arbitrariamente rápidas, sino aprender relaciones temporales extensas entre patrones de EEG, estados de la sesión y actividad relacionada con el procesamiento lingüístico.
 
-Siguiendo el ejemplo de MEG-XL, se ha creado una interfaz común para cargar los datasets. Cada ejemplo contiene la señal EEG, las posiciones de los sensores y una máscara que indica qué canales son reales. Cuando un conjunto tiene menos sensores que otro, no se fuerza una interpolación espacial previa; se representa dentro de una dimensión común y se enmascaran los canales ausentes. Así, el modelo puede entrenar con diferentes montajes sin confundir sensores inexistentes con señales de valor cero.
+\subsection{Normalización y segmentación}
+
+% Después del filtrado y el remuestreo, cada grabación se divide en ventanas completas de 150 segundos. El entrenamiento final utiliza ventanas físicas continuas y no solapadas dentro de cada registro. Los fragmentos finales que no alcanzan la duración requerida se descartan. Esta decisión evita introducir relleno artificial o repetir muestras para completar una ventana.
+
+% Cada segmento se subdivide internamente en bloques de tres segundos. Esta subdivisión mantiene la escala temporal utilizada por MEG-XL y coincide con la duración de las ventanas que más tarde se utilizan en clasificación de palabras. Durante el preentrenamiento continuo, esos bloques no se asocian a palabras concretas; funcionan como unidades temporales sobre las que se puede aplicar el enmascaramiento.
+
+% La normalización se aplica de forma robusta para reducir diferencias de escala entre canales, sesiones y datasets. Este paso es especialmente importante en EEG porque cada conjunto puede haber sido registrado con amplificadores, referencias y montajes distintos. La normalización no elimina por completo estas diferencias, pero evita que el modelo dependa de magnitudes absolutas que no son comparables entre datasets.
+
+% Los datasets se cargan mediante una interfaz común. Cada ejemplo contiene la señal EEG, las posiciones de los sensores y una máscara que indica qué canales son reales. Cuando un conjunto tiene menos sensores que otro, no se fuerza una interpolación espacial previa; se representa dentro de una dimensión común y se enmascaran los canales ausentes. Así, el modelo puede entrenar con montajes heterogéneos sin confundir sensores inexistentes con señales de valor cero.
 
 \subsection{Alineamiento con las palabras}
 
-El entrenamiento autosupervisado final no utiliza palabras, transcripciones ni alineaciones lingüísticas como etiquetas. Durante las etapas de lectura y escucha, el modelo recibe EEG continuo y aprende a reconstruir códigos neuronales ocultos. Por tanto, pueden combinarse datasets con idiomas y paradigmas diferentes sin construir un vocabulario común.
+% El entrenamiento autosupervisado final no utiliza palabras, transcripciones ni alineaciones lingüísticas como etiquetas. Esta es una diferencia fundamental respecto a la clasificación contextual descrita en capítulos anteriores. Durante las etapas de lectura y escucha, el modelo recibe EEG continuo y aprende a reconstruir códigos neuronales ocultos. Por tanto, pueden combinarse datasets con idiomas y paradigmas diferentes sin construir un vocabulario común.
 
-En los conjuntos de lectura, las anotaciones de presentación visual o fijación sirven para seleccionar tareas relacionadas con procesamiento lingüístico, pero no se utilizan como objetivo de entrenamiento. En ZuCo se emplea la tarea de lectura natural, y en el conjunto de Nieuwland et al. las tareas \textit{delong} y \textit{control}. En los conjuntos de escucha, se seleccionan tareas de percepción auditiva continua. En OpenNeuro ds007808, los registros \textit{listeningcovert} se tratan con cuidado: la grabación completa puede proporcionar contexto, pero solo los intervalos etiquetados como escucha son candidatos para ser enmascarados y reconstruidos.
+% En los conjuntos de lectura, las anotaciones de presentación visual o fijación sirven para seleccionar tareas relacionadas con procesamiento lingüístico, pero no se utilizan como objetivo de entrenamiento. En ZuCo se emplea la tarea de lectura natural, y en la copia EEGDash del conjunto de Nieuwland et al. las tareas \textit{delong} y \textit{control}. En los conjuntos de escucha, se seleccionan tareas de percepción auditiva continua. En OpenNeuro ds007808, los registros \textit{listeningcovert} se tratan con cuidado: la grabación completa puede proporcionar contexto, pero solo los intervalos etiquetados como escucha son candidatos para ser enmascarados y reconstruidos.
 
-El alineamiento palabra a palabra aparece después, en la etapa de \textit{fine-tuning} con OpenNeuro ds004408. En ese caso sí se extraen ventanas de tres segundos alrededor del inicio de cada palabra y se agrupan 50 palabras consecutivas para formar una entrada de 150 segundos. De esta forma primero el modelo aprende regularidades generales de EEG continuo y después ya se especializa en recuperación de palabras.
+% El alineamiento palabra a palabra aparece después, en la etapa de \textit{fine-tuning} con Weissbart et al. En ese caso sí se extraen ventanas de tres segundos alrededor del inicio de cada palabra y se agrupan 50 palabras consecutivas para formar una entrada de 150 segundos. Esta separación evita mezclar dos objetivos distintos: primero aprender regularidades generales de EEG continuo y después especializar el modelo en recuperación de palabras.
 
 \section{Adaptación de la arquitectura MEG-XL}
 
 \subsection{Componentes conservados}
 
-La adaptación final mantiene la arquitectura principal de MEG-XL. La señal se tokeniza con BioCodec, que transforma cada canal en una secuencia discreta de códigos mediante cuantización vectorial residual. En la configuración utilizada, BioCodec emplea un vocabulario de 256 códigos, seis cuantizadores y un factor de reducción temporal de 12. De esta forma, los 7500 puntos temporales de una ventana de 150 segundos a 50 Hz se convierten en una secuencia de tokens más corta, manejable por el Transformer.
+% La adaptación final mantiene la arquitectura principal de MEG-XL. La señal se tokeniza con BioCodec, que transforma cada canal en una secuencia discreta de códigos mediante cuantización vectorial residual. En la configuración utilizada, BioCodec emplea un vocabulario de 256 códigos, seis cuantizadores y un factor de reducción temporal de 12. De esta forma, los 7500 puntos temporales de una ventana de 150 segundos a 50 Hz se convierten en una secuencia de tokens más corta, manejable por el Transformer.
 
 % Sobre esos tokens se aplica el Transformer con atención \textit{criss-cross}. La atención temporal permite relacionar momentos dentro de un mismo sensor, mientras que la atención espacial combina información entre sensores para un mismo instante. Esta factorización conserva la idea original de MEG-XL: modelar dependencias largas sin construir una atención completa sobre todos los pares canal-tiempo.
 
@@ -67,54 +75,6 @@ La adaptación final mantiene la arquitectura principal de MEG-XL. La señal se 
 % MEG-XL fue diseñado para trabajar con magnetómetros y gradiómetros. En EEG solo existe un tipo de sensor dentro del modelo, pero los montajes varían mucho entre datasets. Por ello se introduce el tipo de sensor EEG dentro del espacio de tipos ya utilizado por la arquitectura. La configuración final mantiene tres tipos posibles: gradiómetro, magnetómetro y EEG. En los datos de este trabajo todos los canales reales pertenecen al tipo EEG, pero conservar los otros tipos permite cargar parcialmente los pesos de MEG-XL sin rediseñar el modelo.
 
 % La posición de cada electrodo se utiliza como información espacial. Esto es necesario porque el índice de un canal no tiene el mismo significado en todos los conjuntos. Un canal situado en una región frontal no debería tratarse como equivalente a otro canal occipital solo porque ocupa la misma posición en una matriz. Al proporcionar coordenadas y máscara de sensores, el modelo puede aprender relaciones espaciales en función de la geometría real disponible en cada registro.
-
-Formalmente, si el canal \(c\) tiene coordenadas normalizadas
-\(\mathbf{p}_c=(x_c,y_c,z_c)\in\mathbb{R}^3\) y tipo de sensor
-\(s_c\in\{0,1,2\}\), con \(0\) para gradiómetro, \(1\) para magnetómetro y
-\(2\) para EEG, la información espacial se introduce mediante un
-\textit{embedding} Fourier gaussiano:
-
-\begin{equation}
-\boldsymbol{\phi}(\mathbf{p}_c)=
-\left[
-\sin\left(2\pi \mathbf{p}_c \mathbf{B}\right),
-\cos\left(2\pi \mathbf{p}_c \mathbf{B}\right)
-\right],
-\qquad
-\mathbf{B}_{ij}\sim\mathcal{N}(0,\sigma^2),
-\end{equation}
-
-\noindent donde \(\mathbf{B}\in\mathbb{R}^{3\times d_F/2}\) es una matriz de
-frecuencias fija. Este vector se proyecta a la dimensión latente del modelo:
-
-\begin{equation}
-\mathbf{e}^{\text{pos}}_c =
-\mathbf{W}_{\text{pos}}\boldsymbol{\phi}(\mathbf{p}_c)
-+ \mathbf{b}_{\text{pos}}.
-\end{equation}
-
-El tipo de sensor se representa mediante una tabla aprendida
-\(\mathbf{E}_{\text{type}}\in\mathbb{R}^{3\times d}\):
-
-\begin{equation}
-\mathbf{e}^{\text{type}}_c =
-\mathbf{E}_{\text{type}}[s_c].
-\end{equation}
-
-Por tanto, para el token temporal \(\tau\) del canal \(c\), el vector de
-entrada al Transformer queda:
-
-\begin{equation}
-\mathbf{h}^{(0)}_{c,\tau} =
-\mathbf{e}^{\text{tok}}_{c,\tau}
-+ \mathbf{e}^{\text{pos}}_c
-+ \mathbf{e}^{\text{type}}_c.
-\end{equation}
-
-En los registros EEG de este trabajo se usa \(s_c=2\) para todos los canales
-reales. La posición distingue electrodos dentro de un mismo montaje y el tipo
-de sensor permite mantener la compatibilidad con los pesos de MEG-XL sin
-confundir la modalidad física de la señal.
 
 % Otra diferencia respecto a MEG es el número de canales. Los datasets utilizados contienen montajes de 64, 105, 128 o configuraciones variables según el laboratorio y la sesión. La dimensión máxima de canales se infiere a partir de los datos disponibles y cada ejemplo incorpora una máscara. Esta máscara se aplica tanto durante el procesamiento como en el cálculo de la pérdida, evitando que los canales añadidos para igualar dimensiones contribuyan al entrenamiento.
 
