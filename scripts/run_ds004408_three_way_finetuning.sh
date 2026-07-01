@@ -151,7 +151,7 @@ run_experiment() {
     docker compose run -d --no-deps --name "$container" \
       -e "NVIDIA_VISIBLE_DEVICES=$GPU" -e "WANDB_MODE=$WANDB_MODE" \
       "${extra_env[@]}" eval_eeg_listening \
-      uv run --no-sync python scripts/evaluate_ds004408_word_classification.py \
+      uv run --no-sync python -m scripts.evaluate_ds004408_word_classification \
         --config-name=ds004408_word_finetuning \
         "model.train_from_scratch=$train_from_scratch" model.use_promoted_checkpoint=false \
         model.promoted_checkpoint=null "model.criss_cross_checkpoint=$init_checkpoint" \
