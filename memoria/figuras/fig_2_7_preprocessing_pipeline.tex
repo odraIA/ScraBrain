@@ -1,0 +1,41 @@
+\begin{figure}[htbp]
+    \centering
+    \resizebox{0.99\textwidth}{!}{%
+    \begin{tikzpicture}[
+        font=\footnotesize,
+        node distance=5mm,
+        box/.style={draw, rounded corners=1.5mm, minimum width=2.5cm,
+                    minimum height=1.2cm, align=center, thick, fill=blue!6},
+        box2/.style={draw, rounded corners=1.5mm, minimum width=2.5cm,
+                    minimum height=1.2cm, align=center, thick, fill=orange!8},
+        final/.style={draw, rounded corners=1.5mm, minimum width=2.5cm,
+                    minimum height=1.2cm, align=center, thick, fill=green!10},
+        arrow/.style={-{Latex[length=2.4mm]}, thick}
+    ]
+        \node[box] (raw) {Registro crudo\\$\mathbf{X}\in\mathbb{R}^{C\times T}$};
+        \node[box, right=of raw] (qc) {Control de calidad\\canales y sincronización};
+        \node[box, right=of qc] (ref) {EEG: referencia\\MEG: Maxwell/movimiento};
+        \node[box, right=of ref] (filter) {Filtrado\\paso banda y notch};
+        \node[box2, right=of filter] (resample) {Antialiasing\\y remuestreo};
+        \node[box2, below=7mm of resample] (artifact) {Tratamiento de artefactos\\ICA, EOG, EMG o controles};
+        \node[box2, left=of artifact] (norm) {Normalización\\por canal, sesión o ventana};
+        \node[final, left=of norm] (segment) {Segmentación\\ventanas alineadas a palabras};
+        \node[final, left=of segment] (split) {Particiones rigurosas\\por sujeto, sesión o estímulo};
+
+        \draw[arrow] (raw) -- (qc);
+        \draw[arrow] (qc) -- (ref);
+        \draw[arrow] (ref) -- (filter);
+        \draw[arrow] (filter) -- (resample);
+        \draw[arrow] (resample) -- (artifact);
+        \draw[arrow] (artifact) -- (norm);
+        \draw[arrow] (norm) -- (segment);
+        \draw[arrow] (segment) -- (split);
+
+        \node[draw, dashed, rounded corners, fit=(filter)(resample), inner sep=2mm,
+              label={[font=\scriptsize]above:Debe respetar la frecuencia de Nyquist}] {};
+        \node[draw, dashed, rounded corners, fit=(artifact)(norm), inner sep=2mm,
+              label={[font=\scriptsize]below:Evitar que el modelo aprenda atajos}] {};
+    \end{tikzpicture}}
+    \caption{Flujo habitual de preparación de registros EEG y MEG para aprendizaje automático. El orden exacto puede variar, pero el filtrado antialiasing debe preceder al remuestreo y las particiones deben impedir fugas entre datos relacionados.}
+    \label{fig:preprocessing_pipeline}
+\end{figure}

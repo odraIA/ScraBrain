@@ -1,0 +1,46 @@
+\begin{figure}[htbp]
+    \centering
+    \resizebox{0.96\textwidth}{!}{%
+    \begin{tikzpicture}[
+        font=\small,
+        arrow/.style={-{Latex[length=3mm]}, thick},
+        init/.style={draw, rounded corners=2mm, minimum width=4.1cm,
+                    minimum height=1.35cm, align=center, thick, fill=orange!10},
+        curriculum/.style={draw, rounded corners=2mm, minimum width=5.2cm,
+                          minimum height=2.6cm, align=center, thick, fill=blue!7},
+        final/.style={draw, rounded corners=2mm, minimum width=4.6cm,
+                     minimum height=1.55cm, align=center, thick, fill=green!10},
+        control/.style={draw, rounded corners=2mm, minimum width=4.6cm,
+                       minimum height=1.55cm, align=center, thick, fill=gray!10},
+        note/.style={font=\footnotesize, align=center}
+    ]
+        \node[init] (meginit) at (0,4.2) {Inicialización desde MEG-XL\\pesos compatibles};
+        \node[curriculum] (megcurr) at (6.1,4.2) {\textbf{Currículo EEG autosupervisado}\\[1mm]
+              1. lectura: Nieuwland + ZuCo 2.0\\
+              $\downarrow$ mejor checkpoint\\
+              2. escucha: SparrKULee + JapanEEG};
+        \node[final] (megft) at (12.5,4.2) {Fine-tuning en ds004408\\condición MEG $\rightarrow$ EEG};
+
+        \node[init] (randinit) at (0,0.7) {Inicialización aleatoria\\misma arquitectura EEG-XL};
+        \node[curriculum] (randcurr) at (6.1,0.7) {\textbf{Currículo EEG autosupervisado}\\[1mm]
+              1. lectura: Nieuwland + ZuCo 2.0\\
+              $\downarrow$ mejor checkpoint\\
+              2. escucha: SparrKULee + JapanEEG};
+        \node[final] (randft) at (12.5,0.7) {Fine-tuning en ds004408\\condición preentrenada solo con EEG};
+
+        \node[control] (directinit) at (0,-2.7) {Inicialización aleatoria};
+        \node[control] (direct) at (6.1,-2.7) {Sin currículo autosupervisado};
+        \node[control] (directft) at (12.5,-2.7) {Fine-tuning directo en ds004408\\control supervisado};
+
+        \draw[arrow] (meginit) -- (megcurr);
+        \draw[arrow] (megcurr) -- (megft);
+        \draw[arrow] (randinit) -- (randcurr);
+        \draw[arrow] (randcurr) -- (randft);
+        \draw[arrow] (directinit) -- (direct);
+        \draw[arrow] (direct) -- (directft);
+
+        \node[note] at (6.1,-4.15) {Las tres condiciones comparten el mismo conjunto de fine-tuning y el mismo protocolo de evaluación.};
+    \end{tikzpicture}}
+    \caption{Diseño experimental de la adaptación de MEG-XL a EEG-XL. Las dos rutas autosupervisadas mantienen el mismo currículo lectura--escucha y solo difieren en la inicialización; el control supervisado permite separar el efecto del preentrenamiento EEG de la transferencia adicional desde MEG.}
+    \label{fig:eegxl_design}
+\end{figure}

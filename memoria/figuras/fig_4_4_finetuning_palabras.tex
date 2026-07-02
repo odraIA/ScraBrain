@@ -1,0 +1,41 @@
+\begin{figure}[htbp]
+    \centering
+    \resizebox{0.96\textwidth}{!}{%
+    \begin{tikzpicture}[
+        font=\small,
+        arrow/.style={-{Latex[length=3mm]}, thick},
+        box/.style={draw, rounded corners=2mm, minimum width=3.05cm,
+                   minimum height=1.4cm, align=center, thick, fill=blue!7},
+        language/.style={draw, rounded corners=2mm, minimum width=3.7cm,
+                        minimum height=1.45cm, align=center, thick, fill=orange!10},
+        train/.style={draw, rounded corners=2mm, minimum width=4.15cm,
+                     minimum height=1.55cm, align=center, thick, fill=green!10},
+        note/.style={font=\footnotesize, align=center}
+    ]
+        \node[box] (textgrid) at (0,3.6) {TextGrid\\$t_i$};
+        \node[box] (epoch) at (3.6,3.6) {Ventana EEG\\$t_i-0{,}5:t_i+2{,}5$\\$3\,\mathrm{s}$};
+        \node[box] (sequence) at (7.2,3.6) {50 palabras\\$150\,\mathrm{s}$};
+        \node[box] (encoder) at (10.8,3.6) {EEG-XL\\contexto};
+        \node[box] (project) at (14.4,3.6) {Proyección\\$\widehat{\mathbf{y}}_i\in\mathbb{R}^{1024}$};
+
+        \draw[arrow] (textgrid) -- (epoch);
+        \draw[arrow] (epoch) -- (sequence);
+        \draw[arrow] (sequence) -- (encoder);
+        \draw[arrow] (encoder) -- (project);
+
+        \node[language] (t5) at (5.4,0.8) {T5-large\\capa 12\\$\mathbf{y}_i\in\mathbb{R}^{1024}$};
+        \node[train] (siglip) at (10.8,0.8) {\textbf{Ajuste}\\SigLIP\\pares correctos/incorrectos};
+
+        \node[language] (vocab) at (5.4,-1.9) {Vocabulario\\50/250 palabras\\embeddings T5};
+        \node[train] (retrieval) at (10.8,-1.9) {\textbf{Evaluación}\\coseno + ranking\\Top-10};
+
+        \draw[arrow] (t5) -- (siglip);
+        \coordinate (split) at ($(project.south)+(0,-8mm)$);
+        \draw[thick] (project.south) -- (split);
+        \draw[arrow] (split) -| (siglip.north);
+        \draw[arrow] (vocab) -- (retrieval);
+        \draw[arrow, dashed] (split) -- ++(8mm,0) |- (retrieval.east);
+    \end{tikzpicture}}
+    \caption{Ajuste y evaluación de palabras: ventanas alineadas, contexto EEG-XL, proyección cerebral, objetivo T5 y recuperación por ranking.}
+    \label{fig:eegxl_word_finetuning}
+\end{figure}

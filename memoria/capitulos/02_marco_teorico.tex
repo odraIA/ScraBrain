@@ -9,35 +9,7 @@ Durante los últimos años el interés por este tipo de sistemas ha aumentado co
 
 De forma más o menos general, una BCI se puede dividir en varias etapas. En primer lugar, la actividad cerebral se registra mediante una modalidad de adquisición, como la electroencefalografía (EEG), magnetoencefalografía (MEG), resonancia magnética funcional (fMRI) o electrocorticografía(ECoG), todas descritas más adelante. Después, la señal obtenida se preprocesa para reducir ruido, artefactos y diferencias de escala. Sobre estos datos se extrae una representación que conserve la información relevante para la tarea. Finalmente, un modelo de decodificación transforma dicha representación en una predicción y, en los sistemas en línea, esta predicción se utiliza para actuar sobre un dispositivo o proporcionar \emph{feedback} al usuario.
 
-\begin{figure}[htbp]
-    \centering
-    \resizebox{0.98\textwidth}{!}{%
-    \begin{tikzpicture}[
-        font=\small,
-        node distance=7mm,
-        box/.style={draw, rounded corners=2mm, minimum width=3.1cm,
-                    minimum height=1.45cm, align=center, thick, fill=blue!7},
-        output/.style={draw, rounded corners=2mm, minimum width=3.1cm,
-                    minimum height=1.45cm, align=center, thick, fill=green!10},
-        arrow/.style={-{Latex[length=3mm]}, thick}
-    ]
-        \node[box] (acq) {Adquisición\\EEG, MEG, fMRI o ECoG};
-        \node[box, right=of acq] (prep) {Preprocesamiento\\filtrado, artefactos y normalización};
-        \node[box, right=of prep] (repr) {Representación\\temporal, espacial o tiempo--frecuencia};
-        \node[box, right=of repr] (dec) {Modelo de decodificación\\clasificación o generación};
-        \node[output, right=of dec] (out) {Salida\\texto, voz o control de dispositivo};
-
-        \draw[arrow] (acq) -- (prep);
-        \draw[arrow] (prep) -- (repr);
-        \draw[arrow] (repr) -- (dec);
-        \draw[arrow] (dec) -- (out);
-        \draw[arrow, rounded corners=2mm] (out.north) -- ++(0,8mm)
-            -- node[above, align=center]{\footnotesize realimentación\\\footnotesize en sistemas en línea}
-            ($(acq.north)+(0,8mm)$) -- (acq.north);
-    \end{tikzpicture}}
-    \caption{Etapas generales de una interfaz cerebro--computador. La salida del decodificador puede utilizarse directamente o cerrar el bucle mediante realimentación al usuario.}
-    \label{fig:bci_pipeline}
-\end{figure}
+\input{figuras/fig_2_1_bci_pipeline}
 
 No todas las BCIs persiguen el mismo objetivo, algunas se basan en reconocer actividad generada voluntariamente por el usuario, como la imaginación motora o el habla imaginada. También existen sistemas pasivos que no buscan ejecutar una orden, sino estimar estados como la carga cognitiva, la atención o la fatiga. Dentro de esta variedad de aplicaciones, la decodificación cerebral del lenguaje es una de las líneas de investigación más ambiciosas, ya que pretende recuperar información lingüística directamente a partir de la actividad neuronal.
 
@@ -47,65 +19,24 @@ Se llama decodificación cerebral del lenguaje a la tarea de producir informaci�
 
 Hay diferentes situaciones o tareas en las que el lenguaje puede estar presente. En el \textit{habla producida} o \textit{overt speech}, la persona pronuncia en el experimento una palabra o una frase. Así se puede comprobar fácilmente el contenido generado, pero introduce las señales neurológicas relacionadas con el movimiento muscular de la boca, la lengua y la mandíbula. En el \textit{habla imaginada}, llamada \textit{covert speech}, \textit{inner speech} o habla interna, lo que hace la persona es imaginar que pronuncia el contenido sin mover voluntariamente ningún músculo ni generar sonido. Esta segunda tarea resulta especialmente interesante para personas que no pueden hablar, que son las personas objetivo de este tipo de experimentos y sistemas, aunque también es más difícil de registrar y verificar \cite{panachakel2021covert,alzahrani2024systematic}.
 
-Una tercera posibilidad y en la que se desarrolla este trabajo es estudiar la percepción del habla. En este tipo de experimentos, el participante escucha palabras, frases o narraciones mientras se registra su actividad cerebral. Al existir un estímulo acústico conocido, es posible alinear con precisión los eventos lingüísticos con la señal neuronal. Esta característica ha permitido crear conjuntos de datos de gran tamaño basados en audiolibros y habla continua, como LibriBrain, en el que un participante escucha más de 50h de narraciones en inglés mientras se registra su actividad cerebral usando MEG \cite{ozdogan2025libribrain}. Aunque escuchar habla no equivalga a producirla o imaginarla, resulta más adecuada que los anteriores para estudiar representaciones lingüísticas y desarrollar modelos de decodificación no invasiva a gran escala.
+Una tercera posibilidad y en la que se desarrolla este trabajo es estudiar la percepción del habla. En este tipo de experimentos, el participante escucha palabras, frases o narraciones mientras se registra su actividad cerebral. Al existir un estímulo acústico conocido, es posible alinear con precisión los eventos lingüísticos con la señal neuronal. Aunque escuchar habla no equivalga a producirla o imaginarla, resulta más adecuada que los anteriores para estudiar representaciones lingüísticas y desarrollar modelos de decodificación no invasiva a gran escala \cite{ozdogan2025libribrain}.
 
-Por último, dentro de la percepción del habla existe la opción de utilizar la lectura en lugar de la escucha. En este caso, la actividad cerebral que se registra mientras el participante procesa palabras presentadas de forma aislada o dentro de frases. La lectura natural introduce una dificultad adicional: cada persona fija la mirada sobre las palabras durante intervalos diferentes y puede omitir o volver a leer fragmentos del texto. Por este motivo, algunos conjuntos de datos combinan EEG y seguimiento ocular. El \textit{eye-tracking} permite localizar el inicio y la duración de cada fijación y, a partir de esta información, extraer segmentos de EEG asociados a palabras concretas. ZuCo es uno de los ejemplos más conocidos de este tipo de adquisición, ya que proporciona EEG de alta densidad y seguimiento ocular simultáneo durante la lectura natural de frases \cite{hollenstein2020zuco2}. Otros datasets, en cambio, presentan palabras de forma aislada y controlan la duración de la presentación, lo que permite alinear la señal con mayor precisión \cite{panachakel2021covert,alzahrani2024systematic}.
+Por último, dentro de la percepción del habla existe la opción de utilizar la lectura en lugar de la escucha. En este caso, la actividad cerebral que se registra mientras el participante procesa palabras presentadas de forma aislada o dentro de frases. La lectura natural introduce una dificultad adicional: cada persona fija la mirada sobre las palabras durante intervalos diferentes y puede omitir o volver a leer fragmentos del texto. Por este motivo, algunos conjuntos de datos combinan EEG y seguimiento ocular. El \textit{eye-tracking} permite localizar el inicio y la duración de cada fijación y, a partir de esta información, extraer segmentos de EEG asociados a palabras concretas \cite{hollenstein2020zuco2, panachakel2021covert,alzahrani2024systematic}.
 
 La señal relacionada con una palabra tiene más profundidad que simplemente el instante exacto en el que esta aparece. El procesamiento lingüístico tiene dependencias a diferentes escalas temporales. Los fonemas se agrupan en sílabas, las sílabas en palabras y las palabras adquieren diferentes significados dentro de frases y discursos. Además, la respuesta cerebral a una palabra puede depender de las palabras anteriores, de las expectativas del lector u oyente y del estado general del participante. Por ello, los enfoques recientes no solo analizan ventanas aisladas, sino secuencias de segmentos neuronales consecutivos. Esta incorporación de contexto permite al modelo utilizar relaciones entre palabras y patrones cerebrales que no son visibles cuando cada segmento se procesa de manera independiente \cite{dascoli2024words,jayalath2026megxl}.
 
-\begin{figure}[htbp]
-    \centering
-    \resizebox{0.92\textwidth}{!}{%
-    \begin{tikzpicture}[
-        font=\small,
-        panel/.style={draw, rounded corners=2mm, minimum width=6.1cm,
-                      minimum height=3.2cm, align=left, inner sep=4mm, thick},
-        tag/.style={font=\bfseries, anchor=north west},
-        desc/.style={align=left, text width=5.35cm, anchor=north west}
-    ]
-        \node[panel, fill=red!6] (overt) at (0,0) {};
-        \node[tag] at ($(overt.north west)+(3mm,-3mm)$) {Habla producida};
-        \node[desc] at ($(overt.north west)+(3mm,-10mm)$) {La persona pronuncia el contenido. Permite verificar directamente la respuesta, pero añade actividad motora y artefactos musculares.};
-
-        \node[panel, fill=orange!8, right=9mm of overt] (covert) {};
-        \node[tag] at ($(covert.north west)+(3mm,-3mm)$) {Habla imaginada};
-        \node[desc] at ($(covert.north west)+(3mm,-10mm)$) {Se imagina la pronunciación sin producir sonido. Es clínicamente atractiva, pero el contenido y el instante son difíciles de verificar.};
-
-        \node[panel, fill=blue!7, below=8mm of overt] (listen) {};
-        \node[tag] at ($(listen.north west)+(3mm,-3mm)$) {Percepción auditiva};
-        \node[desc] at ($(listen.north west)+(3mm,-10mm)$) {Se escucha habla conocida y temporizada. Permite alinear fonemas y palabras con la señal cerebral de forma precisa.};
-
-        \node[panel, fill=green!8, right=9mm of listen] (read) {};
-        \node[tag] at ($(read.north west)+(3mm,-3mm)$) {Lectura};
-        \node[desc] at ($(read.north west)+(3mm,-10mm)$) {Se procesan palabras escritas. En lectura natural, el eye--tracking sitúa cada fijación y permite extraer EEG por palabra.};
-    \end{tikzpicture}}
-    \caption{Principales paradigmas experimentales utilizados en decodificación cerebral del lenguaje. Cada paradigma ofrece un compromiso distinto entre naturalidad, facilidad de alineamiento y presencia de artefactos.}
-    \label{fig:language_paradigms}
-\end{figure}
+\input{figuras/fig_2_2_language_paradigms}
 
 
 \subsection{Métodos invasivos y no invasivos}
 
 Las técnicas utilizadas para registrar actividad cerebral se pueden dividir, de forma muy general, en métodos invasivos y no invasivos. Los métodos invasivos requieren una intervención quirúrgica para situar los sensores o sobre la superficie del cerebro o dentro del tejido cerebral. Entre ellos se encuentran la ECoG y los conjuntos de microelectrodos intracorticales.
 
-La principal ventaja de los métodos invasivos es la calidad de la señal. Al encontrarse tan cerca de donde se genera la actividad neuronal, los electrodos registran señales con mayor amplitud, mejor resolución espacial y menos atenuación que los sensores externos. Esta proximidad ha permitido obtener resultados muy destacados en decodificación tanto motora como del habla. En particular, algunos sistemas invasivos han conseguido reconstruir texto o sintetizar voz en personas con parálisis a partir de actividad cortical relacionada con los intentos del habla \cite{jayalath2025unlocking}. Sin embargo, estas prestaciones se obtienen a cambio de riesgos quirúrgicos, posibles infecciones, degradación de los electrodos y una cobertura limitada a las regiones implantadas. Por estos motivos, su utilización suele restringirse a casos clínicos muy concretos y entornos de investigación controlados.
+La principal ventaja de los métodos invasivos es la calidad de la señal. Al encontrarse tan cerca de donde se genera la actividad neuronal, los electrodos registran señales con mayor amplitud, mejor resolución espacial y menos atenuación que los sensores externos. Esta proximidad ha permitido obtener resultados muy destacados en decodificación tanto motora como del habla. En particular, algunos sistemas invasivos han conseguido reconstruir texto o sintetizar voz en personas con parálisis a partir de actividad cortical relacionada con los intentos del habla \cite{jayalath2025unlocking}. Sin embargo, estas prestaciones se obtienen a cambio de riesgos quirúrgicos y postoperatorios. Por estos motivos, su utilización suele restringirse a casos clínicos muy concretos y entornos de investigación controlados.
 
 Los métodos no invasivos, en cambio, registran la actividad cerebral sin necesidad de cirugía. Dentro de este grupo se encuentran sobre todo EEG, MEG y resonancia magnética (fMRI). Estas técnicas reducen considerablemente los riesgos para el participante y permiten realizar estudios replicables con mayor facilidad. Su principal limitación es la calidad de la señal, ya que debe atravesar diferentes tejidos o medirse a cierta distancia de su origen, lo que disminuye su resolución y añade mucho ruido.
 
-\begin{figure}[htbp]
-    \centering
-    \begin{minipage}{0.48\textwidth}
-        \centering
-        \includegraphics[width=\linewidth]{imagenes/ecog.jpg}
-    \end{minipage}
-    \hfill
-    \begin{minipage}{0.48\textwidth}
-        \centering
-        \includegraphics[width=\linewidth]{imagenes/fmri.jpg}
-    \end{minipage}
-    \caption{Ejemplos de adquisición invasiva y no invasiva. A la izquierda, un registro ECoG ilustra la proximidad de los electrodos a la corteza y el coste clínico asociado. A la derecha, la fMRI muestra una alternativa no invasiva con buena resolución espacial, pero menos adecuada para seguir la dinámica rápida del lenguaje.}
-    \label{fig:ecog_fmri}
-\end{figure}
+\input{figuras/fig_2_3_ecog_fmri}
 
 Dentro de estos métodos, EEG y MEG destacan por su elevada resolución temporal. Ambas modalidades permiten seguir cambios cerebrales del orden de milisegundos, esta propiedad es muy importante para estudiar procesos tan rápidos como es la percepción de fonemas o palabras. La resonancia magnética funcional ofrece una mejor resolución espacial, pero su respuesta es mucho más lenta y dificulta la separación temporal de palabras consecutivas. EEG y MEG constituyen, por tanto, un compromiso especialmente interesante entre seguridad y capacidad para representar la dinámica temporal del lenguaje.
 
@@ -122,8 +53,6 @@ Sin embargo, utilizar modelos más grandes no siempre significa obtener un mejor
 Una red neuronal transforma una entrada mediante una sucesión de capas parametrizadas. Cada capa combina los valores de la anterior y aplica una función no lineal. Durante el entrenamiento, los parámetros se ajustan para reducir una función de pérdida (\textit{loss}). En clasificación, esta \textit{loss} mide la diferencia entre las predicciones del modelo y las etiquetas reales. En aprendizaje de representaciones, puede medir la capacidad para reconstruir una entrada o acercar ejemplos relacionados.
 
 Las redes totalmente conectadas pueden utilizarse sobre vectores de características, pero no aprovechan de forma explícita la estructura local de una señal o una imagen. Las redes convolucionales, conocidas como CNNs, aplican filtros locales que se desplazan por la entrada. En una señal temporal, una convolución puede detectar patrones cortos que aparecen en distintos momentos, mientras que las convoluciones dilatadas aumentan el campo receptivo sin necesitar un número excesivo de capas \cite{defossez2023speech,dascoli2024words}.
-
-Las CNNs también pueden operar sobre representaciones tiempo-frecuencia o mapas espaciales. Su principal limitación es que las dependencias muy largas solo se modelan después de acumular numerosas capas o aumentar considerablemente el campo receptivo. Las redes recurrentes, por su parte, procesan las muestras de forma secuencial y mantienen un estado interno. Arquitecturas como LSTM y GRU fueron diseñadas para conservar información a largo plazo mejor que las redes recurrentes simples, aunque su entrenamiento secuencial dificulta el paralelismo y puede resultar costoso con secuencias largas.
 
 Los Transformers sustituyen la recurrencia por mecanismos de atención \cite{vaswani2017attention}. Para una secuencia de vectores, cada elemento se transforma en una consulta, una clave y un valor. La atención calcula la similitud entre consultas y claves y utiliza estos pesos para combinar los valores:
 \[
@@ -146,84 +75,11 @@ La transferencia de aprendizaje (\textit{transfer learning}) puede realizarse en
 
 \section{Electroencefalografía y magnetoencefalografía}
 
-Las corrientes postsinápticas, provenientes de poblaciones de neuronas, producen tanto potenciales eléctricos (EEG) como campos magnéticos (MEG). EEG registra las diferencias de potencial que llegan al cuero cabelludo, mientras que MEG mide los campos magnéticos producidos alrededor de la cabeza. Pese a que ambas modalidades ofrecen una resolución temporal elevada, sus propiedades físicas, su distribución espacial y sus sistemas de adquisición son diferentes.
+Las corrientes que provienen del proceso de la sinapsis en el cerebro producen tanto potenciales eléctricos (EEG) como campos magnéticos (MEG). EEG registra las diferencias de potencial que llegan al cuero cabelludo, mientras que MEG mide los campos magnéticos producidos alrededor de la cabeza. Pese a que ambas modalidades ofrecen una resolución temporal elevada, sus propiedades físicas, su distribución espacial y sus sistemas de adquisición son diferentes.
 
 Esta diferencia es lo suficientemente importante como para dedicarle un par de subsecciones en este trabajo, sobre todo al tratar de realizar una transferencia de un tipo de método al otro. Un modelo no recibe directamente la actividad de las fuentes cerebrales, sino una mezcla de dichas fuentes observada a través de una disposición concreta de sensores. Por tanto, cambiar de MEG a EEG no consiste únicamente en modificar el número de canales. También cambian la amplitud, la geometría, el tipo de ruido, la referencia y la relación entre cada sensor y las fuentes neuronales.
 
-\begin{figure}[htbp]
-    \centering
-    \resizebox{0.96\textwidth}{!}{%
-    \begin{tikzpicture}[
-        font=\small,
-        title/.style={font=\bfseries\large},
-        electrode/.style={draw=blue!55!black, fill=blue!15, minimum width=4mm, minimum height=1.8mm},
-        coil/.style={draw=purple!55!black, fill=purple!15, minimum width=4mm, minimum height=6mm},
-        potential/.style={red!70!black, thick, opacity=.55},
-        field/.style={purple!75!black, thick, -{Latex[length=2.3mm]}},
-        legendtext/.style={font=\scriptsize, anchor=west, align=left},
-        arrow/.style={-{Latex[length=2.5mm]}, thick}
-    ]
-        % EEG panel
-        \node[title] at (-4.6,3.45) {EEG};
-        \draw[thick] (-4.6,0.8) circle (2.0cm);
-        \draw[fill=gray!12] (-4.6,0.8) circle (1.45cm);
-        \draw[fill=red!35, draw=red!60!black] (-4.9,0.55) circle (3mm);
-        \node[font=\footnotesize, align=center] at (-4.6,-2.15) {potenciales eléctricos\\difusos en el cuero cabelludo};
-        \foreach \a in {20,55,90,125,160} {
-            \node[electrode, rotate=\a-90] at ($(-4.6,0.8)+(\a:2.08cm)$) {};
-        }
-        \foreach \a in {200,235,270,305,340} {
-            \node[electrode, rotate=\a-90] at ($(-4.6,0.8)+(\a:2.08cm)$) {};
-        }
-        \draw[potential] (-4.9,0.55) -- ($(-4.6,0.8)+(20:2.0cm)$);
-        \draw[potential] (-4.9,0.55) -- ($(-4.6,0.8)+(55:2.0cm)$);
-        \draw[potential] (-4.9,0.55) -- ($(-4.6,0.8)+(125:2.0cm)$);
-        \draw[potential] (-4.9,0.55) -- ($(-4.6,0.8)+(200:2.0cm)$);
-        \draw[potential] (-4.9,0.55) -- ($(-4.6,0.8)+(305:2.0cm)$);
-
-        % MEG panel
-        \node[title] at (4.6,3.45) {MEG};
-        \draw[thick] (4.6,0.8) circle (2.0cm);
-        \draw[fill=gray!12] (4.6,0.8) circle (1.45cm);
-        \draw[purple!35, thick] (4.6,0.8) circle (2.38cm);
-        \draw[fill=red!35, draw=red!60!black] (4.3,0.55) circle (3mm);
-        \node[font=\footnotesize, align=center] at (4.6,-2.15) {campos magnéticos\\medidos por sensores externos};
-        \foreach \a in {25,60,130,165,205,245,325} {
-            \node[coil, rotate=\a-90] at ($(4.6,0.8)+(\a:2.5cm)$) {};
-        }
-        \draw[field] (4.3,0.55) .. controls (3.35,1.35) and (3.55,2.35) .. (4.65,2.78);
-        \draw[field] (4.3,0.55) .. controls (5.45,1.25) and (5.85,2.15) .. (5.25,2.72);
-        \draw[field] (4.3,0.55) .. controls (5.55,0.15) and (5.75,-0.75) .. (4.95,-1.05);
-        \draw[field] (4.3,0.55) .. controls (3.25,0.0) and (3.45,-0.95) .. (4.25,-1.16);
-
-        \draw[dashed, thick, gray] (0,-1.4) -- (0,3.25);
-        \node[align=center, font=\small] at (0,1) {Misma actividad\\neuronal subyacente};
-        \draw[arrow] (-0.6,0.5) -- (-2.1,0.5);
-        \draw[arrow] (0.6,0.5) -- (2.1,0.5);
-
-        % Legend
-        \node[legendtext, font=\scriptsize\bfseries] at (-5.8,-3.0) {Leyenda};
-        \draw[thick] (-5.55,-3.35) circle (1.5mm);
-        \node[legendtext] at (-5.25,-3.35) {cabeza/cuero cabelludo};
-        \draw[fill=gray!12] (-5.55,-3.75) circle (1.5mm);
-        \node[legendtext] at (-5.25,-3.75) {cerebro};
-        \draw[fill=red!35, draw=red!60!black] (-5.55,-4.15) circle (1.5mm);
-        \node[legendtext] at (-5.25,-4.15) {fuente neuronal};
-        \draw[potential] (-5.75,-4.55) -- (-5.35,-4.55);
-        \node[legendtext] at (-5.25,-4.55) {proyección eléctrica};
-
-        \node[electrode, minimum width=4mm, minimum height=1.8mm] at (0.7,-3.35) {};
-        \node[legendtext] at (1.05,-3.35) {electrodos EEG};
-        \node[coil, minimum width=3.2mm, minimum height=4.8mm] at (0.7,-3.75) {};
-        \node[legendtext] at (1.05,-3.75) {sensores MEG};
-        \draw[purple!35, thick] (0.7,-4.15) circle (1.5mm);
-        \node[legendtext] at (1.05,-4.15) {casco/sensores externos};
-        \draw[field] (0.4,-4.55) -- (1.0,-4.55);
-        \node[legendtext] at (1.05,-4.55) {campo magnético};
-    \end{tikzpicture}}
-    \caption{Esquema conceptual de la observación de una fuente neuronal mediante EEG y MEG. Aunque ambas modalidades reflejan actividad relacionada, difieren en la magnitud física medida, la proyección sobre los sensores y las fuentes de variabilidad.}
-    \label{fig:eeg_meg_concept}
-\end{figure}
+\input{figuras/fig_2_4_eeg_meg_concept}
 
 \subsection{Electroencefalografía}
 
@@ -231,12 +87,7 @@ La EEG registra diferencias de potencial eléctrico utilizando electrodos coloca
 
 La colocación de estos electrodos suele seguir sistemas estandarizados, como el sistema internacional 10--20 y sus extensiones 10--10 o 10--5 \cite{jasper1958ten, oostenveld2001five}. Estos sistemas asignan diferentes nombres a las posiciones en función de la región aproximada de la cabeza: frontal, central, temporal, parietal y occipital. En montajes de alta densidad se pueden utilizar 64, 128 o incluso más canales. Un mayor número de electrodos proporciona una observación espacial más detallada, aunque también incrementa el tiempo de preparación, la posibilidad de canales defectuosos y el coste computacional.
 
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.58\textwidth]{imagenes/eeg.png}
-    \caption{Ejemplo de gorro EEG con electrodos distribuidos sobre el cuero cabelludo. Su menor coste y portabilidad facilitan la adquisición de datos en comparación con MEG, aunque la calidad del registro depende del montaje, la referencia y el contacto de los electrodos.}
-    \label{fig:eeg_cap}
-\end{figure}
+\input{figuras/fig_2_5_eeg_cap}
 
 Asimismo, hay que tener en cuenta que EEG es una medida relativa. Cada canal de EEG representa la diferencia entre un electrodo y una referencia o una combinación de ellas. La elección de esta referencia afecta a la forma de la señal y debe tenerse en cuenta al comparar conjuntos de datos. Entre las opciones habituales se encuentran la referencia a un electrodo concreto, la referencia promedio de todos los canales o las configuraciones bipolares. En conjuntos de datos que están recogidos con diferentes sistemas, una estrategia de referencia homogénea puede reducir parte de las diferencias, pero no elimina por completo la variabilidad entre los montajes.
 
@@ -261,12 +112,7 @@ A diferencia de los potenciales eléctricos, los campos magnéticos atraviesan e
 
 MEG presenta, no obstante, limitaciones importantes. El equipamiento tiene un coste mucho más elevado que el de EEG, requiere instalaciones específicas y, en los sistemas SQUID convencionales, no es fácilmente transportable. El participante debe permanecer relativamente quieto, ya que el movimiento de la cabeza modifica la relación espacial entre las fuentes cerebrales y los sensores. Además, los datos ocupan un volumen considerable y su procesamiento suele incluir pasos específicos, como la corrección del movimiento de la cabeza, la detección de canales defectuosos y la reducción de señales procedentes del exterior del casco \cite{gross2013meg}.
 
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.72\textwidth]{imagenes/MEG.jpg}
-    \caption{Ejemplo de adquisición mediante MEG. El volumen del sistema, la posición fija del participante y la necesidad de instalaciones específicas ayudan a explicar por qué estos registros son costosos, poco portátiles y difíciles de reproducir entre laboratorios.}
-    \label{fig:meg_system}
-\end{figure}
+\input{figuras/fig_2_6_meg_system}
 
 Una de las técnicas empleadas con este último propósito es \textit{Signal Space Separation} (SSS). Este método representa las mediciones mediante bases espaciales diferentes para los campos generados dentro del volumen que contiene la cabeza y para los campos originados fuera de este. De esta forma, pueden descartarse los componentes asociados principalmente a interferencias externas. SSS, junto con sus extensiones temporales y los procedimientos de compensación del movimiento, se implementa habitualmente mediante el denominado filtrado de Maxwell \cite{taulu2005sss}.
 
@@ -324,47 +170,7 @@ Además de información temporal y espacial, esta representación contiene ruido
 
 El procesamiento no debe entenderse únicamente como una limpieza previa. Cada decisión modifica la información que el modelo puede utilizar. Un filtro demasiado restrictivo puede eliminar componentes relacionadas con la tarea, mientras que una limpieza insuficiente puede hacer que el sistema aprenda artefactos. Del mismo modo, una segmentación incorrecta puede asociar una etiqueta lingüística a una ventana que no contiene la respuesta cerebral correspondiente.
 
-\begin{figure}[htbp]
-    \centering
-    \resizebox{0.99\textwidth}{!}{%
-    \begin{tikzpicture}[
-        font=\footnotesize,
-        node distance=5mm,
-        box/.style={draw, rounded corners=1.5mm, minimum width=2.5cm,
-                    minimum height=1.2cm, align=center, thick, fill=blue!6},
-        box2/.style={draw, rounded corners=1.5mm, minimum width=2.5cm,
-                    minimum height=1.2cm, align=center, thick, fill=orange!8},
-        final/.style={draw, rounded corners=1.5mm, minimum width=2.5cm,
-                    minimum height=1.2cm, align=center, thick, fill=green!10},
-        arrow/.style={-{Latex[length=2.4mm]}, thick}
-    ]
-        \node[box] (raw) {Registro crudo\\$\mathbf{X}\in\mathbb{R}^{C\times T}$};
-        \node[box, right=of raw] (qc) {Control de calidad\\canales y sincronización};
-        \node[box, right=of qc] (ref) {EEG: referencia\\MEG: Maxwell/movimiento};
-        \node[box, right=of ref] (filter) {Filtrado\\paso banda y notch};
-        \node[box2, right=of filter] (resample) {Antialiasing\\y remuestreo};
-        \node[box2, below=7mm of resample] (artifact) {Tratamiento de artefactos\\ICA, EOG, EMG o controles};
-        \node[box2, left=of artifact] (norm) {Normalización\\por canal, sesión o ventana};
-        \node[final, left=of norm] (segment) {Segmentación\\ventanas alineadas a palabras};
-        \node[final, left=of segment] (split) {Particiones rigurosas\\por sujeto, sesión o estímulo};
-
-        \draw[arrow] (raw) -- (qc);
-        \draw[arrow] (qc) -- (ref);
-        \draw[arrow] (ref) -- (filter);
-        \draw[arrow] (filter) -- (resample);
-        \draw[arrow] (resample) -- (artifact);
-        \draw[arrow] (artifact) -- (norm);
-        \draw[arrow] (norm) -- (segment);
-        \draw[arrow] (segment) -- (split);
-
-        \node[draw, dashed, rounded corners, fit=(filter)(resample), inner sep=2mm,
-              label={[font=\scriptsize]above:Debe respetar la frecuencia de Nyquist}] {};
-        \node[draw, dashed, rounded corners, fit=(artifact)(norm), inner sep=2mm,
-              label={[font=\scriptsize]below:Evitar que el modelo aprenda atajos}] {};
-    \end{tikzpicture}}
-    \caption{Flujo habitual de preparación de registros EEG y MEG para aprendizaje automático. El orden exacto puede variar, pero el filtrado antialiasing debe preceder al remuestreo y las particiones deben impedir fugas entre datos relacionados.}
-    \label{fig:preprocessing_pipeline}
-\end{figure}
+\input{figuras/fig_2_7_preprocessing_pipeline}
 
 \subsection{Actividad oscilatoria y bandas de frecuencia}
 
@@ -519,57 +325,7 @@ El tamaño del vocabulario introduce un compromiso. Un vocabulario pequeño cont
 
 La frecuencia de las palabras es otro factor importante. Las palabras funcionales, como artículos y preposiciones, aparecen muchas veces y suelen clasificarse mejor que palabras de contenido menos frecuentes. Por ello, una precisión global puede estar dominada por unas pocas clases frecuentes. Las métricas equilibradas y los análisis por frecuencia ayudan a comprobar si el modelo aprende todo el vocabulario o únicamente las palabras más repetidas.
 
-\begin{figure}[htbp]
-    \centering
-    \resizebox{0.99\textwidth}{!}{%
-    \begin{tikzpicture}[
-        font=\footnotesize,
-        word/.style={draw, rounded corners=1mm, minimum width=1.25cm,
-                     minimum height=7mm, align=center, fill=gray!8},
-        win/.style={draw, rounded corners=1mm, minimum width=1.25cm,
-                    minimum height=9mm, align=center, fill=blue!7},
-        model/.style={draw, rounded corners=2mm, minimum width=2.4cm,
-                    minimum height=1.25cm, align=center, thick, fill=orange!9},
-        target/.style={draw, rounded corners=2mm, minimum width=2.4cm,
-                    minimum height=1.25cm, align=center, thick, fill=green!9},
-        arrow/.style={-{Latex[length=2.4mm]}, thick}
-    ]
-        \node[word] (w1) {The};
-        \node[word, right=2mm of w1] (w2) {fruit};
-        \node[word, right=2mm of w2] (w3) {bowl};
-        \node[word, right=2mm of w3] (w4) {had};
-        \node[word, right=2mm of w4] (w5) {a};
-        \node[word, right=2mm of w5] (w6) {pineapple};
-        \node[above=2mm of w3, font=\scriptsize] {secuencia lingüística};
-
-        \foreach \n/\lab in {w1/$t_1$,w2/$t_2$,w3/$t_3$,w4/$t_4$,w5/$t_5$,w6/$t_6$} {
-            \draw[gray, dashed] (\n.south) -- ++(0,-8mm) node[below, font=\scriptsize]{\lab};
-        }
-
-        \node[win, below=17mm of w1] (x1) {$\mathbf{x}_1$};
-        \node[win, below=17mm of w2] (x2) {$\mathbf{x}_2$};
-        \node[win, below=17mm of w3] (x3) {$\mathbf{x}_3$};
-        \node[win, below=17mm of w4] (x4) {$\mathbf{x}_4$};
-        \node[win, below=17mm of w5] (x5) {$\mathbf{x}_5$};
-        \node[win, below=17mm of w6] (x6) {$\mathbf{x}_6$};
-        \node[left=2mm of x1, align=right] {ventana\\EEG/MEG};
-
-        \node[model, right=14mm of x6] (local) {Codificador local\\espacial + convoluciones};
-        \node[model, right=7mm of local] (context) {Transformer\\contextual};
-        \node[target, right=7mm of context] (embed) {Predicción de\\embedding T5};
-        \node[target, right=7mm of embed] (retrieval) {Recuperación\\Top-$k$ por coseno};
-
-        \draw[arrow] (x6.east) -- (local.west);
-        \draw[arrow] (local) -- (context);
-        \draw[arrow] (context) -- (embed);
-        \draw[arrow] (embed) -- (retrieval);
-        \draw[decorate, decoration={brace, amplitude=4pt, mirror}, thick]
-            ($(x1.south west)+(0,-2mm)$) -- ($(x6.south east)+(0,-2mm)$)
-            node[midway, below=5mm, align=center]{ventanas consecutivas conservan el orden\\y aportan contexto neuronal};
-    \end{tikzpicture}}
-    \caption{Esquema de clasificación contextual de palabras. Cada evento lingüístico define una ventana cerebral; las representaciones locales se contextualizan y se proyectan al espacio de un modelo de lenguaje para recuperar las palabras más próximas.}
-    \label{fig:contextual_word_decoding}
-\end{figure}
+\input{figuras/fig_2_8_contextual_word_decoding}
 
 \subsection{Aprendizaje contrastivo}
 
@@ -746,49 +502,7 @@ Pese a estos avances, el modelo necesita anotaciones lingüísticas y se entrena
 
 Gran parte de este trabajo se sustenta en la existencia y éxito que ha tenido MEG-XL. Éste parte de la hipótesis de que el contexto útil de una señal cerebral no se limita a la duración de la unidad que se desea clasificar. La respuesta a una palabra puede depender de la frase, del discurso, del estado del participante y de propiedades estables de la sesión. Sin embargo, la mayoría de los modelos preentrenados procesa ventanas de entre medio segundo y treinta segundos. MEG-XL amplía esta escala y utiliza muestras continuas de dos minutos y medio, entre cinco y trescientas veces más largas que las empleadas por modelos anteriores \cite{jayalath2026megxl}. El objetivo de esta arquitectura es tener un modelo relativamente pequeño (30M de parámetros) que pueda aprender representaciones de contexto largo y transferirlas a tareas lingüísticas con pocos datos.
 
-\begin{figure}[htbp]
-    \centering
-    \resizebox{0.99\textwidth}{!}{%
-    \begin{tikzpicture}[
-        font=\footnotesize,
-        node distance=5mm,
-        box/.style={draw, rounded corners=1.5mm, minimum width=2.45cm,
-                    minimum height=1.15cm, align=center, thick, fill=blue!7},
-        model/.style={draw, rounded corners=1.5mm, minimum width=2.75cm,
-                    minimum height=1.3cm, align=center, thick, fill=orange!10},
-        loss/.style={draw, rounded corners=1.5mm, minimum width=2.6cm,
-                    minimum height=1.15cm, align=center, thick, fill=green!10},
-        arrow/.style={-{Latex[length=2.4mm]}, thick}
-    ]
-        \node[font=\bfseries\large] (pretitle) {Preentrenamiento autosupervisado};
-        \node[box, below=5mm of pretitle] (meg) {MEG continuo\\2,5 min a 50 Hz};
-        \node[box, right=of meg] (bio) {BioCodec\\tokens por canal};
-        \node[box, right=of bio] (mask) {Enmascaramiento\\de bloques temporales};
-        \node[model, right=of mask] (cc) {Transformer\\criss--cross};
-        \node[loss, right=of cc] (mtp) {Predicción de\\tokens ocultos};
-        \draw[arrow] (meg) -- (bio);
-        \draw[arrow] (bio) -- (mask);
-        \draw[arrow] (mask) -- (cc);
-        \draw[arrow] (cc) -- (mtp);
-
-        \node[font=\bfseries\large, below=22mm of pretitle] (fintitle) {Ajuste fino para decodificación de palabras};
-        \node[box, below=5mm of fintitle] (wordmeg) {Ventanas alineadas\\con palabras};
-        \node[model, right=of wordmeg] (pretrained) {MEG-XL\\preentrenado};
-        \node[model, right=of pretrained] (seq) {Contextualización\\de la secuencia};
-        \node[loss, right=of seq] (t5) {D-SigLIP\\contra embeddings T5};
-        \node[loss, right=of t5] (topk) {Recuperación\\Top-$k$};
-        \draw[arrow] (wordmeg) -- (pretrained);
-        \draw[arrow] (pretrained) -- (seq);
-        \draw[arrow] (seq) -- (t5);
-        \draw[arrow] (t5) -- (topk);
-        \draw[arrow, dashed, bend right=18] (cc.south) to (pretrained.north);
-
-        \node[draw, dashed, rounded corners, fit=(meg)(mtp), inner sep=3mm] {};
-        \node[draw, dashed, rounded corners, fit=(wordmeg)(topk), inner sep=3mm] {};
-    \end{tikzpicture}}
-    \caption{Resumen del preentrenamiento y del ajuste fino de MEG-XL. El modelo aprende primero a reconstruir tokens cerebrales en contextos largos y posteriormente reutiliza esas representaciones en una tarea contrastiva de clasificación contextual de palabras. Adaptado conceptualmente de Jayalath y Parker Jones.}
-    \label{fig:megxl_overview}
-\end{figure}
+\input{figuras/fig_2_9_megxl_overview}
 
 El preentrenamiento se realiza sobre aproximadamente 300 horas de MEG y más de 800 participantes, combinando grabaciones de reposo, tareas sensoriomotoras y experimentos de lenguaje. La señal se remuestrea a 50 Hz utilizando un ancho de banda de 0.1--40Hz (incumpliendo la frecuencia de Nyquist), después se tokeniza canal a canal mediante BioCodec. Este tokenizer reduce la dimensión temporal y produce códigos discretos mediante cuantización vectorial residual. A cada token se añaden representaciones de la posición del sensor y de su tipo, diferenciando magnetómetros y gradiómetros.
 
@@ -800,30 +514,7 @@ El análisis de la longitud de contexto muestra además que las representaciones
 
 MEG-XL supone el antecedente e inspiración más próximo a este trabajo, pero mantiene varias limitaciones. El preentrenamiento y la evaluación se realizan con MEG, la tarea final se restringe a habla percibida y parte de los experimentos utiliza un vocabulario de 50 palabras. El modelo tampoco estudia la adaptación a montajes EEG, donde cambian la referencia, la geometría, el número de canales, la amplitud y la distribución del ruido. Aunque BioCodec fue entrenado originalmente con EEG, el resto de las representaciones contextuales se aprende sobre MEG. Por tanto, queda abierta la cuestión de si ese conocimiento temporal y espacial puede transferirse a EEG durante lectura natural.
 
-\begin{figure}[htbp]
-    \centering
-    \resizebox{0.98\textwidth}{!}{%
-    \begin{tikzpicture}[
-        font=\footnotesize,
-        event/.style={draw, rounded corners=1.5mm, minimum width=2.7cm,
-                    minimum height=1.35cm, align=center, thick, fill=blue!7},
-        arrow/.style={-{Latex[length=2.5mm]}, very thick}
-    ]
-        \draw[arrow] (0,0) -- (17.2,0);
-        \foreach \x/\year in {0.8/2020,3.5/2023,6.2/2024,9.2/may.\ 2025,12.4/jun.\ 2025,15.5/2026} {
-            \draw[thick] (\x,0.15) -- (\x,-0.15);
-            \node[below=2mm] at (\x,-0.15) {\year};
-        }
-        \node[event, above=7mm] at (0.8,0) {Dash et al.\\frases imaginadas\\y producidas};
-        \node[event, below=13mm] at (3.5,0) {Défossez et al.\\alineamiento\\cerebro--audio};
-        \node[event, above=7mm] at (6.2,0) {d'Ascoli et al.\\clasificación contextual\\de palabras};
-        \node[event, below=13mm] at (9.2,0) {LibriBrain\\52 h de MEG\\en un sujeto};
-        \node[event, above=7mm] at (12.4,0) {Unlocking B2T\\rescoring e infilling\\con LLM};
-        \node[event, below=13mm, fill=orange!10] at (15.5,0) {MEG-XL y\\Brain2Qwerty v2\\contexto largo};
-    \end{tikzpicture}}
-    \caption{Evolución simplificada de los trabajos más próximos a la decodificación no invasiva de lenguaje considerada en esta memoria. La progresión combina vocabularios mayores, contexto más largo, más datos por participante y modelos lingüísticos externos.}
-    \label{fig:sota_timeline}
-\end{figure}
+\input{figuras/fig_2_10_sota_timeline}
 
 
 \subsection{Limitaciones de los trabajos existentes}

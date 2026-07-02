@@ -46,6 +46,31 @@
 \usepackage{amssymb}
 \usepackage{array}
 
+\newcommand{\acroitem}[2]{\item[\textbf{#1}] #2}
+\newenvironment{listaacronimos}{%
+    \begin{list}{}{%
+        \setlength{\labelwidth}{2.8cm}%
+        \setlength{\leftmargin}{3.2cm}%
+        \setlength{\labelsep}{0.4cm}%
+        \setlength{\itemsep}{0.25em}%
+        \setlength{\parsep}{0pt}%
+        \renewcommand{\makelabel}[1]{##1\hfil}%
+    }%
+}{%
+    \end{list}%
+}
+\newcommand{\printacronimos}{%
+    \cleardoublepage
+    \phantomsection
+    \addtocontents{toc}{\protect\contentsline{chapter}{Índice de acrónimos}{\thepage}{section*.4}}
+    \markboth{Índice de acrónimos}{Índice de acrónimos}
+    {\hfill\Huge\sffamily\bfseries Índice de acrónimos\par\noindent\hrulefill\par}
+    \vspace{\baselineskip}
+    \begin{listaacronimos}
+        \input{acronimos}
+    \end{listaacronimos}
+}
+
 \usepackage{tikz}
 \usepackage{xcolor}
 
@@ -121,10 +146,10 @@ The main objective is to analyze the technical and experimental feasibility of t
 
 \input{capitulos/01_introduccion}
 \input{capitulos/02_marco_teorico}
-\input{capitulos/04_datasets_utilizados.tex}
-\input{capitulos/05_propuesta_megxl_eeg}
-\input{capitulos/06_evaluacion_experimental}
-\input{capitulos/07_conclusiones_trabajo_futuro}
+\input{capitulos/03_datasets_utilizados.tex}
+\input{capitulos/04_propuesta_megxl_eeg}
+\input{capitulos/05_evaluacion_experimental}
+\input{capitulos/06_conclusiones_trabajo_futuro}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %                                BIBLIOGRAFIA                                 %

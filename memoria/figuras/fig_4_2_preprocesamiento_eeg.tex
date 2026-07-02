@@ -1,0 +1,44 @@
+\begin{figure}[htbp]
+    \centering
+    \resizebox{0.96\textwidth}{!}{%
+    \begin{tikzpicture}[
+        font=\small,
+        node distance=8mm,
+        arrow/.style={-{Latex[length=3mm]}, thick},
+        box/.style={draw, rounded corners=2mm, minimum width=3.7cm,
+                   minimum height=1.55cm, align=center, thick, fill=blue!7},
+        adapt/.style={draw, rounded corners=2mm, minimum width=3.8cm,
+                     minimum height=1.65cm, align=center, thick, fill=orange!10},
+        output/.style={draw, rounded corners=2mm, minimum width=5.0cm,
+                      minimum height=2.0cm, align=center, thick, fill=green!10},
+        smallnote/.style={font=\footnotesize, align=center}
+    ]
+        \node[box] (raw) {EEG heterogéneo\\frecuencias\\referencias\\canales};
+        \node[box, right=of raw] (filter) {Paso banda\\$0{,}1$--$40\,\mathrm{Hz}$};
+        \node[box, right=of filter] (resample) {Remuestreo\\$50\,\mathrm{Hz}$\\antialias};
+        \node[box, right=of resample] (norm) {Normalización\\escala};
+
+        \node[adapt, below=12mm of norm] (windows) {Ventanas\\$150\,\mathrm{s}$\\$7500$ muestras};
+        \node[adapt, left=of windows] (blocks) {50 bloques\\$3\,\mathrm{s}$\\máscara temporal};
+        \node[adapt, left=of blocks] (montage) {Montaje común\\$C_{\max}$\\relleno};
+
+        \node[output, below=12mm of blocks] (sample) {Entrada\\
+        $\mathbf{X}\in\mathbb{R}^{C_{\max}\times 7500}$,\quad
+        $\mathbf{P}\in\mathbb{R}^{C_{\max}\times 3}$\\
+        $\mathbf{m}_{\mathrm{sensor}}\in\{0,1\}^{C_{\max}}$,\quad
+        $s_c=2$\\
+        máscara temporal};
+
+        \draw[arrow] (raw) -- (filter);
+        \draw[arrow] (filter) -- (resample);
+        \draw[arrow] (resample) -- (norm);
+        \draw[arrow] (norm) -- (windows);
+        \draw[arrow] (windows) -- (blocks);
+        \draw[arrow] (blocks) -- (montage);
+        \draw[arrow] (montage.south) |- (sample.west);
+
+        \node[smallnote, below=3mm of windows] {restos $<150\,\mathrm{s}$: descarte};
+    \end{tikzpicture}}
+    \caption{Preprocesamiento EEG: filtrado, remuestreo, normalización, ventanas, montaje común y máscaras.}
+    \label{fig:eegxl_preprocessing}
+\end{figure}

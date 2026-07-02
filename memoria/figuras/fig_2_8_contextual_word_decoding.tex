@@ -1,0 +1,51 @@
+\begin{figure}[htbp]
+    \centering
+    \resizebox{0.99\textwidth}{!}{%
+    \begin{tikzpicture}[
+        font=\footnotesize,
+        word/.style={draw, rounded corners=1mm, minimum width=1.25cm,
+                     minimum height=7mm, align=center, fill=gray!8},
+        win/.style={draw, rounded corners=1mm, minimum width=1.25cm,
+                    minimum height=9mm, align=center, fill=blue!7},
+        model/.style={draw, rounded corners=2mm, minimum width=2.4cm,
+                    minimum height=1.25cm, align=center, thick, fill=orange!9},
+        target/.style={draw, rounded corners=2mm, minimum width=2.4cm,
+                    minimum height=1.25cm, align=center, thick, fill=green!9},
+        arrow/.style={-{Latex[length=2.4mm]}, thick}
+    ]
+        \node[word] (w1) {The};
+        \node[word, right=2mm of w1] (w2) {fruit};
+        \node[word, right=2mm of w2] (w3) {bowl};
+        \node[word, right=2mm of w3] (w4) {had};
+        \node[word, right=2mm of w4] (w5) {a};
+        \node[word, right=2mm of w5] (w6) {pineapple};
+        \node[above=2mm of w3, font=\scriptsize] {secuencia lingüística};
+
+        \foreach \n/\lab in {w1/$t_1$,w2/$t_2$,w3/$t_3$,w4/$t_4$,w5/$t_5$,w6/$t_6$} {
+            \draw[gray, dashed] (\n.south) -- ++(0,-8mm) node[below, font=\scriptsize]{\lab};
+        }
+
+        \node[win, below=17mm of w1] (x1) {$\mathbf{x}_1$};
+        \node[win, below=17mm of w2] (x2) {$\mathbf{x}_2$};
+        \node[win, below=17mm of w3] (x3) {$\mathbf{x}_3$};
+        \node[win, below=17mm of w4] (x4) {$\mathbf{x}_4$};
+        \node[win, below=17mm of w5] (x5) {$\mathbf{x}_5$};
+        \node[win, below=17mm of w6] (x6) {$\mathbf{x}_6$};
+        \node[left=2mm of x1, align=right] {ventana\\EEG/MEG};
+
+        \node[model, right=14mm of x6] (local) {Codificador local\\espacial + convoluciones};
+        \node[model, right=7mm of local] (context) {Transformer\\contextual};
+        \node[target, right=7mm of context] (embed) {Predicción de\\embedding T5};
+        \node[target, right=7mm of embed] (retrieval) {Recuperación\\Top-$k$ por coseno};
+
+        \draw[arrow] (x6.east) -- (local.west);
+        \draw[arrow] (local) -- (context);
+        \draw[arrow] (context) -- (embed);
+        \draw[arrow] (embed) -- (retrieval);
+        \draw[decorate, decoration={brace, amplitude=4pt, mirror}, thick]
+            ($(x1.south west)+(0,-2mm)$) -- ($(x6.south east)+(0,-2mm)$)
+            node[midway, below=5mm, align=center]{ventanas consecutivas conservan el orden\\y aportan contexto neuronal};
+    \end{tikzpicture}}
+    \caption{Esquema de clasificación contextual de palabras. Cada evento lingüístico define una ventana cerebral; las representaciones locales se contextualizan y se proyectan al espacio de un modelo de lenguaje para recuperar las palabras más próximas.}
+    \label{fig:contextual_word_decoding}
+\end{figure}

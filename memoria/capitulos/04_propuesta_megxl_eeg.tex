@@ -10,7 +10,7 @@ Esta adaptación se puede entender como un cambio de dominio. El modelo de parti
 
 El entrenamiento final lanzado en este trabajo corresponde a un preentrenamiento continuo en dos etapas. Primero se utilizan datasets de lectura y después datasets de escucha. La etapa de lectura sirve como una adaptación inicial a EEG lingüístico en condiciones más controladas. La etapa de escucha aproxima el modelo al dominio final, que es la clasificación de palabras durante percepción auditiva continua.
 
-Además, el experimento compara dos inicializaciones. En una de ellas el modelo parte del modelo que presenta MEG-XL. En la otra, la misma arquitectura se inicializa desde cero. Ambas siguen exactamente el mismo orden, lectura seguida de escucha, de modo que la comparación permite estudiar si el preentrenamiento con MEG aporta algún tipo de ventaja al pasar a EEG o si las diferencias entre modalidades impiden aprovecharlo.
+Además, el experimento compara varios tipos de inicializaciones. En una de ellas el modelo parte del modelo que presenta MEG-XL. En otra, la misma arquitectura se inicializa desde cero. Ambas siguen exactamente el mismo orden, lectura seguida de escucha, de modo que la comparación permite estudiar si el preentrenamiento con MEG aporta algún tipo de ventaja al pasar a EEG o si las diferencias entre modalidades impiden aprovecharlo.
 
 La propuesta final se puede resumir en la imitación de cuatro decisiones:
 
@@ -43,6 +43,8 @@ La normalización se aplica para reducir diferencias de escala entre canales, se
 
 Siguiendo el ejemplo de MEG-XL, se ha creado una interfaz común para cargar los datasets. Cada ejemplo contiene la señal EEG, las posiciones de los sensores y una máscara que indica qué canales son reales. Cuando un conjunto tiene menos sensores que otro, no se fuerza una interpolación espacial previa; se representa dentro de una dimensión común y se enmascaran los canales ausentes. Así, el modelo puede entrenar con diferentes montajes sin confundir sensores inexistentes con señales de valor cero.
 
+\input{figuras/fig_4_2_preprocesamiento_eeg}
+
 \subsection{Alineamiento con las palabras}
 
 El entrenamiento autosupervisado final no utiliza palabras, transcripciones ni alineaciones lingüísticas como etiquetas. Durante las etapas de lectura y escucha, el modelo recibe EEG continuo y aprende a reconstruir códigos neuronales ocultos. Por tanto, pueden combinarse datasets con idiomas y paradigmas diferentes sin construir un vocabulario común.
@@ -65,11 +67,7 @@ Por tanto, la contribución de la adaptación está en hacer que la misma arquit
 
 \subsection{Cambios para trabajar con canales EEG}
 
-% MEG-XL fue diseñado para trabajar con magnetómetros y gradiómetros. En EEG solo existe un tipo de sensor dentro del modelo, pero los montajes varían mucho entre datasets. Por ello se introduce el tipo de sensor EEG dentro del espacio de tipos ya utilizado por la arquitectura. La configuración final mantiene tres tipos posibles: gradiómetro, magnetómetro y EEG. En los datos de este trabajo todos los canales reales pertenecen al tipo EEG, pero conservar los otros tipos permite cargar parcialmente los pesos de MEG-XL sin rediseñar el modelo.
-
 MEG-XL fue diseñado para trabajar con magnetómetros y gradiómetros. En EEG solo existe un tipo de sensor dentro del experimento, pero los montajes varían mucho entre datasets. Por ello se introduce el tipo de sensor EEG dentro del espacio de tipos ya utilizado por la arquitectura. La configuración final mantiene tres tipos posibles: gradiómetro, magnetómetro y EEG. En los datos de este trabajo todos los canales reales pertenecen al tipo EEG, pero conservar los otros tipos permite cargar parcialmente los pesos de MEG-XL sin rediseñar el modelo.
-
-% La posición de cada electrodo se utiliza como información espacial. Esto es necesario porque el índice de un canal no tiene el mismo significado en todos los conjuntos. Un canal situado en una región frontal no debería tratarse como equivalente a otro canal occipital solo porque ocupa la misma posición en una matriz. Al proporcionar coordenadas y máscara de sensores, el modelo puede aprender relaciones espaciales en función de la geometría real disponible en cada registro.
 
 La posición de cada electrodo se utiliza como información espacial al no tener el índice de un canal el mismo significado en todos los conjuntos. Un canal situado en una región frontal no debería tratarse como equivalente a otro canal occipital solo porque ocupa la misma posición en una matriz. Al proporcionar coordenadas y máscaras de sensores, el modelo puede aprender relaciones espaciales en función de la geometría real disponible en cada registro.
 
@@ -194,6 +192,8 @@ Otra diferencia con respecto a MEG-XL es el tamaño de nuestro modelo debido al 
 
 Algunos experimentos utilizan como base el modelo preentrenado con MEG de MEG-XL. En ese caso, el modelo se carga en la nueva arquitectura de forma parcial. Los pesos compatibles, como los del Transformer y gran parte de las proyecciones internas, pueden reutilizarse. Los componentes que dependen de la nueva configuración EEG o que dejan de encajar exactamente se inicializan de nuevo. De esta forma, la carga parcial permite estudiar la transferencia de MEG a EEG sin forzar una equivalencia falsa entre sensores de diferentes tareas.
 
+\input{figuras/fig_4_3_arquitectura_eegxl}
+
 \subsection{Tokenización de la señal}
 
 Durante el desarrollo se contemplaron otros tokenizadores, como BrainOmni o BrainTokenizer, porque están diseñados para representar bioseñales heterogéneas y podrían ser adecuados para combinar modalidades. Sin embargo, finalmente el entrenamiento utiliza BioCodec. Así se mantiene la compatibilidad con MEG-XL y se reduce el número de cambios simultáneos: si se cambiara a la vez la modalidad, el tokenizer y la arquitectura, sería más difícil interpretar el efecto de la transferencia. Por otro lado, es un tokenizador entrenado sobre EEG, por lo que, teóricamente, debería funcionar mejor con nuestro conjunto de datos que con el de MEG-XL.
@@ -245,4 +245,4 @@ Durante la evaluación, cada embedding cerebral predicho se compara mediante sim
 
 % El experimento final compara tres condiciones. La primera entrena la arquitectura de clasificación desde una inicialización aleatoria sobre ds004408. La segunda parte del checkpoint obtenido mediante el currículo autosupervisado de lectura y escucha cuya arquitectura EEG fue inicializada desde cero. La tercera utiliza el checkpoint del mismo currículo, pero iniciado a partir de MEG-XL. La comparación entre la primera y la segunda condición permite medir la contribución del preentrenamiento autosupervisado con EEG, mientras que la comparación entre la segunda y la tercera permite aislar la aportación adicional de la transferencia desde MEG. De esta manera, puede determinarse si las mejoras proceden del currículo EEG, de los pesos originales de MEG-XL o de la combinación de ambos factores.
 
-
+\input{figuras/fig_4_4_finetuning_palabras}

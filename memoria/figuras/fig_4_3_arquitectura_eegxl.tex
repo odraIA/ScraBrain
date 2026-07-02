@@ -1,0 +1,51 @@
+\begin{figure}[htbp]
+    \centering
+    \resizebox{0.97\textwidth}{!}{%
+    \begin{tikzpicture}[
+        font=\small,
+        arrow/.style={-{Latex[length=3mm]}, thick},
+        kept/.style={draw, rounded corners=2mm, minimum width=3.55cm,
+                    minimum height=1.45cm, align=center, thick, fill=blue!7},
+        changed/.style={draw, rounded corners=2mm, minimum width=3.55cm,
+                       minimum height=1.45cm, align=center, thick, fill=orange!10},
+        objective/.style={draw, rounded corners=2mm, minimum width=3.65cm,
+                         minimum height=1.45cm, align=center, thick, fill=green!10},
+        note/.style={font=\footnotesize, align=center}
+    ]
+        \node[kept] (input) {EEG\\$[B,C,7500]$};
+        \node[kept, right=8mm of input] (codec) {BioCodec\\congelado\\$Q=6$, $V=256$, $r=12$};
+        \node[kept, right=8mm of codec] (codes) {Códigos RVQ\\$[B,C,625,6]$};
+        \node[kept, right=8mm of codes] (proj) {Proyección RVQ\\$\mathbf{e}^{\mathrm{tok}}_{c,\tau}\in\mathbb{R}^{512}$};
+
+        \node[changed, below=11mm of codec] (pos) {Posición 3D\\Fourier\\$\mathbf{e}^{\mathrm{pos}}_c$};
+        \node[changed, right=8mm of pos] (type) {Tipo\\EEG: $s_c=2$\\$\mathbf{e}^{\mathrm{type}}_c$};
+        \node[changed, left=8mm of pos] (ori) {Orientación\\MEG activa\\EEG cero};
+
+        \node[changed, below=11mm of type, minimum width=6.1cm, minimum height=1.75cm] (sum) {Embedding de entrada\\
+        $\mathbf{h}^{(0)}_{c,\tau}=\mathbf{e}^{\mathrm{tok}}_{c,\tau}+\mathbf{e}^{\mathrm{pos}}_c+\mathbf{e}^{\mathrm{type}}_c$};
+        \node[changed, left=10mm of sum] (mask) {Enmascaramiento\\bloques $3\,\mathrm{s}$\\válidos};
+
+        \node[kept, right=13mm of sum, minimum width=5.8cm, minimum height=2.6cm] (cc) {\textbf{Transformer criss-cross $\times 8$}\\[1mm]
+        $d/2$: espacial\\
+        $d/2$: temporal\\
+        concat. + FFN};
+        \node[objective, right=11mm of cc] (head) {Salida\\$512\rightarrow Q\times V$\\logits};
+        \node[objective, below=8mm of head] (loss) {Entropía cruzada\\tokens ocultos\\$Q=6$};
+
+        \draw[arrow] (input) -- (codec);
+        \draw[arrow] (codec) -- (codes);
+        \draw[arrow] (codes) -- (proj);
+        \draw[arrow] (proj.south) to[out=-90,in=35] (sum.north east);
+        \draw[arrow] (pos) -- (sum);
+        \draw[arrow] (type) -- (sum);
+        \draw[arrow] (ori) -- (sum);
+        \draw[arrow] (mask) -- (sum);
+        \draw[arrow] (sum) -- (cc);
+        \draw[arrow] (cc) -- (head);
+        \draw[arrow] (head) -- (loss);
+
+        \node[note, below=6mm of mask, text width=5.0cm] {Azul: MEG-XL.\quad Naranja: EEG.};
+    \end{tikzpicture}}
+    \caption{Arquitectura EEG-XL: BioCodec, códigos RVQ, embeddings, Transformer criss-cross y predicción de tokens enmascarados.}
+    \label{fig:eegxl_architecture}
+\end{figure}

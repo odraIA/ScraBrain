@@ -1,0 +1,604 @@
+\chapter{Evaluación experimental}
+
+\providecommand{\celdaresultado}{\phantom{00,000}}
+
+\section{Diseño experimental}
+
+% La evaluación se ha diseñado para separar tres efectos distintos: el aprendizaje autosupervisado con EEG, la transferencia de los pesos aprendidos previamente con MEG y la forma de representar el tipo de sensor EEG dentro de la arquitectura. Para ello, primero se entrenan tres variantes del modelo mediante el mismo curriculum de lectura y escucha. A continuación, los checkpoints obtenidos se ajustan sobre OpenNeuro ds004408 para la tarea supervisada de clasificación contextual de palabras. Como referencia adicional se incluye una condición que realiza directamente el ajuste supervisado desde una inicialización aleatoria, sin preentrenamiento autosupervisado previo.
+
+La evaluación de la arquitectura se ha diseñado separando tres efectos distintos: el aprendizaje autosupervisado con EEG, la transferencia de los pesos aprendidos previamente con MEG y la mejor forma de representar el tipo de sensor EEG dentro de la propia arquitectura. Para ello, primero se entrenan tres variantes del modelo mediante el mismo conjunto de lectura y escucha. A continuación, los checkpoints obtenidos se ajustan sobre OpenNeuro ds004408 para la tarea supervisada de clasificación contextual de palabras. Como referencia adicional se incluye una condición que realiza directamente el ajuste supervisado desde una inicialización aleatoria, sin preentrenamiento autosupervisado previo.
+
+Los cuatro experimentos considerados en la evaluación final se resumen en la Tabla~\ref{tab:condiciones_experimentales}. Las tres variantes que siguen el conjunto utilizan exactamente los mismos datos, particiones, orden de las etapas e hiperparámetros. Las únicas diferencias entre ellas son la inicialización de los pesos y la fila de la tabla de embeddings utilizada para representar el tipo de sensor.
+
+\begin{table}[htbp]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.18}
+\begin{tabularx}{\textwidth}{
+    >{\raggedright\arraybackslash}p{2.6cm}
+    >{\raggedright\arraybackslash}p{2.6cm}
+    >{\raggedright\arraybackslash}p{3.1cm}
+    >{\centering\arraybackslash}p{1.7cm}
+    >{\centering\arraybackslash}X
+}
+\toprule
+\textbf{Condición} &
+\textbf{Inicialización del codificador} &
+\textbf{Representación del tipo de sensor} &
+\textbf{Conjunto EEG} &
+\textbf{Ajuste en ds004408} \\
+\midrule
+
+Sin preentrenamiento &
+Aleatoria &
+Embedding EEG inicializado aleatoriamente &
+No &
+Sí \\
+
+Conjunto EEG desde cero &
+Aleatoria &
+Embedding específico de EEG &
+Lectura $\rightarrow$ escucha &
+Sí \\
+
+Transferencia MEG-XL con embedding EEG &
+Checkpoint de MEG-XL &
+Embedding específico de EEG, inicializado a partir del embedding de magnetómetro &
+Lectura $\rightarrow$ escucha &
+Sí \\
+
+Transferencia MEG-XL con embedding MEG &
+Checkpoint de MEG-XL &
+Embedding de magnetómetro reutilizado directamente &
+Lectura $\rightarrow$ escucha &
+Sí \\
+
+\bottomrule
+\end{tabularx}
+\caption{Condiciones incluidas en la evaluación experimental.}
+\label{tab:condiciones_experimentales}
+\end{table}
+
+En la el último experimento, denominado transferencia MEG-XL con embedding MEG, la señal continúa tratándose físicamente como EEG. Se mantienen las posiciones de los electrodos, la máscara de canales y la anulación de la contribución asociada a la orientación de las bobinas MEG. La única modificación consiste en utilizar, para los canales EEG, la fila del embedding de tipo de sensor que MEG-XL había aprendido para los magnetómetros. Por tanto, esta condición permite estudiar de forma aislada si resulta beneficioso reutilizar directamente una representación de tipo de sensor ya entrenada.
+
+La comparación entre las condiciones tiene la diferentes finalidades. La diferencia entre el modelo sin preentrenamiento y el conjunto EEG desde cero mide el efecto del preentrenamiento autosupervisado con los conjuntos de lectura y escucha. La comparación entre el conjunto EEG desde cero y la transferencia MEG-XL con embedding EEG permite estudiar la aportación de los pesos aprendidos originalmente con MEG. Finalmente, la comparación entre las dos variantes inicializadas desde MEG-XL permite analizar el efecto de utilizar un embedding específico de EEG o reutilizar directamente el embedding de magnetómetro.
+
+\section{Particiones de los datos}
+
+\subsection{Preentrenamiento autosupervisado}
+
+El preentrenamiento se divide, como ya se ha explicado, en dos etapas consecutivas. La primera utiliza los conjuntos de lectura de Nieuwland et al. y ZuCo 2.0. La segunda continúa desde el mejor checkpoint de lectura de cada condición y utiliza SparrKULee y OpenNeuro ds007808. OpenNeuro ds004408 no participa en ninguna de estas dos etapas y se reserva por completo para el ajuste supervisado posterior.
+
+Las particiones de validación varían entre por sujeto o por sesión, según la estructura de cada conjunto. Esto impide que fragmentos procedentes de una misma persona o de una misma sesión aparezcan simultáneamente en entrenamiento y validación. La Tabla~\ref{tab:particiones_preentrenamiento} resume el criterio aplicado.
+
+\begin{table}[htbp]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.18}
+\begin{tabularx}{\textwidth}{
+    >{\raggedright\arraybackslash}p{2.5cm}
+    >{\raggedright\arraybackslash}p{2.6cm}
+    >{\raggedright\arraybackslash}X
+    >{\centering\arraybackslash}p{2.0cm}
+}
+\toprule
+\textbf{Etapa} &
+\textbf{Dataset} &
+\textbf{Criterio de partición} &
+\textbf{Validación} \\
+\midrule
+
+Lectura &
+Nieuwland et al. &
+Separación determinista por participante &
+10\,\% sujetos \\
+
+Lectura &
+ZuCo 2.0 &
+Separación determinista por participante &
+15\,\% sujetos \\
+
+Escucha &
+SparrKULee &
+Participantes completos reservados &
+5 sujetos \\
+
+Escucha &
+OpenNeuro ds007808 &
+Sesiones completas reservadas &
+9 sesiones \\
+
+\bottomrule
+\end{tabularx}
+\caption{Particiones utilizadas durante las dos etapas del preentrenamiento autosupervisado.}
+\label{tab:particiones_preentrenamiento}
+\end{table}
+
+En los registros \textit{listeningcovert} de OpenNeuro ds007808 se conserva la grabación completa como contexto temporal. Sin embargo, únicamente los intervalos etiquetados como escucha pueden seleccionarse como objetivos de reconstrucción. De este modo, los periodos de habla encubierta mantienen la continuidad de la entrada, pero no contribuyen directamente a la pérdida de predicción de tokens.
+
+\subsection{Ajuste supervisado sobre OpenNeuro ds004408}
+
+Para el ajuste supervisado, cabe recordar que las anotaciones de palabras se obtienen a partir de los intervalos temporales asociados al nivel léxico. Cada ejemplo contiene 50 palabras consecutivas. Para cada palabra se extrae una ventana de tres segundos, desde 0,5 segundos antes de su inicio hasta 2,5 segundos después. Las 50 ventanas se agrupan para construir una entrada de 150 segundos, conservando así la misma longitud utilizada durante el preentrenamiento.
+
+Todos los participantes escucharon los mismos estímulos. Por este motivo, una división aleatoria por ejemplos permitiría que una misma secuencia textual apareciese en más de una partición a través de participantes distintos. Para evitar esta fuga de información, la división se realiza agrupando por la secuencia completa de 50 palabras. Cada secuencia se asigna de forma determinista a entrenamiento, validación o test mediante una función hash con semilla fija. Todas las repeticiones de una misma secuencia quedan, por tanto, dentro de una única partición.
+
+La proporción utilizada es 80\,\% para entrenamiento, 10\,\% para validación y 10\,\% para test. El conjunto de test no se emplea para seleccionar épocas, ajustar hiperparámetros ni aplicar parada temprana. La evaluación sobre test se realiza una sola vez después de recuperar el checkpoint con mejor resultado de validación.
+
+\section{Configuración del preentrenamiento}
+
+\subsection{Representación de la entrada}
+
+Sea una ventana EEG
+\(\mathbf{X}\in\mathbb{R}^{C\times T}\), donde \(C\) es el número máximo de canales representados y \(T\) el número de muestras temporales. Todas las señales se filtran entre 0,1 y 40 Hz y se remuestrean a 50 Hz. Por tanto, una ventana de 150 segundos contiene \(T=7500\) muestras por canal.
+
+BioCodec se aplica de forma independiente sobre cada canal. El tokenizer produce una representación discreta
+
+\begin{equation}
+\mathbf{Z}\in
+\{0,\ldots,V-1\}^{C\times T'\times Q},
+\end{equation}
+
+\noindent donde \(V=256\) es el tamaño de cada vocabulario, \(Q=6\) es el número de cuantizadores residuales y \(T'\) es la dimensión temporal después de aplicar un factor de reducción \(r=12\). Los vectores de los seis niveles de cuantización se concatenan y se proyectan a una dimensión latente de 512.
+
+La entrada al Transformer combina el contenido tokenizado con la posición del sensor y su tipo. Los sensores no disponibles en un montaje concreto se completan dentro de la dimensión común de canales, pero se identifican mediante una máscara. Esta representación permite compartir la arquitectura entre conjuntos adquiridos con diferente número y disposición de electrodos.
+
+\subsection{Objetivo autosupervisado}
+
+Cada ventana de 150 segundos se divide conceptualmente en 50 bloques de tres segundos. En cada ejemplo se seleccionan 20 bloques temporales no solapados para su enmascaramiento. El mismo intervalo temporal se oculta en todos los canales reales, lo que corresponde a una proporción nominal del 40\,\% de los bloques de la ventana.
+
+Sea \(\mathcal{M}\) el conjunto de posiciones canal-tiempo enmascaradas y \(z_{c,t,q}\) el código objetivo del cuantizador \(q\). El modelo genera una distribución
+\(p_{\theta}(z_{c,t,q}\mid\mathbf{Z}_{\setminus\mathcal{M}})\)
+sobre los 256 códigos posibles. La pérdida de predicción de tokens enmascarados es la entropía cruzada media sobre los seis cuantizadores:
+
+\begin{equation}
+\mathcal{L}_{\mathrm{MTP}} =
+-\frac{1}{Q}
+\sum_{q=1}^{Q}
+\frac{1}{|\mathcal{M}|}
+\sum_{(c,t)\in\mathcal{M}}
+\log
+p_{\theta}
+\left(
+z_{c,t,q}
+\mid
+\mathbf{Z}_{\setminus\mathcal{M}},
+\mathbf{P},
+\mathbf{S}
+\right),
+\end{equation}
+
+\noindent donde \(\mathbf{P}\) representa la información espacial de los sensores y \(\mathbf{S}\) incluye sus tipos y máscaras. Además de la pérdida, se registra la precisión media de predicción de los códigos y la precisión individual de cada cuantizador.
+
+\subsection{Hiperparámetros}
+
+Cada etapa puede ejecutarse durante un máximo de 50 épocas. La etapa de escucha se inicializa siempre desde el mejor checkpoint de validación obtenido por la misma condición en la etapa de lectura. No se transfieren pesos entre condiciones distintas.
+
+\begin{table}[htbp]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.18}
+\begin{tabularx}{\textwidth}{
+    >{\raggedright\arraybackslash}p{4.3cm}
+    >{\centering\arraybackslash}X
+}
+\toprule
+\textbf{Hiperparámetro} &
+\textbf{Valor} \\
+\midrule
+Frecuencia de muestreo & 50 Hz \\
+Banda de frecuencias & 0,1--40 Hz \\
+Duración del contexto & 150 s \\
+Duración de cada bloque & 3 s \\
+Bloques enmascarados por ejemplo & 20 de 50 \\
+Tokenizer & BioCodec \\
+Cuantizadores / vocabulario & 6 / 256 códigos \\
+Factor de reducción temporal & 12 \\
+Dimensión latente & 512 \\
+Capas / cabezas de atención & 8 / 8 \\
+Épocas máximas por etapa & 50 \\
+Tamaño de lote en lectura & 4 \\
+Tamaño de lote en escucha & 1 \\
+Optimizador & AdamW \\
+Tasa de aprendizaje & \(10^{-4}\) \\
+Decaimiento de pesos & \(10^{-2}\) \\
+Planificación de la tasa & Cosenoidal hasta \(10^{-6}\) \\
+Recorte de norma del gradiente & 1,0 \\
+Precisión numérica & \textit{bfloat16} mixta \\
+Intervalo de validación & 500 pasos \\
+Semilla & 42 \\
+\bottomrule
+\end{tabularx}
+\caption{Configuración común del preentrenamiento autosupervisado.}
+\label{tab:hiperparametros_preentrenamiento}
+\end{table}
+
+Cada condición se ejecuta en una única GPU. Las condiciones pueden entrenarse en paralelo cuando existen dispositivos disponibles, pero cada una mantiene su propio optimizador, sus propios checkpoints y su propia trayectoria de entrenamiento.
+
+\section{Configuración del ajuste supervisado}
+
+\subsection{Proyección al espacio lingüístico}
+
+Durante el ajuste supervisado no se utiliza la cabeza de reconstrucción de códigos del preentrenamiento. El Transformer produce características contextualizadas
+\(\mathbf{H}\in\mathbb{R}^{C\times T'\times d}\), con \(d=512\). Para cada palabra \(i\), se selecciona el intervalo temporal codificado correspondiente a su ventana y se calcula la media temporal de cada canal:
+
+\begin{equation}
+\overline{\mathbf{H}}_i =
+\frac{1}{|\mathcal{T}_i|}
+\sum_{t\in\mathcal{T}_i}
+\mathbf{H}_{:,t,:}
+\in\mathbb{R}^{C\times d}.
+\end{equation}
+
+La matriz resultante se aplana y se transforma mediante una cabeza de proyección de dos capas:
+
+\begin{equation}
+\widehat{\mathbf{y}}_i =
+\mathbf{W}_2
+\operatorname{Dropout}
+\left(
+\operatorname{GELU}
+\left(
+\operatorname{LN}
+\left(
+\mathbf{W}_1
+\operatorname{vec}
+(\overline{\mathbf{H}}_i)
++\mathbf{b}_1
+\right)
+\right)
+\right)
++\mathbf{b}_2,
+\end{equation}
+
+\noindent donde la capa oculta tiene 2048 unidades y
+\(\widehat{\mathbf{y}}_i\in\mathbb{R}^{1024}\).
+El vector objetivo \(\mathbf{y}_i\) se obtiene de la capa 12 de
+\textit{T5-large}. Cuando una palabra se divide en varios tokens lingüísticos, sus representaciones se promedian para obtener un único embedding de 1024 dimensiones.
+
+El tokenizer neuronal (BioCodec) permanece congelado. Se actualizan los pesos del codificador \textit{criss-cross} y de la cabeza de proyección lingüística. La cabeza utilizada durante la predicción autosupervisada de códigos no interviene en esta etapa.
+
+\subsection{Pérdida contrastiva}
+
+El ajuste utiliza una pérdida contrastiva de tipo D-SigLIP. Sean
+\(\widehat{\mathbf{y}}_i\) las representaciones cerebrales predichas y
+\(\mathbf{y}_j\) los embeddings lingüísticos objetivo del lote. La puntuación entre ambos vectores se define como
+
+\begin{equation}
+s_{ij} =
+\exp(\tau)
+\frac{
+\widehat{\mathbf{y}}_i^{\top}\mathbf{y}_j
+}{
+\|\widehat{\mathbf{y}}_i\|_2
+\|\mathbf{y}_j\|_2
+}
++b,
+\end{equation}
+
+\noindent donde \(\tau\) y \(b\) son parámetros aprendibles. La matriz de objetivos
+\(a_{ij}\in\{0,1\}\) identifica las parejas positivas. Además de la pareja diagonal, se consideran positivas las palabras cuyos embeddings objetivo son prácticamente idénticos. La pérdida se calcula mediante entropía cruzada binaria sobre todas las parejas del lote:
+
+\begin{equation}
+\mathcal{L}_{\mathrm{D\text{-}SigLIP}} =
+-\frac{1}{N}
+\sum_{i=1}^{N}
+\sum_{j=1}^{N}
+w_{ij}
+\left[
+a_{ij}\log\sigma(s_{ij})
++
+(1-a_{ij})\log\left(1-\sigma(s_{ij})\right)
+\right],
+\end{equation}
+
+\noindent donde \(w_{ij}\) evita contar varias veces candidatos duplicados y
+\(\sigma\) es la función sigmoide.
+
+\subsection{Hiperparámetros}
+
+Las condiciones preentrenadas utilizan una tasa de aprendizaje menor para el codificador y una tasa mayor para la nueva cabeza lingüística. La condición sin preentrenamiento utiliza la misma tasa para ambos componentes. El criterio principal de selección es la precisión Top-10 balanceada sobre el vocabulario de 250 palabras en validación.
+
+\begin{table}[htbp]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.18}
+\begin{tabularx}{\textwidth}{
+    >{\raggedright\arraybackslash}p{4.5cm}
+    >{\centering\arraybackslash}X
+}
+\toprule
+\textbf{Hiperparámetro} &
+\textbf{Valor} \\
+\midrule
+Tamaño de lote & 1 \\
+Épocas máximas & 50 \\
+Optimizador & AdamW \\
+Decaimiento de pesos & \(10^{-4}\) \\
+Tasa del modelo sin preentrenamiento & \(10^{-4}\) \\
+Tasa del codificador preentrenado & \(10^{-5}\) \\
+Tasa de la cabeza lingüística preentrenada & \(10^{-3}\) \\
+Planificación de la tasa & Reducción por meseta, factor 0,5 \\
+Paciencia del planificador & 5 épocas \\
+Parada temprana & 10 épocas \\
+Mejora mínima & 0,001 \\
+Recorte de norma del gradiente & 1,0 \\
+Precisión numérica & \textit{bfloat16} mixta \\
+Vocabularios de recuperación & 50 y 250 palabras \\
+Número de candidatos aceptados & \(k=10\) \\
+Criterio de selección & Top-10 balanceada con 250 palabras \\
+Semilla & 42 \\
+\bottomrule
+\end{tabularx}
+\caption{Configuración común del ajuste supervisado sobre OpenNeuro ds004408.}
+\label{tab:hiperparametros_finetuning}
+\end{table}
+
+\section{Métricas de evaluación}
+
+\subsection{Métricas del preentrenamiento}
+
+El preentrenamiento se controla mediante la pérdida de reconstrucción de tokens y la precisión media de clasificación de los códigos enmascarados. Si
+\(\widehat{z}_{c,t,q}\) es el código de máxima probabilidad, la precisión se calcula como
+
+\begin{equation}
+\operatorname{Acc}_{\mathrm{token}} =
+\frac{1}{Q|\mathcal{M}|}
+\sum_{q=1}^{Q}
+\sum_{(c,t)\in\mathcal{M}}
+\mathbb{I}
+\left[
+\widehat{z}_{c,t,q}=z_{c,t,q}
+\right].
+\end{equation}
+
+El checkpoint seleccionado en cada etapa es el que minimiza la pérdida de validación. Los resultados de lectura y escucha se presentan por separado porque la segunda etapa continúa desde la primera y utiliza conjuntos de datos diferentes.
+
+\subsection{Recuperación de palabras}
+
+Durante la evaluación supervisada, cada representación predicha se compara mediante similitud coseno con los embeddings de las \(M\) palabras más frecuentes. Solo se evalúan los ejemplos cuya etiqueta pertenece al vocabulario de recuperación
+\(\mathcal{V}_M\). La precisión Top-\(k\) se define como
+
+\begin{equation}
+\operatorname{Top}\text{-}k(M) =
+\frac{1}{N_M}
+\sum_{i:y_i\in\mathcal{V}_M}
+\mathbb{I}
+\left[
+y_i\in
+\operatorname{TopK}
+\left(
+\left\{
+\cos
+\left(
+\widehat{\mathbf{y}}_i,
+\mathbf{e}_w
+\right)
+\right\}_{w\in\mathcal{V}_M}
+\right)
+\right],
+\end{equation}
+
+\noindent donde \(\mathbf{e}_w\) es el embedding T5 de la palabra candidata y
+\(N_M\) es el número de ejemplos evaluados.
+
+La frecuencia de las palabras no es uniforme. Por ello, la métrica principal es la precisión Top-\(k\) balanceada, que calcula primero la precisión de cada palabra y después realiza una media macro:
+
+\begin{equation}
+\operatorname{BTop}\text{-}k(M) =
+\frac{1}{|\mathcal{V}_M|}
+\sum_{w\in\mathcal{V}_M}
+\frac{1}{N_w}
+\sum_{i:y_i=w}
+\mathbb{I}
+\left[
+w\in\operatorname{TopK}_i
+\right].
+\end{equation}
+
+Se utiliza \(k=10\) con vocabularios de \(M=50\) y \(M=250\) palabras. Bajo una recuperación aleatoria uniforme, los niveles esperados son
+
+\begin{equation}
+P_{\mathrm{azar}}(M,k)=\frac{k}{M},
+\end{equation}
+
+\noindent lo que corresponde al 20\,\% para 50 candidatos y al 4\,\% para 250 candidatos. Como métricas secundarias se registran la precisión Top-10 no balanceada, la similitud coseno media entre la predicción y el objetivo, el número de ejemplos evaluados y el número de ejemplos excluidos por no pertenecer al vocabulario de recuperación.
+
+\section{Resultados}
+
+En esta sección se presentan únicamente los valores obtenidos. La interpretación de las diferencias entre condiciones se completará una vez estén disponibles todos los experimentos. Las celdas se han dejado preparadas para incorporar los resultados definitivos del preentrenamiento y del ajuste supervisado.
+
+\subsection{Preentrenamiento de lectura y escucha}
+
+% La Tabla~\ref{tab:resultados_preentrenamiento} recoge el resultado del checkpoint seleccionado en cada etapa. La precisión de tokens corresponde a la media sobre los seis cuantizadores de BioCodec.
+
+% \begin{table}[htbp]
+% \centering
+% \footnotesize
+% \setlength{\tabcolsep}{4pt}
+% \renewcommand{\arraystretch}{1.18}
+% \begin{tabularx}{\textwidth}{
+%     >{\raggedright\arraybackslash}X
+%     >{\centering\arraybackslash}p{2.1cm}
+%     >{\centering\arraybackslash}p{2.1cm}
+%     >{\centering\arraybackslash}p{2.1cm}
+%     >{\centering\arraybackslash}p{2.1cm}
+% }
+% \toprule
+% \textbf{Condición} &
+% \textbf{Lectura: pérdida val.} &
+% \textbf{Lectura: acc. token (\%)} &
+% \textbf{Escucha: pérdida val.} &
+% \textbf{Escucha: acc. token (\%)} \\
+% \midrule
+
+% Conjunto EEG desde cero &
+% \celdaresultado &
+% \celdaresultado &
+% \celdaresultado &
+% \celdaresultado \\ % completar
+
+% Transferencia MEG-XL con embedding EEG &
+% \celdaresultado &
+% \celdaresultado &
+% \celdaresultado &
+% \celdaresultado \\ % completar
+
+% Transferencia MEG-XL con embedding MEG &
+% \celdaresultado &
+% \celdaresultado &
+% \celdaresultado &
+% \celdaresultado \\ % completar
+
+% \bottomrule
+% \end{tabularx}
+% \caption{Resultados de validación del preentrenamiento autosupervisado.}
+% \label{tab:resultados_preentrenamiento}
+% \end{table}
+
+\subsection{Clasificación contextual de palabras}
+
+% La Tabla~\ref{tab:resultados_finetuning_principales} presenta las métricas principales sobre la partición de test de OpenNeuro ds004408. El modelo utilizado en test es el checkpoint seleccionado mediante la precisión Top-10 balanceada con 250 candidatos en validación.
+
+% \begin{table}[htbp]
+% \centering
+% \scriptsize
+% \setlength{\tabcolsep}{3.5pt}
+% \renewcommand{\arraystretch}{1.18}
+% \begin{tabularx}{\textwidth}{
+%     >{\raggedright\arraybackslash}X
+%     >{\centering\arraybackslash}p{1.25cm}
+%     >{\centering\arraybackslash}p{1.55cm}
+%     >{\centering\arraybackslash}p{1.65cm}
+%     >{\centering\arraybackslash}p{1.55cm}
+%     >{\centering\arraybackslash}p{1.65cm}
+%     >{\centering\arraybackslash}p{1.45cm}
+% }
+% \toprule
+% \textbf{Condición} &
+% \textbf{Mejor época} &
+% \textbf{Top-10, 50 (\%)} &
+% \textbf{Balanceada, 50 (\%)} &
+% \textbf{Top-10, 250 (\%)} &
+% \textbf{Balanceada, 250 (\%)} &
+% \textbf{Coseno medio} \\
+% \midrule
+
+% Sin preentrenamiento &
+% \celdaresultado &
+% \celdaresultado &
+% \celdaresultado &
+% \celdaresultado &
+% \celdaresultado &
+% \celdaresultado \\ % completar
+
+% Conjunto EEG desde cero &
+% \celdaresultado &
+% \celdaresultado &
+% \celdaresultado &
+% \celdaresultado &
+% \celdaresultado &
+% \celdaresultado \\ % completar
+
+% Transferencia MEG-XL con embedding EEG &
+% \celdaresultado &
+% \celdaresultado &
+% \celdaresultado &
+% \celdaresultado &
+% \celdaresultado &
+% \celdaresultado \\ % completar
+
+% Transferencia MEG-XL con embedding MEG &
+% \celdaresultado &
+% \celdaresultado &
+% \celdaresultado &
+% \celdaresultado &
+% \celdaresultado &
+% \celdaresultado \\ % completar
+
+% \midrule
+% Azar uniforme &
+% --- &
+% 20,00 &
+% 20,00 &
+% 4,00 &
+% 4,00 &
+% --- \\
+
+% \bottomrule
+% \end{tabularx}
+% \caption{Resultados de clasificación contextual de palabras en la partición de test de OpenNeuro ds004408.}
+% \label{tab:resultados_finetuning_principales}
+% \end{table}
+
+% La cobertura de la evaluación se muestra en la Tabla~\ref{tab:cobertura_evaluacion}. Estos valores permiten comprobar cuántas palabras del conjunto de test pertenecen a cada vocabulario de recuperación.
+
+% \begin{table}[htbp]
+% \centering
+% \footnotesize
+% \setlength{\tabcolsep}{6pt}
+% \renewcommand{\arraystretch}{1.18}
+% \begin{tabularx}{0.82\textwidth}{
+%     >{\centering\arraybackslash}p{2.5cm}
+%     >{\centering\arraybackslash}X
+%     >{\centering\arraybackslash}X
+% }
+% \toprule
+% \textbf{Vocabulario} &
+% \textbf{Ejemplos evaluados} &
+% \textbf{Ejemplos excluidos} \\
+% \midrule
+% 50 palabras & \celdaresultado & \celdaresultado \\ % completar
+% 250 palabras & \celdaresultado & \celdaresultado \\ % completar
+% \bottomrule
+% \end{tabularx}
+% \caption{Cobertura de los vocabularios de recuperación en la partición de test.}
+% \label{tab:cobertura_evaluacion}
+% \end{table}
+
+\subsection{Diferencias entre condiciones}
+
+% Para mostrar de forma directa los efectos definidos en el diseño experimental, la Tabla~\ref{tab:diferencias_condiciones} reserva las diferencias absolutas en puntos porcentuales entre las métricas balanceadas de las condiciones correspondientes. Estos valores se presentan de forma descriptiva y no constituyen una prueba de significación estadística.
+
+% \begin{table}[htbp]
+% \centering
+% \footnotesize
+% \setlength{\tabcolsep}{5pt}
+% \renewcommand{\arraystretch}{1.18}
+% \begin{tabularx}{\textwidth}{
+%     >{\raggedright\arraybackslash}X
+%     >{\centering\arraybackslash}p{2.4cm}
+%     >{\centering\arraybackslash}p{2.4cm}
+% }
+% \toprule
+% \textbf{Comparación} &
+% \textbf{\(\Delta\) balanceada, 50} &
+% \textbf{\(\Delta\) balanceada, 250} \\
+% \midrule
+
+% Efecto del conjunto EEG:
+% EEG desde cero menos sin preentrenamiento &
+% \celdaresultado &
+% \celdaresultado \\ % completar
+
+% Efecto de la inicialización MEG-XL:
+% embedding EEG menos EEG desde cero &
+% \celdaresultado &
+% \celdaresultado \\ % completar
+
+% Efecto del embedding de sensor:
+% embedding MEG menos embedding EEG &
+% \celdaresultado &
+% \celdaresultado \\ % completar
+
+% \bottomrule
+% \end{tabularx}
+% \caption{Diferencias descriptivas entre las condiciones experimentales, expresadas en puntos porcentuales.}
+% \label{tab:diferencias_condiciones}
+% \end{table}
+
+% Todos los experimentos utilizan una única semilla. Por este motivo, los resultados se presentan como valores descriptivos de cada ejecución y no como medias acompañadas de desviación estándar o error estándar. No se aplican pruebas estadísticas entre condiciones en esta configuración.
+

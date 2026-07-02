@@ -1,0 +1,43 @@
+\begin{figure}[htbp]
+    \centering
+    \resizebox{0.99\textwidth}{!}{%
+    \begin{tikzpicture}[
+        font=\footnotesize,
+        node distance=5mm,
+        box/.style={draw, rounded corners=1.5mm, minimum width=2.45cm,
+                    minimum height=1.15cm, align=center, thick, fill=blue!7},
+        model/.style={draw, rounded corners=1.5mm, minimum width=2.75cm,
+                    minimum height=1.3cm, align=center, thick, fill=orange!10},
+        loss/.style={draw, rounded corners=1.5mm, minimum width=2.6cm,
+                    minimum height=1.15cm, align=center, thick, fill=green!10},
+        arrow/.style={-{Latex[length=2.4mm]}, thick}
+    ]
+        \node[font=\bfseries\large] (pretitle) {Preentrenamiento autosupervisado};
+        \node[box, below=5mm of pretitle] (meg) {MEG continuo\\2,5 min a 50 Hz};
+        \node[box, right=of meg] (bio) {BioCodec\\tokens por canal};
+        \node[box, right=of bio] (mask) {Enmascaramiento\\de bloques temporales};
+        \node[model, right=of mask] (cc) {Transformer\\criss--cross};
+        \node[loss, right=of cc] (mtp) {Predicción de\\tokens ocultos};
+        \draw[arrow] (meg) -- (bio);
+        \draw[arrow] (bio) -- (mask);
+        \draw[arrow] (mask) -- (cc);
+        \draw[arrow] (cc) -- (mtp);
+
+        \node[font=\bfseries\large, below=22mm of pretitle] (fintitle) {Ajuste fino para decodificación de palabras};
+        \node[box, below=5mm of fintitle] (wordmeg) {Ventanas alineadas\\con palabras};
+        \node[model, right=of wordmeg] (pretrained) {MEG-XL\\preentrenado};
+        \node[model, right=of pretrained] (seq) {Contextualización\\de la secuencia};
+        \node[loss, right=of seq] (t5) {D-SigLIP\\contra embeddings T5};
+        \node[loss, right=of t5] (topk) {Recuperación\\Top-$k$};
+        \draw[arrow] (wordmeg) -- (pretrained);
+        \draw[arrow] (pretrained) -- (seq);
+        \draw[arrow] (seq) -- (t5);
+        \draw[arrow] (t5) -- (topk);
+        \draw[arrow, dashed, bend right=18] (cc.south) to (pretrained.north);
+
+        \node[draw, dashed, rounded corners, fit=(meg)(mtp), inner sep=3mm] {};
+        \node[draw, dashed, rounded corners, fit=(wordmeg)(topk), inner sep=3mm] {};
+    \end{tikzpicture}}
+    \caption{Resumen del preentrenamiento y del ajuste fino de MEG-XL. El modelo aprende primero a reconstruir tokens cerebrales en contextos largos y posteriormente reutiliza esas representaciones en una tarea contrastiva de clasificación contextual de palabras. Adaptado conceptualmente de Jayalath y Parker Jones.}
+    \label{fig:megxl_overview}
+\end{figure}

@@ -1,0 +1,74 @@
+\begin{figure}[htbp]
+    \centering
+    \resizebox{0.96\textwidth}{!}{%
+    \begin{tikzpicture}[
+        font=\small,
+        title/.style={font=\bfseries\large},
+        electrode/.style={draw=blue!55!black, fill=blue!15, minimum width=4mm, minimum height=1.8mm},
+        coil/.style={draw=purple!55!black, fill=purple!15, minimum width=4mm, minimum height=6mm},
+        potential/.style={red!70!black, thick, opacity=.55},
+        field/.style={purple!75!black, thick, -{Latex[length=2.3mm]}},
+        legendtext/.style={font=\scriptsize, anchor=west, align=left},
+        arrow/.style={-{Latex[length=2.5mm]}, thick}
+    ]
+        % EEG panel
+        \node[title] at (-4.6,3.45) {EEG};
+        \draw[thick] (-4.6,0.8) circle (2.0cm);
+        \draw[fill=gray!12] (-4.6,0.8) circle (1.45cm);
+        \draw[fill=red!35, draw=red!60!black] (-4.9,0.55) circle (3mm);
+        \node[font=\footnotesize, align=center] at (-4.6,-2.15) {potenciales eléctricos\\difusos en el cuero cabelludo};
+        \foreach \a in {20,55,90,125,160} {
+            \node[electrode, rotate=\a-90] at ($(-4.6,0.8)+(\a:2.08cm)$) {};
+        }
+        \foreach \a in {200,235,270,305,340} {
+            \node[electrode, rotate=\a-90] at ($(-4.6,0.8)+(\a:2.08cm)$) {};
+        }
+        \draw[potential] (-4.9,0.55) -- ($(-4.6,0.8)+(20:2.0cm)$);
+        \draw[potential] (-4.9,0.55) -- ($(-4.6,0.8)+(55:2.0cm)$);
+        \draw[potential] (-4.9,0.55) -- ($(-4.6,0.8)+(125:2.0cm)$);
+        \draw[potential] (-4.9,0.55) -- ($(-4.6,0.8)+(200:2.0cm)$);
+        \draw[potential] (-4.9,0.55) -- ($(-4.6,0.8)+(305:2.0cm)$);
+
+        % MEG panel
+        \node[title] at (4.6,3.45) {MEG};
+        \draw[thick] (4.6,0.8) circle (2.0cm);
+        \draw[fill=gray!12] (4.6,0.8) circle (1.45cm);
+        \draw[purple!35, thick] (4.6,0.8) circle (2.38cm);
+        \draw[fill=red!35, draw=red!60!black] (4.3,0.55) circle (3mm);
+        \node[font=\footnotesize, align=center] at (4.6,-2.15) {campos magnéticos\\medidos por sensores externos};
+        \foreach \a in {25,60,130,165,205,245,325} {
+            \node[coil, rotate=\a-90] at ($(4.6,0.8)+(\a:2.5cm)$) {};
+        }
+        \draw[field] (4.3,0.55) .. controls (3.35,1.35) and (3.55,2.35) .. (4.65,2.78);
+        \draw[field] (4.3,0.55) .. controls (5.45,1.25) and (5.85,2.15) .. (5.25,2.72);
+        \draw[field] (4.3,0.55) .. controls (5.55,0.15) and (5.75,-0.75) .. (4.95,-1.05);
+        \draw[field] (4.3,0.55) .. controls (3.25,0.0) and (3.45,-0.95) .. (4.25,-1.16);
+
+        \draw[dashed, thick, gray] (0,-1.4) -- (0,3.25);
+        \node[align=center, font=\small] at (0,1) {Misma actividad\\neuronal subyacente};
+        \draw[arrow] (-0.6,0.5) -- (-2.1,0.5);
+        \draw[arrow] (0.6,0.5) -- (2.1,0.5);
+
+        % Legend
+        \node[legendtext, font=\scriptsize\bfseries] at (-5.8,-3.0) {Leyenda};
+        \draw[thick] (-5.55,-3.35) circle (1.5mm);
+        \node[legendtext] at (-5.25,-3.35) {cabeza/cuero cabelludo};
+        \draw[fill=gray!12] (-5.55,-3.75) circle (1.5mm);
+        \node[legendtext] at (-5.25,-3.75) {cerebro};
+        \draw[fill=red!35, draw=red!60!black] (-5.55,-4.15) circle (1.5mm);
+        \node[legendtext] at (-5.25,-4.15) {fuente neuronal};
+        \draw[potential] (-5.75,-4.55) -- (-5.35,-4.55);
+        \node[legendtext] at (-5.25,-4.55) {proyección eléctrica};
+
+        \node[electrode, minimum width=4mm, minimum height=1.8mm] at (0.7,-3.35) {};
+        \node[legendtext] at (1.05,-3.35) {electrodos EEG};
+        \node[coil, minimum width=3.2mm, minimum height=4.8mm] at (0.7,-3.75) {};
+        \node[legendtext] at (1.05,-3.75) {sensores MEG};
+        \draw[purple!35, thick] (0.7,-4.15) circle (1.5mm);
+        \node[legendtext] at (1.05,-4.15) {casco/sensores externos};
+        \draw[field] (0.4,-4.55) -- (1.0,-4.55);
+        \node[legendtext] at (1.05,-4.55) {campo magnético};
+    \end{tikzpicture}}
+    \caption{Esquema conceptual de la observación de una fuente neuronal mediante EEG y MEG. Aunque ambas modalidades reflejan actividad relacionada, difieren en la magnitud física medida, la proyección sobre los sensores y las fuentes de variabilidad.}
+    \label{fig:eeg_meg_concept}
+\end{figure}

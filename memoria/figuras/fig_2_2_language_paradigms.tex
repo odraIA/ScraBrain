@@ -1,0 +1,29 @@
+\begin{figure}[htbp]
+    \centering
+    \resizebox{0.92\textwidth}{!}{%
+    \begin{tikzpicture}[
+        font=\small,
+        panel/.style={draw, rounded corners=2mm, minimum width=6.1cm,
+                      minimum height=3.2cm, align=left, inner sep=4mm, thick},
+        tag/.style={font=\bfseries, anchor=north west},
+        desc/.style={align=left, text width=5.35cm, anchor=north west}
+    ]
+        \node[panel, fill=red!6] (overt) at (0,0) {};
+        \node[tag] at ($(overt.north west)+(3mm,-3mm)$) {Habla producida};
+        \node[desc] at ($(overt.north west)+(3mm,-10mm)$) {La persona pronuncia el contenido. Permite verificar directamente la respuesta, pero añade actividad motora y artefactos musculares.};
+
+        \node[panel, fill=orange!8, right=9mm of overt] (covert) {};
+        \node[tag] at ($(covert.north west)+(3mm,-3mm)$) {Habla imaginada};
+        \node[desc] at ($(covert.north west)+(3mm,-10mm)$) {Se imagina la pronunciación sin producir sonido. Es clínicamente atractiva, pero el contenido y el instante son difíciles de verificar.};
+
+        \node[panel, fill=blue!7, below=8mm of overt] (listen) {};
+        \node[tag] at ($(listen.north west)+(3mm,-3mm)$) {Percepción auditiva};
+        \node[desc] at ($(listen.north west)+(3mm,-10mm)$) {Se escucha habla conocida y temporizada. Permite alinear fonemas y palabras con la señal cerebral de forma precisa.};
+
+        \node[panel, fill=green!8, right=9mm of listen] (read) {};
+        \node[tag] at ($(read.north west)+(3mm,-3mm)$) {Lectura};
+        \node[desc] at ($(read.north west)+(3mm,-10mm)$) {Se procesan palabras escritas. En lectura natural, el eye--tracking sitúa cada fijación y permite extraer EEG por palabra.};
+    \end{tikzpicture}}
+    \caption{Principales paradigmas experimentales utilizados en decodificación cerebral del lenguaje. Cada paradigma ofrece un compromiso distinto entre naturalidad, facilidad de alineamiento y presencia de artefactos.}
+    \label{fig:language_paradigms}
+\end{figure}

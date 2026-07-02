@@ -1,0 +1,24 @@
+\begin{figure}[htbp]
+    \centering
+    \resizebox{0.98\textwidth}{!}{%
+    \begin{tikzpicture}[
+        font=\footnotesize,
+        event/.style={draw, rounded corners=1.5mm, minimum width=2.7cm,
+                    minimum height=1.35cm, align=center, thick, fill=blue!7},
+        arrow/.style={-{Latex[length=2.5mm]}, very thick}
+    ]
+        \draw[arrow] (0,0) -- (17.2,0);
+        \foreach \x/\year in {0.8/2020,3.5/2023,6.2/2024,9.2/may.\ 2025,12.4/jun.\ 2025,15.5/2026} {
+            \draw[thick] (\x,0.15) -- (\x,-0.15);
+            \node[below=2mm] at (\x,-0.15) {\year};
+        }
+        \node[event, above=7mm] at (0.8,0) {Dash et al.\\frases imaginadas\\y producidas};
+        \node[event, below=13mm] at (3.5,0) {Défossez et al.\\alineamiento\\cerebro--audio};
+        \node[event, above=7mm] at (6.2,0) {d'Ascoli et al.\\clasificación contextual\\de palabras};
+        \node[event, below=13mm] at (9.2,0) {LibriBrain\\52 h de MEG\\en un sujeto};
+        \node[event, above=7mm] at (12.4,0) {Unlocking B2T\\rescoring e infilling\\con LLM};
+        \node[event, below=13mm, fill=orange!10] at (15.5,0) {MEG-XL y\\Brain2Qwerty v2\\contexto largo};
+    \end{tikzpicture}}
+    \caption{Evolución simplificada de los trabajos más próximos a la decodificación no invasiva de lenguaje considerada en esta memoria. La progresión combina vocabularios mayores, contexto más largo, más datos por participante y modelos lingüísticos externos.}
+    \label{fig:sota_timeline}
+\end{figure}

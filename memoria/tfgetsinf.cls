@@ -296,6 +296,7 @@
                           \iflisttables\listoftables\fi
                           \iflistquadres\listofquadres\fi
                           \iflistalgorithms\listofalgorithms\fi
+                          \@ifundefined{printacronimos}{}{\printacronimos}
                           \addtocontents{toc}{\protect\noindent\protect\hrulefill\protect\par}}
 
 \setlength{\cftaftertoctitleskip}{\baselineskip}
