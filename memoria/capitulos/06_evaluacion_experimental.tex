@@ -4,11 +4,24 @@
 \subsection{Particiones de los datos}
 \subsection{Hiperparámetros y métricas}
 
-\section{Influencia de la frecuencia de muestreo}
-
-\section{Influencia de las bandas de frecuencia}
-
 \section{Entrenamiento desde cero y transferencia desde MEG-XL}
+
+\subsection{Inicialización desde cero y desde MEG-XL}
+
+% La comparación entre inicialización preentrenada y desde cero es el eje experimental de la propuesta. La condición preentrenada carga parcialmente el checkpoint \texttt{meg-xl-med.ckpt}. Esta carga aprovecha los pesos compatibles del Transformer y de los componentes generales de la arquitectura, pero permite reinicializar las partes que no encajan con la configuración EEG. La condición desde cero utiliza la misma arquitectura y el mismo pipeline, pero sin cargar pesos previos.
+
+% En la fase de lectura, la diferencia entre ambas condiciones es clara: una parte del checkpoint de MEG-XL y la otra comienza con pesos aleatorios. En la fase de escucha, ambas condiciones continúan desde su propio checkpoint de lectura. Por tanto, la comparación final no enfrenta simplemente MEG-XL contra un modelo aleatorio, sino dos trayectorias completas de adaptación:
+
+% \begin{itemize}
+% \setlength{\itemsep}{0pt}
+% \setlength{\parsep}{0pt}
+% \setlength{\topsep}{2pt}
+% \setlength{\partopsep}{0pt}
+% \item MEG-XL $\rightarrow$ lectura EEG $\rightarrow$ escucha EEG;
+% \item inicialización aleatoria $\rightarrow$ lectura EEG $\rightarrow$ escucha EEG.
+% \end{itemize}
+
+% Este diseño controla el efecto del curriculum. Si ambos modelos mejoran por entrenar primero con lectura y después con escucha, la diferencia restante se debe a la inicialización. También permite detectar transferencia negativa: podría ocurrir que los pesos aprendidos en MEG introduzcan sesgos espaciales o estadísticos poco adecuados para EEG y ralenticen la adaptación frente al entrenamiento desde cero.
 
 
 \section{Comparación de tokenizadores}

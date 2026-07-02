@@ -2,13 +2,13 @@
 
 Como se ha descrito anteriormente, una de las limitaciones de la decodificación cerebral no invasiva es la disponibilidad de datos. La adquisición de EEG y sobre todo de MEG requiere equipamiento especializado, tiempo de preparación y la participación de voluntarios en sesiones que pueden resultar largas. Además, los conjuntos de datos disponibles presentan diferencias importantes en el número y la posición de los sensores, la frecuencia de muestreo, el idioma, la tarea realizada y la cantidad de información disponible por participante.
 
-En este trabajo era necesario combinar varios conjuntos de datos para aumentar la cantidad y la diversidad de registros disponibles. No obstante, diferentes  datasets desempeñan distintas funciones dentro del proceso experimental. Los cinco conjuntos de EEG se emplean para entrenar la adaptación de MEG-XL a esta nueva modalidad. Finalmente, el conjunto de Weissbart et al. se reserva para realizar el \textit{fine-tuning} supervisado y evaluar la clasificación de palabras durante la escucha de habla continua.
+En este trabajo era necesario combinar varios conjuntos de datos para aumentar la cantidad y la diversidad de registros disponibles. No obstante, diferentes datasets desempeñan distintas funciones dentro del proceso experimental. Los conjuntos de lectura y escucha se emplean para entrenar la adaptación de MEG-XL a esta nueva modalidad. Finalmente, OpenNeuro ds004408 se reserva para realizar el \textit{fine-tuning} supervisado y evaluar la clasificación de palabras durante la escucha de habla continua.
 
-Los cinco conjuntos utilzizados en entrenamiento se dividen en dos grupos en función de la tarea realizada. En primer lugar se incorporan los conjuntos de lectura: ZuCo 2.0 y el de Nieuwland et al. Posteriormente se introducen los conjuntos de escucha: SparrKULee, OpenNeuro ds007808 y OpenNeuro ds004408. La adaptación comienza por lectura porque ofrece condiciones de experimentación relativamente controladas y permite realizar un primer entrenamiento con EEG relacionado con procesamiento lingüístico. Después se aproxima el dominio de entrenamiento a la tarea final mediante registros obtenidos durante la percepción auditiva del habla.
+Los cuatro conjuntos utilizados en entrenamiento se dividen en dos grupos en función de la tarea realizada. En primer lugar se incorporan los conjuntos de lectura: ZuCo 2.0 y el de Nieuwland et al. Posteriormente se introducen los conjuntos de escucha: SparrKULee y OpenNeuro ds007808. La adaptación comienza por lectura porque ofrece condiciones de experimentación relativamente controladas y permite realizar un primer entrenamiento con EEG relacionado con procesamiento lingüístico. Después se aproxima el dominio de entrenamiento a la tarea final mediante registros obtenidos durante la percepción auditiva del habla.
 
 A pesar de las diferencias entre ellos, todos estos conjuntos se transforman a una interfaz común. Se conservan únicamente los canales EEG, junto con sus posiciones y una máscara para que el modelo tenga un único número de sensores de entrada, de forma que se enmascaran los sensores que no están presentes en un conjunto concreto. La señal se filtra inicialmente en su frecuencia de muestreo original y después se remuestrea a 50 Hz -- al igual que en MEG-XL. A partir de cada grabación se extraen ventanas completas y no solapadas de 150 segundos. Los fragmentos finales que no alcanzan esta duración se descartan.
 
-Durante esta etapa no se entrena utilizando ni las palabras, ni las transcripciones, ni las alineaciones lingüísticas como etiquetas. BioCodec transforma la señal en una secuencia discreta de códigos neuronales y el modelo aprende a reconstruir los códigos que han sido ocultados. De esta forma, los cinco conjuntos pueden combinarse aunque estén asociados a idiomas y paradigmas experimentales diferentes. Esto se hace para que el modelo aprenda regularidades temporales y espaciales de la señal EEG que puedan transferirse posteriormente a una tarea supervisada.
+Durante esta etapa no se entrena utilizando ni las palabras, ni las transcripciones, ni las alineaciones lingüísticas como etiquetas. BioCodec transforma la señal en una secuencia discreta de códigos neuronales y el modelo aprende a reconstruir los códigos que han sido ocultados. De esta forma, los conjuntos de entrenamiento pueden combinarse aunque estén asociados a idiomas y paradigmas experimentales diferentes. Esto se hace para que el modelo aprenda regularidades temporales y espaciales de la señal EEG que puedan transferirse posteriormente a una tarea supervisada.
 
 
 \section{Selección de conjuntos de entrenamiento}
@@ -110,7 +110,7 @@ evaluación de MEG-XL.}
 \label{tab:datasets_megxl}
 \end{table}
 
-Para adaptar este procedimiento a EEG se buscaron conjuntos de lectura o escucha con señal suficientemente continua para extraer ventanas de 150 segundos. Se descartaron datasets formados únicamente por palabras o frases aisladas, aquellos que no proporcionaban la señal EEG completa y las tareas de producción oral, debido a la posible presencia de artefactos musculares. Se vio la necesidad de incluir datasets de lectura debido a la falta de conjuntos de escucha continua con un número suficiente de horas de entrenamiento.  También se revisó la lateralidad de los participantes, priorizando sujetos diestros cuando esta información estaba disponible. Finalmente, se seleccionaron ZuCo 2.0 y Nieuwland et al. para lectura, y SparrKULee, OpenNeuro ds007808 y OpenNeuro ds004408 para escucha.
+Para adaptar este procedimiento a EEG se buscaron conjuntos de lectura o escucha con señal suficientemente continua para extraer ventanas de 150 segundos. Se descartaron datasets formados únicamente por palabras o frases aisladas, aquellos que no proporcionaban la señal EEG completa y las tareas de producción oral, debido a la posible presencia de artefactos musculares. Se vio la necesidad de incluir datasets de lectura debido a la falta de conjuntos de escucha continua con un número suficiente de horas de entrenamiento. También se revisó la lateralidad de los participantes, priorizando sujetos diestros cuando esta información estaba disponible. Finalmente, se seleccionaron ZuCo 2.0 y Nieuwland et al. para lectura, y SparrKULee y OpenNeuro ds007808 para escucha. OpenNeuro ds004408 se mantiene separado de esta fase y se utiliza únicamente en el ajuste supervisado.
 
 \section{Datasets de entrenamiento}
 
@@ -164,48 +164,21 @@ De este conjunto se seleccionan las tareas \textit{listening} y \textit{listenin
 
 Esta decisión se tomó para aprovechar una parte considerable de las sesiones sin confundir percepción auditiva y producción imaginada. Al mismo tiempo, introduce un conjunto profundo y longitudinal que complementa el mayor número de sujetos de SparrKULee. Las particiones de validación se realizan mediante sesiones completas, de modo que una misma sesión no se divide entre entrenamiento y validación.
 
-\subsubsection{OpenNeuro ds004408}
-
-OpenNeuro ds004408 contiene respuestas EEG registradas mientras 19 participantes escuchaban habla continua y natural en inglés. El conjunto fue utilizado originalmente para estudiar tanto el seguimiento cortical de propiedades fonéticas como el procesamiento semántico de palabras dentro de una narración \cite{diliberto2015phoneme,broderick2018semantic}.
-
-Los participantes escucharon fragmentos de un audiolibro mientras se registraba la actividad mediante un sistema EEG de alta densidad. Cada persona dispone de 20 bloques de aproximadamente tres minutos, lo que produce 380 grabaciones y alrededor de 20,6 horas de señal. Los registros contienen 128 canales EEG y fueron adquiridos originalmente a 512 Hz.
-
-Este conjunto resulta especialmente relevante porque combina habla natural, narración en inglés y un número de participantes superior al de los conjuntos profundos de un único individuo. Además, los trabajos asociados han mostrado que su señal refleja propiedades del habla a distintos niveles, desde la estructura acústica y fonética hasta la relación semántica entre una palabra y su contexto.
-
-En el entrenamiento se utiliza la tarea completa de escucha. Cada bloque se filtra, se remuestrea y se divide en ventanas continuas siguiendo el mismo procedimiento aplicado en el resto de los conjuntos. No se incorporan al objetivo las representaciones acústicas, los fonemas ni las medidas de disimilitud semántica empleadas en los estudios originales.
-
-Los participantes 17, 18 y 19 se reservan para validación. Esta división proporciona una evaluación sobre sujetos no utilizados durante el entrenamiento y mantiene el resto de las grabaciones disponible para aprender representaciones de escucha en inglés.
-
-\section{Datasets de fine-tuning}
-
-\subsection{Weissbart et al.}
-Una vez realizado el entrenamiento con los cinco conjuntos anteriores, comenzó la búsqueda para un dataset de validación sobre el que hacer fine-tuning al estilo de MEG-XL. Así se encontró el conjunto de Weissbart et al. \cite{weissbart2020surprisal}. Este conjunto contiene EEG de 13 participantes mientras escuchaban narraciones continuas en inglés. La señal se registró con 64 canales a 1000 Hz y los estímulos se dividieron en 15 fragmentos de historias. En total se dispone de aproximadamente 520 minutos de escucha, equivalentes a unas 8,7 horas de estímulo.
-
-El estudio original analizaba cómo la actividad cortical seguía la \textit{surprisal} o grado de sorpresa asociado a cada palabra. Para ello, las narraciones fueron alineadas temporalmente palabra por palabra. Estas anotaciones hacen que el conjunto sea apropiado para la etapa supervisada del trabajo, ya que permiten extraer una respuesta EEG concreta alrededor del inicio de cada elemento lingüístico.
-
-A diferencia del entrenamiento continuo, Weissbart se utiliza en modo \textit{word-aligned}. Para cada palabra se obtiene una ventana de tres segundos que comienza 0,5 segundos antes de su aparición y termina 2,5 segundos después. La parte anterior al inicio permite estimar una línea base y conserva información sobre el contexto inmediatamente precedente. La parte posterior incluye la respuesta cerebral asociada a la percepción y procesamiento de la palabra.
-
-Cada ventana se corrige respecto a su línea base, se normaliza de forma robusta y se limita a un rango determinado para reducir la influencia de valores extremos. Posteriormente se concatenan 50 palabras consecutivas. Como cada una aporta tres segundos, la entrada completa vuelve a tener una duración de 150 segundos. De esta manera se mantiene el contexto largo utilizado durante el entrenamiento, pero ahora cada subsegmento está asociado a una palabra conocida.
-
-Las palabras se representan mediante embeddings obtenidos con T5. El modelo neuronal genera una representación para cada ventana EEG y una proyección aprende a aproximarla al embedding lingüístico correcto. La función de pérdida contrastiva acerca las parejas EEG--palabra correspondientes y separa las combinaciones incorrectas. Durante la evaluación se comprueba si la palabra verdadera aparece entre las primeras posiciones recuperadas dentro de vocabularios de distinto tamaño.
-
-Los datos se dividen en entrenamiento, validación y test siguiendo una proporción de 80/10/10. La división no se realiza de manera independiente para cada participante, sino a partir del fragmento textual formado por las 50 palabras. Por tanto, si varias personas han escuchado el mismo fragmento, todas sus repeticiones se asignan a la misma partición. Esta precaución evita que el modelo vea durante el entrenamiento exactamente la misma secuencia de palabras que después aparece en validación o prueba.
-
-La elección de Weissbart permite que el ajuste final se realice sobre escucha continua, que es el dominio objetivo del trabajo. Además, su alineación temporal hace posible pasar de un entrenamiento autosupervisado sobre señal continua a una tarea concreta de clasificación de palabras. Así, el modelo primero aprende una representación general a partir de los cinco conjuntos EEG y después especializa esa representación para recuperar contenido lingüístico.
+\section{Dataset de fine-tuning}
 
 \subsection{OpenNeuro ds004408}
 
-Como alternativa al ajuste supervisado con Weissbart et al., también se podría utilizar OpenNeuro ds004408 como dataset de \textit{fine-tuning}. En este escenario el conjunto dejaría de emplearse como señal continua de escucha durante el entrenamiento autosupervisado y pasaría a utilizarse en formato \textit{word-aligned}, aprovechando las alineaciones temporales entre el audiolibro y las palabras escuchadas por los participantes.
+Se ha utilizado OpenNeuro ds004408 como dataset de \textit{fine-tuning}. Este conjunto no se incorpora al entrenamiento autosupervisado continuo, sino que se reserva para la etapa supervisada de clasificación de palabras. De esta manera, el modelo se evalúa sobre registros que no han contribuido previamente a la reconstrucción de códigos neuronales y se evita mezclar datos de preentrenamiento y evaluación final.
 
-Esta configuración resulta interesante porque ds004408 comparte varias propiedades con la tarea final: contiene escucha natural en inglés, utiliza una narración continua y dispone de un número de participantes mayor que otros conjuntos profundos centrados en uno o pocos sujetos. Además, los trabajos originales asociados al dataset muestran que la señal EEG contiene información relacionada tanto con propiedades fonéticas como con variables semánticas de las palabras dentro del discurso.
+OpenNeuro ds004408 contiene respuestas EEG de 19 participantes durante la escucha de habla narrativa continua en inglés. Los registros se adquirieron con 128 canales y se distribuyen en bloques de aproximadamente tres minutos, hasta reunir alrededor de 20,6 horas de señal. El conjunto fue utilizado originalmente para estudiar el seguimiento cortical de información fonética y el procesamiento semántico durante la comprensión de habla natural \cite{diliberto2015phoneme,broderick2018semantic}. Por ello resulta adecuado como conjunto final: comparte el dominio auditivo del objetivo experimental y, al mismo tiempo, cuenta con alineaciones temporales palabra a palabra que permiten formular una tarea supervisada.
 
-En modo \textit{word-aligned}, cada palabra del estímulo se usaría para extraer una ventana EEG alrededor de su inicio temporal. De forma análoga al procesamiento aplicado a Weissbart et al., se podría tomar una ventana de tres segundos, comenzando 0,5 segundos antes de la palabra y finalizando 2,5 segundos después. Tras la corrección de línea base, la normalización robusta y el recorte de valores extremos, varias palabras consecutivas se agruparían hasta formar entradas largas de 150 segundos.
+En esta fase el dataset se procesa en formato \textit{word-aligned}. Para cada palabra del audiolibro se extrae una ventana EEG de tres segundos alrededor de su inicio temporal, desde 0,5 segundos antes hasta 2,5 segundos después. El tramo previo permite estimar una línea base y conserva el contexto inmediato anterior, mientras que el tramo posterior recoge la respuesta asociada a la percepción y procesamiento de la palabra. Después de la corrección de línea base, la normalización robusta y el recorte de valores extremos, se agrupan 50 palabras consecutivas para formar entradas de 150 segundos. Así se mantiene la longitud temporal utilizada durante el entrenamiento, pero cada subventana queda asociada a una palabra conocida.
 
-Las palabras se representarían mediante embeddings lingüísticos de T5 y el modelo se ajustaría con una pérdida contrastiva para acercar cada representación EEG a la palabra correspondiente. La evaluación seguiría el mismo planteamiento de recuperación utilizado con Weissbart: dada una ventana EEG alineada a una palabra, se mediría si el embedding correcto aparece entre las primeras posiciones de un vocabulario candidato.
+Las palabras se representan mediante \textit{embeddings} lingüísticos de T5. El codificador neuronal produce una representación para cada ventana EEG y una proyección aprende a situarla cerca del \textit{embedding} de la palabra correspondiente. El ajuste se realiza con una pérdida contrastiva, que acerca las parejas EEG--palabra correctas y separa las combinaciones incorrectas dentro del lote. Durante la evaluación se plantea una tarea de recuperación: dada una representación EEG alineada con una palabra, se ordenan los candidatos del vocabulario según su similitud y se comprueba si la palabra verdadera aparece entre las primeras posiciones.
 
-Cuando se adopta esta variante, ds004408 no aparece simultáneamente como dataset de entrenamiento autosupervisado y como dataset de \textit{fine-tuning}. El dataset se excluye completamente del entrenamiento continuo y se reserva por completo para el ajuste supervisado. 
+La separación de ds004408 respecto al entrenamiento continuo también facilita la comparación con trabajos previos. En particular, en d'Ascoli et al. utilizan este conjunto dentro de una arquitectura de clasificación contextual de palabras y establecen métricas de recuperación sobre representaciones lingüísticas \cite{dascoli2024words}. Esto permite comparar la adaptación propuesta no solo frente a una inicialización desde cero, sino también frente a referencias publicadas que trabajan sobre el mismo tipo de señal y tarea.
 
-La ventaja principal de esta alternativa es que existen trabajos estado del arte con rigor científico (publicados en congresos o revistas) para poder realizar una comparación cuantitativa entre diferentes arquitecturas.
+De esta forma, ds004408 cumple 2 funciones: actúa como conjunto supervisado para especializar el modelo en recuperación de palabras y proporciona un punto de comparación cuantitativa con el estado del arte. La decisión de reservarlo exclusivamente para \textit{fine-tuning} hace que cualquier mejora pueda atribuirse a la transferencia desde las etapas previas y no a una exposición autosupervisada al mismo registro.
 
 \section{Tabla resumen}
 
@@ -224,7 +197,7 @@ los conjuntos descritos y la función que desempeña cada uno dentro del trabajo
     >{\centering\arraybackslash}p{1.65cm}
     >{\centering\arraybackslash}p{1.1cm}
     >{\centering\arraybackslash}p{1.45cm}
-    >{\centering\arraybackslash}p{1.45cm}
+    >{\centering\arraybackslash}p{2.3cm}
     >{\centering\arraybackslash}X
 }
 \toprule
@@ -235,7 +208,7 @@ los conjuntos descritos y la función que desempeña cada uno dentro del trabajo
 \textbf{Sujetos} &
 \textbf{Sensores} &
 \textbf{Duración} &
-\textbf{Uso en el trabajo} \\
+\textbf{Uso} \\
 \midrule
 
 ZuCo 2.0 &
@@ -245,7 +218,7 @@ Inglés &
 18 &
 105 &
 11,1 h NR &
-Entrenamiento \\
+Training \\
 
 Nieuwland et al. &
 EEG &
@@ -254,7 +227,7 @@ Inglés &
 334 &
 $\geq 32$ &
 $\sim$170 h &
-Entrenamiento \\
+Training \\
 
 SparrKULee &
 EEG &
@@ -263,7 +236,7 @@ Neerlandés &
 85 &
 64 &
 168 h &
-Entrenamiento \\
+Training \\
 
 OpenNeuro\newline ds007808 &
 EEG &
@@ -271,8 +244,8 @@ Escucha &
 Japonés &
 3 &
 62--128 &
-33,8 h +\newline 167,0 h de contexto &
-Entrenamiento \\
+33,8 h (+167,0 h) &
+Training \\
 
 OpenNeuro\newline ds004408 &
 EEG &
@@ -281,15 +254,6 @@ Inglés &
 19 &
 128 &
 20,6 h &
-Entrenamiento / Fine-tuning \\
-
-Weissbart et al. &
-EEG &
-Escucha continua &
-Inglés &
-13 &
-64 &
-$\sim$8,7 h &
 Fine-\allowbreak tuning \\
 
 \bottomrule
