@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import fcntl
+import hashlib
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
+import torch
 from omegaconf import DictConfig
 
 from brainstorm import evaluate_criss_cross_word_classification as evaluator
@@ -27,6 +30,7 @@ _BASE_GET_DATASET_CLASS = evaluator.get_dataset_class
 _BASE_GET_DEFAULT_MAX_CHANNEL_DIM = evaluator.get_default_max_channel_dim
 _BASE_GET_DATASET_EXTRA_KWARGS = evaluator.get_dataset_extra_kwargs
 _BASE_GET_NUM_SENSOR_TYPES = evaluator.get_num_sensor_types_for_config
+_BASE_GENERATE_WORD_EMBEDDINGS = evaluator.generate_word_embeddings
 
 
 def get_dataset_class(dataset_type: str):
@@ -72,6 +76,40 @@ def get_num_sensor_types_for_config(cfg: DictConfig) -> int:
     return num_sensor_types
 
 
+def generate_word_embeddings_locked(
+    vocab: List[str],
+    vocab_size: Optional[int] = None,
+    layer: int = 12,
+    cache_dir: str = "./embeddings_cache",
+    device: str = "cpu",
+    verbose: bool = True,
+    dataset_type: str = "armeni",
+) -> torch.Tensor:
+    """Serialize shared T5-cache creation across parallel ds004408 runs."""
+
+    resolved_vocab_size = len(vocab) if vocab_size is None else int(vocab_size)
+    vocab_hash = hashlib.sha256(" ".join(sorted(vocab)).encode()).hexdigest()[:8]
+    cache_root = Path(cache_dir)
+    cache_root.mkdir(parents=True, exist_ok=True)
+    cache_path = cache_root / (
+        f"word_embeddings_{dataset_type}_{resolved_vocab_size}_"
+        f"layer{layer}_{vocab_hash}.pt"
+    )
+    lock_path = cache_path.with_suffix(cache_path.suffix + ".lock")
+
+    with lock_path.open("a", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        return _BASE_GENERATE_WORD_EMBEDDINGS(
+            vocab=vocab,
+            vocab_size=resolved_vocab_size,
+            layer=layer,
+            cache_dir=str(cache_root),
+            device=device,
+            verbose=verbose,
+            dataset_type=dataset_type,
+        )
+
+
 def _cli_override(name: str) -> str | None:
     prefixes = (f"{name}=", f"+{name}=", f"++{name}=")
     for argument in reversed(sys.argv[1:]):
@@ -111,6 +149,7 @@ def main() -> Any:
     evaluator.get_default_max_channel_dim = get_default_max_channel_dim
     evaluator.get_dataset_extra_kwargs = get_dataset_extra_kwargs
     evaluator.get_num_sensor_types_for_config = get_num_sensor_types_for_config
+    evaluator.generate_word_embeddings = generate_word_embeddings_locked
     install_optimized_word_finetuning(evaluator)
 
     if not any(
