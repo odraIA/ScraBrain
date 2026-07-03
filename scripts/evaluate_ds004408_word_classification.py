@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict
@@ -15,6 +16,9 @@ from brainstorm.data.openneuroEEG_ds004408_word_aligned_dataset import (
 from brainstorm.megxl_test_reporting import (
     generate_run_report,
     maybe_generate_comparison_from_environment,
+)
+from brainstorm.models.eeg_sensor_embedding_transformer import (
+    EEGSensorEmbeddingCrissCrossTransformerModule,
 )
 from brainstorm.optimized_word_finetuning import install_optimized_word_finetuning
 
@@ -43,7 +47,7 @@ def get_dataset_extra_kwargs(dataset_type: str, cfg: DictConfig) -> Dict[str, An
             "dataset_name": cfg.data.get("dataset_name", "openneuroEEG_ds004408"),
             "task_mode": cfg.data.get("task_mode", "listening"),
             "tokenizer_name": cfg.model.get("tokenizer_name", "biocodec"),
-            "eeg_sensor_type": cfg.data.get("eeg_sensor_type", "grad"),
+            "eeg_sensor_type": cfg.data.get("eeg_sensor_type", "eeg"),
             "word_tier_names": list(cfg.data.get("word_tier_names", ["word", "words"])),
             "montage_name": cfg.data.get("montage_name", "biosemi128"),
             "drop_bad_channels": bool(cfg.data.get("drop_bad_channels", True)),
@@ -57,21 +61,52 @@ def get_num_sensor_types_for_config(cfg: DictConfig) -> int:
     num_sensor_types = _BASE_GET_NUM_SENSOR_TYPES(cfg)
     if cfg.data.get("dataset_type") == "openneuro_ds004408":
         sensor_type_id = evaluator.resolve_sensor_type_id(
-            cfg.data.get("eeg_sensor_type", "grad")
+            cfg.data.get("eeg_sensor_type", "eeg")
         )
-        num_sensor_types = max(num_sensor_types, sensor_type_id + 1)
+        embedding_type_id = int(cfg.model.get("eeg_sensor_embedding_type_id", 2))
+        num_sensor_types = max(
+            num_sensor_types,
+            sensor_type_id + 1,
+            embedding_type_id + 1,
+        )
     return num_sensor_types
 
 
 def _cli_override(name: str) -> str | None:
-    prefix = f"{name}="
+    prefixes = (f"{name}=", f"+{name}=", f"++{name}=")
     for argument in reversed(sys.argv[1:]):
-        if argument.startswith(prefix):
-            return argument[len(prefix):].strip().strip('"').strip("'")
+        for prefix in prefixes:
+            if argument.startswith(prefix):
+                return argument[len(prefix):].strip().strip('"').strip("'")
     return None
 
 
+def _configure_eeg_sensor_embedding() -> int:
+    """Keep ds004408 physically EEG while selecting the checkpoint's lookup row."""
+
+    configured = _cli_override("model.eeg_sensor_embedding_type_id")
+    if configured is None:
+        configured = os.environ.get("EEG_SENSOR_EMBEDDING_TYPE_ID", "2")
+    embedding_type_id = int(configured)
+    if embedding_type_id not in (1, 2):
+        raise ValueError(
+            "ds004408 fine-tuning supports EEG embedding rows 1 or 2; "
+            f"got {embedding_type_id}. The physical sensor type remains EEG=2."
+        )
+
+    os.environ["EEG_SENSOR_EMBEDDING_TYPE_ID"] = str(embedding_type_id)
+    evaluator.CrissCrossTransformerModule = (
+        EEGSensorEmbeddingCrissCrossTransformerModule
+    )
+    print(
+        "ds004408 sensor configuration: physical EEG type=2; "
+        f"sensor embedding lookup row={embedding_type_id}"
+    )
+    return embedding_type_id
+
+
 def main() -> Any:
+    _configure_eeg_sensor_embedding()
     evaluator.get_dataset_class = get_dataset_class
     evaluator.get_default_max_channel_dim = get_default_max_channel_dim
     evaluator.get_dataset_extra_kwargs = get_dataset_extra_kwargs
