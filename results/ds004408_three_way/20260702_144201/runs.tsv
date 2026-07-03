@@ -1,0 +1,4 @@
+order	label	container	status	exit_code	started_at	finished_at
+0	prepare_word_aligned	docker-compose-run-rm	COMPLETED	0	2026-07-02T14:42:01+02:00	2026-07-02T14:46:20+02:00
+1	random_init	ds004408_random_init_20260702_144201	COMPLETED	0	2026-07-02T14:46:20+02:00	2026-07-03T02:23:13+02:00
+2	eeg_from_scratch	ds004408_eeg_from_scratch_20260702_144201	COMPLETED	0	2026-07-03T02:23:13+02:00	2026-07-03T10:27:08+02:00
