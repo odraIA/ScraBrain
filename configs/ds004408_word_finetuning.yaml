@@ -7,6 +7,9 @@ model:
   promoted_checkpoint: null
   tokenizer_name: "biocodec"
   tokenizer_checkpoint: "./brainstorm/neuro_tokenizers/biocodec_ckpt.pt"
+  # Physical ds004408 sensors always remain EEG=2. This value only selects
+  # which learned sensor-type embedding row is used by the checkpoint.
+  eeg_sensor_embedding_type_id: 2
   word_mlp:
     hidden_dim: 2048
     embed_dim: 1024
