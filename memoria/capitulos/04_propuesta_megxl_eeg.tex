@@ -6,26 +6,34 @@
 
 Como se ha ido comentando a lo largo de los anteriores capítulos, la propuesta de este trabajo consiste en adaptar MEG-XL a registros EEG. La idea es mantener, dentro de lo que sea posible, aquello que hace valioso al modelo original, como por ejemplo el aprendizaje autosupervisado con contexto largo. MEG-XL no se limita a procesar ventanas breves alineadas con palabras, sino que aprende representaciones a partir de fragmentos continuos de dos minutos y medio. Esta propiedad resulta especialmente interesante para EEG, donde la señal es más ruidosa y la información lingüística puede aparecer distribuida en patrones débiles a lo largo del tiempo.
 
+La Figura~\ref{fig:megxl_overview} resume el flujo original de MEG-XL que se toma como punto de partida: primero un preentrenamiento autosupervisado sobre señal MEG continua y después un ajuste fino supervisado para clasificación contextual de palabras.
+
+\input{figuras/fig_2_9_megxl_overview}
+
 Esta adaptación se puede entender como un cambio de dominio. El modelo de partida fue entrenado con MEG, utilizando sensores magnéticos, geometrías específicas y una relación señal-ruido distinta. En EEG cambian la magnitud física, la referencia, la disposición de los sensores, el número de canales y los artefactos más frecuentes. Por tanto, es necesario construir una interfaz común que permita representar diferentes montajes EEG dentro de la misma arquitectura.
 
 El entrenamiento final lanzado en este trabajo corresponde a un preentrenamiento continuo en dos etapas. Primero se utilizan datasets de lectura y después datasets de escucha. La etapa de lectura sirve como una adaptación inicial a EEG lingüístico en condiciones más controladas. La etapa de escucha aproxima el modelo al dominio final, que es la clasificación de palabras durante percepción auditiva continua.
 
-Además, el experimento compara varios tipos de inicializaciones. En una de ellas el modelo parte del modelo que presenta MEG-XL. En otra, la misma arquitectura se inicializa desde cero. Ambas siguen exactamente el mismo orden, lectura seguida de escucha, de modo que la comparación permite estudiar si el preentrenamiento con MEG aporta algún tipo de ventaja al pasar a EEG o si las diferencias entre modalidades impiden aprovecharlo.
+Además, el experimento compara tres variantes preentrenadas y un control supervisado directo. Una variante aprende el currículo EEG desde una inicialización aleatoria. Las otras dos parten del checkpoint de MEG-XL y se diferencian únicamente en la forma de representar el tipo de sensor: una utiliza un embedding específico de EEG inicializado a partir del embedding de magnetómetro, y la otra reutiliza directamente el embedding de magnetómetro para los canales EEG. Las tres variantes preentrenadas siguen exactamente el mismo orden, lectura seguida de escucha, de modo que la comparación permite estudiar por separado el efecto del preentrenamiento EEG, de la transferencia desde MEG y de la elección del embedding de tipo de sensor.
 
-La propuesta final se puede resumir en la imitación de cuatro decisiones:
+La propuesta final se puede resumir en una arquitectura que recoge cuatro decisiones de MEG-XL:
 
 \begin{itemize}
 \setlength{\itemsep}{0pt}
 \setlength{\parsep}{0pt}
 \setlength{\topsep}{2pt}
 \setlength{\partopsep}{0pt}
-\item utilizar ventanas continuas de 150 segundos, como en MEG-XL;
-\item filtrar la señal entre 0,1 y 40 Hz y remuestrearla a 50 Hz;
+\item utilizar ventanas continuas de 150 segundos;
+\item filtrar inicialmente la señal entre 0,1 y 40 Hz en la frecuencia de muestreo original y remuestrearla después a 50 Hz, de modo que la banda representada en la entrada final queda limitada por la frecuencia de Nyquist final;
 \item tokenizar cada canal con BioCodec y entrenar mediante predicción de tokens enmascarados;
-\item realizar el entrenamiento en dos fases, primero lectura y después escucha, comparando inicialización desde MEG-XL e inicialización aleatoria.
+\item realizar el entrenamiento en dos fases, primero lectura y después escucha, comparando inicialización aleatoria, transferencia desde MEG-XL con embedding EEG y transferencia desde MEG-XL con embedding MEG.
 \end{itemize}
 
-De esta forma, la parte supervisada de clasificación de palabras queda separada del preentrenamiento, como sucede con MEG-XL. Los cinco datasets descritos en el capítulo anterior se utilizan para intentar aprender una representación ``general'' de EEG. Posteriormente, Weissbart et al. permite ajustar esa representación a una tarea \textit{word-aligned} concreta, con ventanas asociadas al inicio de cada palabra y evaluación mediante recuperación de embeddings lingüísticos.
+De esta forma, la parte supervisada de clasificación de palabras queda separada del preentrenamiento, como sucede con MEG-XL. Los cuatro datasets descritos en el capítulo anterior se utilizan para intentar aprender una representación ``general'' de EEG. Posteriormente, ds004408 permite ajustar esa representación a una tarea \textit{word-aligned} concreta, con ventanas asociadas al inicio de cada palabra y evaluación mediante recuperación de embeddings lingüísticos.
+
+La Figura~\ref{fig:eegxl_design} muestra cómo se materializa esta comparación experimental en EEG-XL, separando el preentrenamiento EEG desde cero, las dos variantes de transferencia desde MEG-XL y el control supervisado directo.
+
+\input{figuras/fig_4_1_diseno_experimental}
 
 \section{Preprocesamiento del EEG}
 
@@ -33,7 +41,9 @@ De esta forma, la parte supervisada de clasificación de palabras queda separada
 
 Todos los datasets de entrenamiento se transforman a una frecuencia de muestreo común de 50 Hz tal y como lo hace MEG-XL. Esta elección reduce el coste computacional de las ventanas largas. Un segmento de 150 segundos contiene 7500 muestras por canal antes de la tokenización, por lo que aumentar la frecuencia de muestreo incrementaría de forma directa la memoria necesaria y el número de tokens que debe procesar el Transformer.
 
-El entrenamiento realizado utiliza un filtrado paso banda de 0,1--40 Hz. La señal se filtra en su frecuencia de muestreo original y después se remuestrea a 50 Hz. Esta decisión conserva la lógica del preprocesamiento original de MEG-XL: primero se trabaja sobre la señal disponible en origen y posteriormente se reduce la frecuencia para construir una entrada homogénea. En la práctica, el remuestreo aplica el filtrado antialiasing necesario para obtener una señal compatible con la frecuencia final. Además, se tiene en cuenta que esta combinación rompe la frecuencia de Nyquist, pero en MEG-XL \cite{dascoli2023megxl} se pueden ver los experimentos que hicieron que reportaban peores resultados con frecuencias de muestreo más altas. Por tanto, se decidió mantener la frecuencia de 50 Hz para poder comparar los resultados con los obtenidos en MEG-XL.
+El entrenamiento realizado aplica primero un filtrado paso banda de 0,1--40 Hz sobre la señal en su frecuencia de muestreo original y, posteriormente, remuestrea todos los registros a 50 Hz. Como la frecuencia de Nyquist de una señal muestreada a 50 Hz es 25 Hz, la entrada final del modelo no debe interpretarse como una representación completa de la banda 0,1--40 Hz. En la práctica, durante el remuestreo se aplica el filtrado antialiasing necesario, por lo que las componentes superiores a la frecuencia de Nyquist final quedan atenuadas o eliminadas. Por tanto, aunque el preprocesamiento inicial utiliza un límite superior de 40 Hz, la banda efectiva disponible para el modelo tras el remuestreo queda limitada aproximadamente a 0,1--25 Hz.
+
+Se mantiene la frecuencia final de 50 Hz por compatibilidad con la configuración original de MEG-XL y por coste computacional. En ventanas de 150 segundos, esta frecuencia produce 7500 muestras por canal antes de la tokenización. Aumentar la frecuencia de muestreo incrementaría directamente la longitud temporal, el número de tokens y el consumo de memoria del Transformer, dificultando el entrenamiento con contextos largos.
 
 Después del filtrado y el remuestreo, cada grabación se divide en ventanas completas de 150 segundos. Para montar estas ventanas se utilizan segmentos continuos y no solapados dentro de cada registro. Los fragmentos finales que no alcanzan la duración requerida se descartan. Esta decisión evita introducir relleno artificial, repetir muestras para completar una ventana o unir partes de la señal que no son contiguas, lo que podría introducir artefactos y sesgos en el entrenamiento.
 
@@ -107,7 +117,7 @@ Por tanto, para el token temporal \(\tau\) del canal \(c\), el vector de entrada
 + \mathbf{e}^{\text{type}}_c.
 \end{equation}
 
-En los registros EEG de este trabajo se usa \(s_c=2\) para todos los canales reales. La posición distingue electrodos dentro de un mismo montaje y el tipo de sensor permite mantener la compatibilidad con los pesos de MEG-XL sin confundir la modalidad física de la señal.
+En la configuración base de EEG se usa \(s_c=2\) para todos los canales reales. La posición distingue electrodos dentro de un mismo montaje y el tipo de sensor permite mantener la compatibilidad con los pesos de MEG-XL sin confundir la modalidad física de la señal. En la variante de transferencia con embedding MEG, la señal sigue tratándose como EEG en posiciones, máscaras y orientación, pero la consulta a la tabla de tipos reutiliza la fila de magnetómetro aprendida por MEG-XL. Así se puede aislar el efecto de introducir un embedding EEG específico frente a reutilizar directamente el embedding MEG disponible.
 
 Otra diferencia con respecto a MEG-XL es el tamaño de nuestro modelo debido al número de canales máximo de los datasets. Nuestros datos de EEG contienen montajes de 64, 105, 128 o configuraciones variables según el laboratorio y la sesión. La dimensión máxima de canales se infiere a partir de los datasets disponibles y a cada uno se le aplica una máscara. Esta máscara se aplica tanto durante el procesamiento como en el cálculo de la pérdida, evitando que los canales añadidos para igualar dimensiones modifiquen canales entrenados.
 
@@ -190,7 +200,7 @@ Otra diferencia con respecto a MEG-XL es el tamaño de nuestro modelo debido al 
 \end{tabularx}
 \end{table}
 
-Algunos experimentos utilizan como base el modelo preentrenado con MEG de MEG-XL. En ese caso, el modelo se carga en la nueva arquitectura de forma parcial. Los pesos compatibles, como los del Transformer y gran parte de las proyecciones internas, pueden reutilizarse. Los componentes que dependen de la nueva configuración EEG o que dejan de encajar exactamente se inicializan de nuevo. De esta forma, la carga parcial permite estudiar la transferencia de MEG a EEG sin forzar una equivalencia falsa entre sensores de diferentes tareas.
+Dos experimentos utilizan como base el modelo preentrenado con MEG de MEG-XL. En ambos casos, el modelo se carga en la nueva arquitectura de forma parcial. Los pesos compatibles, como los del Transformer y gran parte de las proyecciones internas, pueden reutilizarse. Los componentes que dependen de la nueva configuración EEG o que dejan de encajar exactamente se inicializan de nuevo. La diferencia entre ambas variantes está en la fila de embedding de tipo de sensor empleada para los canales EEG: una introduce un embedding EEG específico y la otra reutiliza el embedding de magnetómetro. De esta forma, la carga parcial permite estudiar la transferencia de MEG a EEG sin forzar una equivalencia falsa entre sensores de diferentes tareas.
 
 \input{figuras/fig_4_3_arquitectura_eegxl}
 
@@ -223,13 +233,13 @@ Cada entrenamiento ejecuta dos fases consecutivas:
 \item entrenamiento continuo con datasets de escucha, inicializado desde el mejor checkpoint de la fase de lectura correspondiente.
 \end{enumerate}
 
-La fase de lectura utiliza Nieuwland et al. y ZuCo 2.0 en lectura natural. La fase de escucha utiliza SparrKULEE y JapanEEG. La validación respeta separaciones por sujeto o por sesión según el dataset, como se describió en el capítulo anterior.
+La fase de lectura utiliza Nieuwland et al. y ZuCo 2.0 en lectura natural. La fase de escucha utiliza SparrKULEE y OpenNeuro ds007808 (JapanEEG). La validación respeta separaciones por sujeto o por sesión según el dataset, como se describió en el capítulo anterior.
 
 El orden de lectura $\rightarrow$ escucha se escogió para que los datasets de lectura proporcionen una primera adaptación a EEG lingüístico con estímulos visuales y condiciones relativamente controladas. Después, los datasets de escucha ajustan la representación al dominio auditivo continuo, que es el más próximo a la evaluación final con ds004408. El checkpoint producido por lectura se pasa explícitamente a la etapa de escucha, por lo que no se reutilizan checkpoints de experimentos anteriores de escucha aislada.
 
-De esta forma el entrenamiento del modelo tiene la siguiente configuración: BioCodec, frecuencia final de 50 Hz, banda 0,1--40 Hz, ventanas de 150 segundos, batch size 4 en lectura y escucha salvo que se sobrescriba por variable de entorno, validación cada 500 pasos y guardado periódico de checkpoints. El entrenamiento se ejecuta con una GPU por inicialización, de forma que las dos condiciones se lanzan al mismo tiempo pero no comparten pesos entre sí.
+De esta forma el entrenamiento del modelo tiene la siguiente configuración: BioCodec, frecuencia final de 50 Hz, banda 0,1--40 Hz, ventanas de 150 segundos, batch size 4 en lectura y batch size 1 en escucha, validación cada 500 pasos y guardado periódico de checkpoints. El entrenamiento se ejecuta con una GPU por variante preentrenada, de forma que las condiciones pueden lanzarse en paralelo pero no comparten pesos entre sí.
 
-En MEG-XL se realizó el entrenamiento con un batch size de 1, pero el hecho de tener 5M de parámetros menos y la mitad de canales permite aumentar el batch size a 4 sin superar la memoria de una GPU A100 de 40 GB. Así se reduce la varianza del gradiente y acelera la convergencia, aunque también puede afectar a la generalización. Por ello, se mantiene la misma configuración para lectura y escucha, de modo que cualquier efecto del batch size se aplica por igual a ambas fases.
+En MEG-XL se realizó el entrenamiento con un batch size de 1. En la fase de lectura, el menor número de canales de EEG permite aumentar el lote a 4 sin superar la memoria de una GPU A100 de 40 GB. En la fase de escucha se mantiene batch size 1, porque los registros auditivos y la configuración de canales hacen que el coste de memoria sea mayor. Por tanto, la comparación entre condiciones no se basa en cambiar el tamaño de lote entre inicializaciones: todas las variantes preentrenadas utilizan batch size 4 en lectura y batch size 1 en escucha.
 
 \subsection{Clasificación contextual de palabras}
 

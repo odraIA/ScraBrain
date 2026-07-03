@@ -1,5 +1,5 @@
 \begin{figure}[htbp]
-    \centering
+    \raggedright
     \resizebox{0.96\textwidth}{!}{%
     \begin{tikzpicture}[
         font=\small,
@@ -16,7 +16,7 @@
         \draw[thick] (-4.6,0.8) circle (2.0cm);
         \draw[fill=gray!12] (-4.6,0.8) circle (1.45cm);
         \draw[fill=red!35, draw=red!60!black] (-4.9,0.55) circle (3mm);
-        \node[font=\footnotesize, align=center] at (-4.6,-2.15) {potenciales eléctricos\\difusos en el cuero cabelludo};
+        \node[font=\footnotesize, align=center] at (-4.6,-2.15) {Potenciales eléctricos\\difusos en el cuero cabelludo};
         \foreach \a in {20,55,90,125,160} {
             \node[electrode, rotate=\a-90] at ($(-4.6,0.8)+(\a:2.08cm)$) {};
         }
@@ -35,7 +35,7 @@
         \draw[fill=gray!12] (4.6,0.8) circle (1.45cm);
         \draw[purple!35, thick] (4.6,0.8) circle (2.38cm);
         \draw[fill=red!35, draw=red!60!black] (4.3,0.55) circle (3mm);
-        \node[font=\footnotesize, align=center] at (4.6,-2.15) {campos magnéticos\\medidos por sensores externos};
+        \node[font=\footnotesize, align=center] at (4.6,-2.15) {Campos magnéticos\\medidos por sensores externos};
         \foreach \a in {25,60,130,165,205,245,325} {
             \node[coil, rotate=\a-90] at ($(4.6,0.8)+(\a:2.5cm)$) {};
         }
@@ -62,13 +62,13 @@
 
         \node[electrode, minimum width=4mm, minimum height=1.8mm] at (0.7,-3.35) {};
         \node[legendtext] at (1.05,-3.35) {electrodos EEG};
-        \node[coil, minimum width=3.2mm, minimum height=4.8mm] at (0.7,-3.75) {};
+        \node[coil, minimum width=4.8mm, minimum height=3.2mm] at (0.7,-3.75) {};
         \node[legendtext] at (1.05,-3.75) {sensores MEG};
         \draw[purple!35, thick] (0.7,-4.15) circle (1.5mm);
         \node[legendtext] at (1.05,-4.15) {casco/sensores externos};
         \draw[field] (0.4,-4.55) -- (1.0,-4.55);
         \node[legendtext] at (1.05,-4.55) {campo magnético};
     \end{tikzpicture}}
-    \caption{Esquema conceptual de la observación de una fuente neuronal mediante EEG y MEG. Aunque ambas modalidades reflejan actividad relacionada, difieren en la magnitud física medida, la proyección sobre los sensores y las fuentes de variabilidad.}
+    \caption{Esquema conceptual de la observación de una fuente neuronal mediante EEG y MEG.}
     \label{fig:eeg_meg_concept}
 \end{figure}

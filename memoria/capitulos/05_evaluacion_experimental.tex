@@ -1,3 +1,5 @@
+% !TEX root = ../tfm.tex
+
 \chapter{Evaluación experimental}
 
 \providecommand{\celdaresultado}{\phantom{00,000}}
@@ -8,7 +10,7 @@
 
 La evaluación de la arquitectura se ha diseñado separando tres efectos distintos: el aprendizaje autosupervisado con EEG, la transferencia de los pesos aprendidos previamente con MEG y la mejor forma de representar el tipo de sensor EEG dentro de la propia arquitectura. Para ello, primero se entrenan tres variantes del modelo mediante el mismo conjunto de lectura y escucha. A continuación, los checkpoints obtenidos se ajustan sobre OpenNeuro ds004408 para la tarea supervisada de clasificación contextual de palabras. Como referencia adicional se incluye una condición que realiza directamente el ajuste supervisado desde una inicialización aleatoria, sin preentrenamiento autosupervisado previo.
 
-Los cuatro experimentos considerados en la evaluación final se resumen en la Tabla~\ref{tab:condiciones_experimentales}. Las tres variantes que siguen el conjunto utilizan exactamente los mismos datos, particiones, orden de las etapas e hiperparámetros. Las únicas diferencias entre ellas son la inicialización de los pesos y la fila de la tabla de embeddings utilizada para representar el tipo de sensor.
+Los cuatro experimentos considerados en la evaluación final se resumen en la Tabla~\ref{tab:condiciones_experimentales}. Las tres variantes que siguen el currículo EEG utilizan exactamente los mismos datos, particiones, orden de las etapas e hiperparámetros. Las únicas diferencias entre ellas son la inicialización de los pesos y la fila de la tabla de embeddings utilizada para representar el tipo de sensor.
 
 \begin{table}[htbp]
 \centering
@@ -60,9 +62,14 @@ Sí \\
 \label{tab:condiciones_experimentales}
 \end{table}
 
-En la el último experimento, denominado transferencia MEG-XL con embedding MEG, la señal continúa tratándose físicamente como EEG. Se mantienen las posiciones de los electrodos, la máscara de canales y la anulación de la contribución asociada a la orientación de las bobinas MEG. La única modificación consiste en utilizar, para los canales EEG, la fila del embedding de tipo de sensor que MEG-XL había aprendido para los magnetómetros. Por tanto, esta condición permite estudiar de forma aislada si resulta beneficioso reutilizar directamente una representación de tipo de sensor ya entrenada.
+En el último experimento, denominado transferencia MEG-XL con embedding MEG, la señal continúa tratándose físicamente como EEG. Se mantienen las posiciones de los electrodos, la máscara de canales y la anulación de la contribución asociada a la orientación de las bobinas MEG. La única modificación consiste en utilizar, para los canales EEG, la fila del embedding de tipo de sensor que MEG-XL había aprendido para los magnetómetros. Por tanto, esta condición permite estudiar de forma aislada si resulta beneficioso reutilizar directamente una representación de tipo de sensor ya entrenada.
 
-La comparación entre las condiciones tiene la diferentes finalidades. La diferencia entre el modelo sin preentrenamiento y el conjunto EEG desde cero mide el efecto del preentrenamiento autosupervisado con los conjuntos de lectura y escucha. La comparación entre el conjunto EEG desde cero y la transferencia MEG-XL con embedding EEG permite estudiar la aportación de los pesos aprendidos originalmente con MEG. Finalmente, la comparación entre las dos variantes inicializadas desde MEG-XL permite analizar el efecto de utilizar un embedding específico de EEG o reutilizar directamente el embedding de magnetómetro.
+La comparación entre las condiciones tiene las diferentes finalidades:
+\begin{itemize}
+    \item La diferencia entre el modelo sin preentrenamiento y el conjunto EEG desde cero mide el efecto del preentrenamiento autosupervisado con los conjuntos de lectura y escucha.
+    \item La comparación entre el conjunto EEG desde cero y la transferencia MEG-XL con embedding EEG permite estudiar la aportación de los pesos aprendidos originalmente con MEG.
+    \item Finalmente, la comparación entre las dos variantes inicializadas desde MEG-XL permite analizar el efecto de utilizar un embedding específico de EEG o reutilizar directamente el embedding de magnetómetro.
+\end{itemize}  
 
 \section{Particiones de los datos}
 
@@ -131,7 +138,7 @@ La proporción utilizada es 80\,\% para entrenamiento, 10\,\% para validación y
 \subsection{Representación de la entrada}
 
 Sea una ventana EEG
-\(\mathbf{X}\in\mathbb{R}^{C\times T}\), donde \(C\) es el número máximo de canales representados y \(T\) el número de muestras temporales. Todas las señales se filtran entre 0,1 y 40 Hz y se remuestrean a 50 Hz. Por tanto, una ventana de 150 segundos contiene \(T=7500\) muestras por canal.
+\(\mathbf{X}\in\mathbb{R}^{C\times T}\), donde \(C\) es el número máximo de canales representados y \(T\) el número de muestras temporales. Todas las señales se filtran inicialmente entre 0,1 y 40 Hz en su frecuencia de muestreo original y se remuestrean después a 50 Hz. Por la frecuencia de Nyquist final, la información efectivamente representable por el modelo queda limitada aproximadamente a 0,1--25 Hz. Por tanto, una ventana de 150 segundos contiene \(T=7500\) muestras por canal.
 
 BioCodec se aplica de forma independiente sobre cada canal. El tokenizer produce una representación discreta
 
@@ -189,7 +196,7 @@ Cada etapa puede ejecutarse durante un máximo de 50 épocas. La etapa de escuch
 \textbf{Valor} \\
 \midrule
 Frecuencia de muestreo & 50 Hz \\
-Banda de frecuencias & 0,1--40 Hz \\
+Banda inicial / banda efectiva & 0,1--40 Hz / aprox. 0,1--25 Hz \\
 Duración del contexto & 150 s \\
 Duración de cada bloque & 3 s \\
 Bloques enmascarados por ejemplo & 20 de 50 \\
@@ -601,4 +608,3 @@ En esta sección se presentan únicamente los valores obtenidos. La interpretaci
 % \end{table}
 
 % Todos los experimentos utilizan una única semilla. Por este motivo, los resultados se presentan como valores descriptivos de cada ejecución y no como medias acompañadas de desviación estándar o error estándar. No se aplican pruebas estadísticas entre condiciones en esta configuración.
-

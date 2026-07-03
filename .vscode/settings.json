@@ -19,8 +19,6 @@
         "minimal",
         "--keep-intermediates",
         "--keep-logs",
-        "--pass",
-        "bibtex_first",
         "%DOC_EXT%"
       ]
     }

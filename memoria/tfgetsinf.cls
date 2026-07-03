@@ -154,6 +154,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \RequirePackage[justification=centerlast,small,bf,labelsep=colon]{caption}
+\captionsetup[figure]{justification=raggedright,singlelinecheck=false}
 
 \RequirePackage[within=chapter]{newfloat}
 
@@ -257,6 +258,7 @@
 \hypersetup{
     colorlinks=true, 
     linkcolor=black, 
+    citecolor=blue,
     urlcolor=cyan
 }
 

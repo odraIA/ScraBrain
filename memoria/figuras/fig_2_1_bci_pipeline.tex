@@ -1,17 +1,19 @@
 \begin{figure}[htbp]
-    \centering
-    \resizebox{0.98\textwidth}{!}{%
+    \raggedright
+    \resizebox{0.99\textwidth}{!}{%
     \begin{tikzpicture}[
-        font=\small,
-        node distance=7mm,
-        box/.style={draw, rounded corners=2mm, minimum width=3.1cm,
-                    minimum height=1.45cm, align=center, thick, fill=blue!7},
-        output/.style={draw, rounded corners=2mm, minimum width=3.1cm,
-                    minimum height=1.45cm, align=center, thick, fill=green!10},
+        font=\large,
+        node distance=5mm,
+        box/.style={draw, rounded corners=2mm, minimum width=3.35cm,
+                    minimum height=1.8cm, text width=3.15cm,
+                    align=center, thick, fill=blue!7},
+        output/.style={draw, rounded corners=2mm, minimum width=3.35cm,
+                    minimum height=1.8cm, text width=3.15cm,
+                    align=center, thick, fill=green!10},
         arrow/.style={-{Latex[length=3mm]}, thick}
     ]
         \node[box] (acq) {Adquisición\\EEG, MEG, fMRI o ECoG};
-        \node[box, right=of acq] (prep) {Preprocesamiento\\filtrado, artefactos y normalización};
+        \node[box, right=of acq] (prep) {Preproceso\\filtrado, artefactos y normalización};
         \node[box, right=of prep] (repr) {Representación\\temporal, espacial o tiempo--frecuencia};
         \node[box, right=of repr] (dec) {Modelo de decodificación\\clasificación o generación};
         \node[output, right=of dec] (out) {Salida\\texto, voz o control de dispositivo};
@@ -20,9 +22,12 @@
         \draw[arrow] (prep) -- (repr);
         \draw[arrow] (repr) -- (dec);
         \draw[arrow] (dec) -- (out);
-        \draw[arrow, rounded corners=2mm] (out.north) -- ++(0,8mm)
-            -- node[above, align=center]{\footnotesize realimentación\\\footnotesize en sistemas en línea}
-            ($(acq.north)+(0,8mm)$) -- (acq.north);
+        \coordinate (feedbackleft) at ($(acq.north)+(0,9mm)$);
+        \coordinate (feedbackright) at (out.north |- feedbackleft);
+        \draw[arrow, rounded corners=2mm] (out.north) -- (feedbackright)
+            -- node[above, align=center, font=\normalsize]
+            {realimentación\\en sistemas en línea}
+            (feedbackleft) -- (acq.north);
     \end{tikzpicture}}
     \caption{Etapas generales de una interfaz cerebro--computador. La salida del decodificador puede utilizarse directamente o cerrar el bucle mediante realimentación al usuario.}
     \label{fig:bci_pipeline}
