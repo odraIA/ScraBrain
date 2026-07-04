@@ -6,8 +6,6 @@
 
 \section{Diseño experimental}
 
-% La evaluación se ha diseñado para separar tres efectos distintos: el aprendizaje autosupervisado con EEG, la transferencia de los pesos aprendidos previamente con MEG y la forma de representar el tipo de sensor EEG dentro de la arquitectura. Para ello, primero se entrenan tres variantes del modelo mediante el mismo curriculum de lectura y escucha. A continuación, los checkpoints obtenidos se ajustan sobre OpenNeuro ds004408 para la tarea supervisada de clasificación contextual de palabras. Como referencia adicional se incluye una condición que realiza directamente el ajuste supervisado desde una inicialización aleatoria, sin preentrenamiento autosupervisado previo.
-
 La evaluación de la arquitectura se ha diseñado separando tres efectos distintos: el aprendizaje autosupervisado con EEG, la transferencia de los pesos aprendidos previamente con MEG y la mejor forma de representar el tipo de sensor EEG dentro de la propia arquitectura. Para ello, primero se entrenan tres variantes del modelo mediante el mismo conjunto de lectura y escucha. A continuación, los checkpoints obtenidos se ajustan sobre OpenNeuro ds004408 para la tarea supervisada de clasificación contextual de palabras. Como referencia adicional se incluye una condición que realiza directamente el ajuste supervisado desde una inicialización aleatoria, sin preentrenamiento autosupervisado previo.
 
 Los cuatro experimentos considerados en la evaluación final se resumen en la Tabla~\ref{tab:condiciones_experimentales}. Las tres variantes que siguen el currículo EEG utilizan exactamente los mismos datos, particiones, orden de las etapas e hiperparámetros. Las únicas diferencias entre ellas son la inicialización de los pesos y la fila de la tabla de embeddings utilizada para representar el tipo de sensor.
@@ -416,195 +414,194 @@ P_{\mathrm{azar}}(M,k)=\frac{k}{M},
 
 \section{Resultados}
 
-En esta sección se presentan únicamente los valores obtenidos. La interpretación de las diferencias entre condiciones se completará una vez estén disponibles todos los experimentos. Las celdas se han dejado preparadas para incorporar los resultados definitivos del preentrenamiento y del ajuste supervisado.
+En esta sección se presentan los resultados obtenidos en el preentrenamiento autosupervisado y en el ajuste supervisado final sobre OpenNeuro ds004408. Las curvas de validación se utilizan únicamente para analizar la dinámica de entrenamiento y seleccionar el checkpoint de cada condición. La comparación principal entre modelos se realiza sobre la partición de test, evitando escoger el resultado final a partir de la misma partición utilizada para evaluar.
 
 \subsection{Preentrenamiento de lectura y escucha}
 
-% La Tabla~\ref{tab:resultados_preentrenamiento} recoge el resultado del checkpoint seleccionado en cada etapa. La precisión de tokens corresponde a la media sobre los seis cuantizadores de BioCodec.
+La Figura~\ref{fig:pretraining_val_accuracy} muestra la evolución de la precisión de predicción de códigos durante las dos etapas del currículo. En lectura, las dos condiciones inicializadas desde MEG-XL parten ya con una precisión de token superior a la del modelo EEG entrenado desde cero. Este último comienza más abajo y necesita varias épocas para aproximarse. Al final de la etapa la distancia se reduce, pero la inicialización desde MEG-XL sigue mostrando una pérdida de validación menor. En escucha, las tres condiciones continúan mejorando de forma gradual y las dos variantes transferidas desde MEG-XL se mantienen prácticamente solapadas.
 
-% \begin{table}[htbp]
-% \centering
-% \footnotesize
-% \setlength{\tabcolsep}{4pt}
-% \renewcommand{\arraystretch}{1.18}
-% \begin{tabularx}{\textwidth}{
-%     >{\raggedright\arraybackslash}X
-%     >{\centering\arraybackslash}p{2.1cm}
-%     >{\centering\arraybackslash}p{2.1cm}
-%     >{\centering\arraybackslash}p{2.1cm}
-%     >{\centering\arraybackslash}p{2.1cm}
-% }
-% \toprule
-% \textbf{Condición} &
-% \textbf{Lectura: pérdida val.} &
-% \textbf{Lectura: acc. token (\%)} &
-% \textbf{Escucha: pérdida val.} &
-% \textbf{Escucha: acc. token (\%)} \\
-% \midrule
+\input{figuras/fig_5_1_pretraining_val_accuracy}
 
-% Conjunto EEG desde cero &
-% \celdaresultado &
-% \celdaresultado &
-% \celdaresultado &
-% \celdaresultado \\ % completar
+La Tabla~\ref{tab:resultados_preentrenamiento} recoge el mejor checkpoint de cada etapa según la pérdida global de validación. La precisión indicada corresponde a la media sobre los seis cuantizadores de BioCodec en ese mismo checkpoint.
 
-% Transferencia MEG-XL con embedding EEG &
-% \celdaresultado &
-% \celdaresultado &
-% \celdaresultado &
-% \celdaresultado \\ % completar
+\begin{table}[htbp]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3.5pt}
+\renewcommand{\arraystretch}{1.18}
+\begin{tabularx}{\textwidth}{
+    >{\raggedright\arraybackslash}X
+    >{\centering\arraybackslash}p{1.15cm}
+    >{\centering\arraybackslash}p{1.55cm}
+    >{\centering\arraybackslash}p{1.55cm}
+    >{\centering\arraybackslash}p{1.15cm}
+    >{\centering\arraybackslash}p{1.55cm}
+    >{\centering\arraybackslash}p{1.55cm}
+}
+\toprule
+\textbf{Condición} &
+\textbf{Ép. lect.} &
+\textbf{Pérdida lect.} &
+\textbf{Acc. lect.} &
+\textbf{Ép. esc.} &
+\textbf{Pérdida esc.} &
+\textbf{Acc. esc.} \\
+\midrule
+Conjunto EEG desde cero &
+48 & 4,6988 & 4,96\,\% &
+30 & 4,5489 & 5,74\,\% \\
 
-% Transferencia MEG-XL con embedding MEG &
-% \celdaresultado &
-% \celdaresultado &
-% \celdaresultado &
-% \celdaresultado \\ % completar
+Transferencia MEG-XL con embedding EEG &
+47 & 4,6688 & 5,22\,\% &
+25 & 4,5340 & 5,74\,\% \\
 
-% \bottomrule
-% \end{tabularx}
-% \caption{Resultados de validación del preentrenamiento autosupervisado.}
-% \label{tab:resultados_preentrenamiento}
-% \end{table}
+Transferencia MEG-XL con embedding MEG &
+47 & 4,6688 & 5,22\,\% &
+25 & 4,5337 & 5,74\,\% \\
+\bottomrule
+\end{tabularx}
+\caption{Resultados de validación del preentrenamiento autosupervisado. El checkpoint se selecciona por mínima pérdida global de validación dentro de cada etapa.}
+\label{tab:resultados_preentrenamiento}
+\end{table}
+
+Estos resultados indican que la inicialización desde MEG-XL ayuda sobre todo al comienzo del currículo EEG. La mejora final de pérdida frente al modelo desde cero es pequeña, pero consistente en las dos etapas. La elección entre embedding EEG y embedding de magnetómetro apenas modifica el comportamiento autosupervisado: ambas variantes alcanzan valores prácticamente idénticos en lectura y diferencias inferiores a una milésima en la pérdida de escucha.
 
 \subsection{Clasificación contextual de palabras}
 
-% La Tabla~\ref{tab:resultados_finetuning_principales} presenta las métricas principales sobre la partición de test de OpenNeuro ds004408. El modelo utilizado en test es el checkpoint seleccionado mediante la precisión Top-10 balanceada con 250 candidatos en validación.
+La Figura~\ref{fig:ds004408_val_balanced_top10_250} muestra la evolución de la métrica principal de validación durante el ajuste supervisado: Top-10 balanceada con vocabulario de 250 palabras. El control sin preentrenamiento se mantiene alrededor del azar, mientras que las tres condiciones preentrenadas superan ese nivel desde las primeras épocas. Además, la mejor validación aparece pronto, entre las épocas 3 y 5 según la condición, y después la métrica tiende a estabilizarse o descender aunque la pérdida de entrenamiento siga bajando. Esto sugiere que el ajuste supervisado sobre ds004408 es sensible al sobreajuste y que la selección temprana de checkpoint es necesaria.
 
-% \begin{table}[htbp]
-% \centering
-% \scriptsize
-% \setlength{\tabcolsep}{3.5pt}
-% \renewcommand{\arraystretch}{1.18}
-% \begin{tabularx}{\textwidth}{
-%     >{\raggedright\arraybackslash}X
-%     >{\centering\arraybackslash}p{1.25cm}
-%     >{\centering\arraybackslash}p{1.55cm}
-%     >{\centering\arraybackslash}p{1.65cm}
-%     >{\centering\arraybackslash}p{1.55cm}
-%     >{\centering\arraybackslash}p{1.65cm}
-%     >{\centering\arraybackslash}p{1.45cm}
-% }
-% \toprule
-% \textbf{Condición} &
-% \textbf{Mejor época} &
-% \textbf{Top-10, 50 (\%)} &
-% \textbf{Balanceada, 50 (\%)} &
-% \textbf{Top-10, 250 (\%)} &
-% \textbf{Balanceada, 250 (\%)} &
-% \textbf{Coseno medio} \\
-% \midrule
+\input{figuras/fig_5_2_ds004408_val_balanced_top10_250}
 
-% Sin preentrenamiento &
-% \celdaresultado &
-% \celdaresultado &
-% \celdaresultado &
-% \celdaresultado &
-% \celdaresultado &
-% \celdaresultado \\ % completar
+La Tabla~\ref{tab:resultados_finetuning_principales} presenta las métricas de test del checkpoint seleccionado para cada condición. La columna balanceada con 250 candidatos es la métrica principal, por ser la misma familia de métrica utilizada en la comparación con trabajos previos de clasificación de palabras.
 
-% Conjunto EEG desde cero &
-% \celdaresultado &
-% \celdaresultado &
-% \celdaresultado &
-% \celdaresultado &
-% \celdaresultado &
-% \celdaresultado \\ % completar
+\begin{table}[htbp]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3.2pt}
+\renewcommand{\arraystretch}{1.18}
+\begin{tabularx}{\textwidth}{
+    >{\raggedright\arraybackslash}X
+    >{\centering\arraybackslash}p{1.15cm}
+    >{\centering\arraybackslash}p{1.45cm}
+    >{\centering\arraybackslash}p{1.65cm}
+    >{\centering\arraybackslash}p{1.45cm}
+    >{\centering\arraybackslash}p{1.65cm}
+    >{\centering\arraybackslash}p{1.35cm}
+}
+\toprule
+\textbf{Condición} &
+\textbf{Ép. sel.} &
+\textbf{Top-10, 50} &
+\textbf{Bal., 50} &
+\textbf{Top-10, 250} &
+\textbf{Bal., 250} &
+\textbf{Bal./azar} \\
+\midrule
+Sin preentrenamiento &
+3 & 27,77\,\% & 20,00\,\% & 14,66\,\% & 4,05\,\% & 1,01 \\
 
-% Transferencia MEG-XL con embedding EEG &
-% \celdaresultado &
-% \celdaresultado &
-% \celdaresultado &
-% \celdaresultado &
-% \celdaresultado &
-% \celdaresultado \\ % completar
+Conjunto EEG desde cero &
+5 & 64,62\,\% & 61,63\,\% & 39,89\,\% & 19,95\,\% & 4,99 \\
 
-% Transferencia MEG-XL con embedding MEG &
-% \celdaresultado &
-% \celdaresultado &
-% \celdaresultado &
-% \celdaresultado &
-% \celdaresultado &
-% \celdaresultado \\ % completar
+Transferencia MEG-XL con embedding EEG &
+4 & 63,62\,\% & 62,50\,\% & 40,98\,\% & 20,56\,\% & 5,14 \\
 
-% \midrule
-% Azar uniforme &
-% --- &
-% 20,00 &
-% 20,00 &
-% 4,00 &
-% 4,00 &
-% --- \\
+Transferencia MEG-XL con embedding MEG &
+3 & 64,92\,\% & 64,19\,\% & 42,89\,\% & 22,32\,\% & 5,58 \\
 
-% \bottomrule
-% \end{tabularx}
-% \caption{Resultados de clasificación contextual de palabras en la partición de test de OpenNeuro ds004408.}
-% \label{tab:resultados_finetuning_principales}
-% \end{table}
+\midrule
+Azar uniforme &
+-- & 20,00\,\% & 20,00\,\% & 4,00\,\% & 4,00\,\% & -- \\
+\bottomrule
+\end{tabularx}
+\caption{Resultados de test del ajuste supervisado sobre OpenNeuro ds004408. Cada fila utiliza el checkpoint seleccionado mediante la mayor Top-10 balanceada sobre 250 palabras en validación.}
+\label{tab:resultados_finetuning_principales}
+\end{table}
 
-% La cobertura de la evaluación se muestra en la Tabla~\ref{tab:cobertura_evaluacion}. Estos valores permiten comprobar cuántas palabras del conjunto de test pertenecen a cada vocabulario de recuperación.
+La diferencia entre las métricas no balanceadas y balanceadas muestra por qué la métrica principal debe ser la macro-media por palabra. En el vocabulario de 250 palabras, el control sin preentrenamiento obtiene un 14,66\,\% de Top-10 no balanceada, pero solo un 4,05\,\% balanceado, prácticamente el 4\,\% esperado al azar. Esta discrepancia indica que la métrica no balanceada puede verse favorecida por palabras frecuentes. En cambio, las tres condiciones preentrenadas se mantienen claramente por encima del azar también en la métrica balanceada.
 
-% \begin{table}[htbp]
-% \centering
-% \footnotesize
-% \setlength{\tabcolsep}{6pt}
-% \renewcommand{\arraystretch}{1.18}
-% \begin{tabularx}{0.82\textwidth}{
-%     >{\centering\arraybackslash}p{2.5cm}
-%     >{\centering\arraybackslash}X
-%     >{\centering\arraybackslash}X
-% }
-% \toprule
-% \textbf{Vocabulario} &
-% \textbf{Ejemplos evaluados} &
-% \textbf{Ejemplos excluidos} \\
-% \midrule
-% 50 palabras & \celdaresultado & \celdaresultado \\ % completar
-% 250 palabras & \celdaresultado & \celdaresultado \\ % completar
-% \bottomrule
-% \end{tabularx}
-% \caption{Cobertura de los vocabularios de recuperación en la partición de test.}
-% \label{tab:cobertura_evaluacion}
-% \end{table}
+El modelo preentrenado con EEG desde cero alcanza un 19,95\,\% de Top-10 balanceada sobre 250 palabras. Por tanto, la mayor parte de la mejora procede de disponer de una fase de preentrenamiento autosupervisado antes del ajuste final. La transferencia desde MEG-XL añade una mejora adicional más moderada: la variante con embedding EEG alcanza un 20,56\,\%, mientras que la variante que reutiliza el embedding MEG obtiene el mejor resultado absoluto, con un 22,32\,\%.
+
+\subsection{Cobertura de la evaluación}
+
+La Tabla~\ref{tab:cobertura_evaluacion} muestra el número de ejemplos de test que entran en cada vocabulario de recuperación. Al ampliar el vocabulario de 50 a 250 palabras aumenta el número de ejemplos evaluados, pero también se reduce el nivel de azar de 20\,\% a 4\,\%, lo que hace más exigente la métrica.
+
+\begin{table}[htbp]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{6pt}
+\renewcommand{\arraystretch}{1.18}
+\begin{tabularx}{0.82\textwidth}{
+    >{\centering\arraybackslash}p{2.5cm}
+    >{\centering\arraybackslash}X
+    >{\centering\arraybackslash}X
+    >{\centering\arraybackslash}X
+}
+\toprule
+\textbf{Vocabulario} &
+\textbf{Ejemplos evaluados} &
+\textbf{Ejemplos excluidos} &
+\textbf{Cobertura} \\
+\midrule
+50 palabras & 20\,045 & 15\,105 & 57,03\,\% \\
+250 palabras & 28\,120 & 7\,030 & 80,00\,\% \\
+\bottomrule
+\end{tabularx}
+\caption{Cobertura de los vocabularios de recuperación en la partición de test de ds004408. Los ejemplos excluidos corresponden a palabras fuera del vocabulario de recuperación considerado.}
+\label{tab:cobertura_evaluacion}
+\end{table}
 
 \subsection{Diferencias entre condiciones}
 
-% Para mostrar de forma directa los efectos definidos en el diseño experimental, la Tabla~\ref{tab:diferencias_condiciones} reserva las diferencias absolutas en puntos porcentuales entre las métricas balanceadas de las condiciones correspondientes. Estos valores se presentan de forma descriptiva y no constituyen una prueba de significación estadística.
+Para hacer explícitos los efectos definidos en el diseño experimental, la Tabla~\ref{tab:diferencias_condiciones} presenta las diferencias absolutas entre condiciones sobre la partición de test. Estos valores son descriptivos, ya que cada condición se ha ejecutado con una única semilla.
 
-% \begin{table}[htbp]
-% \centering
-% \footnotesize
-% \setlength{\tabcolsep}{5pt}
-% \renewcommand{\arraystretch}{1.18}
-% \begin{tabularx}{\textwidth}{
-%     >{\raggedright\arraybackslash}X
-%     >{\centering\arraybackslash}p{2.4cm}
-%     >{\centering\arraybackslash}p{2.4cm}
-% }
-% \toprule
-% \textbf{Comparación} &
-% \textbf{\(\Delta\) balanceada, 50} &
-% \textbf{\(\Delta\) balanceada, 250} \\
-% \midrule
+\begin{table}[htbp]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.18}
+\begin{tabularx}{\textwidth}{
+    >{\raggedright\arraybackslash}X
+    >{\centering\arraybackslash}p{2.4cm}
+    >{\centering\arraybackslash}p{2.4cm}
+}
+\toprule
+\textbf{Comparación} &
+\textbf{\(\Delta\) bal., 50} &
+\textbf{\(\Delta\) bal., 250} \\
+\midrule
+Efecto del preentrenamiento EEG:
+EEG desde cero menos sin preentrenamiento &
++41,63 pp &
++15,90 pp \\
 
-% Efecto del conjunto EEG:
-% EEG desde cero menos sin preentrenamiento &
-% \celdaresultado &
-% \celdaresultado \\ % completar
+Efecto de la transferencia MEG-XL:
+embedding EEG menos EEG desde cero &
++0,87 pp &
++0,61 pp \\
 
-% Efecto de la inicialización MEG-XL:
-% embedding EEG menos EEG desde cero &
-% \celdaresultado &
-% \celdaresultado \\ % completar
+Efecto del embedding de sensor:
+embedding MEG menos embedding EEG &
++1,69 pp &
++1,76 pp \\
+\bottomrule
+\end{tabularx}
+\caption{Diferencias descriptivas entre las condiciones experimentales, expresadas en puntos porcentuales sobre la partición de test.}
+\label{tab:diferencias_condiciones}
+\end{table}
 
-% Efecto del embedding de sensor:
-% embedding MEG menos embedding EEG &
-% \celdaresultado &
-% \celdaresultado \\ % completar
+La diferencia dominante procede del preentrenamiento autosupervisado. El salto entre el modelo sin preentrenamiento y el modelo preentrenado con EEG desde cero es de 15,90 puntos porcentuales en la métrica principal. La transferencia desde MEG-XL aporta una mejora adicional de 0,61 puntos cuando se utiliza el embedding EEG. En esta ejecución, la reutilización directa del embedding de magnetómetro obtiene el mejor valor absoluto, 22,32\,\%, y supera al embedding EEG específico por 1,76 puntos. Esta última diferencia debe interpretarse con prudencia: al disponer de una única semilla, no permite concluir superioridad estadística de una representación de sensor sobre la otra.
 
-% \bottomrule
-% \end{tabularx}
-% \caption{Diferencias descriptivas entre las condiciones experimentales, expresadas en puntos porcentuales.}
-% \label{tab:diferencias_condiciones}
-% \end{table}
+\subsection{Comparación con trabajos previos}
 
-% Todos los experimentos utilizan una única semilla. Por este motivo, los resultados se presentan como valores descriptivos de cada ejecución y no como medias acompañadas de desviación estándar o error estándar. No se aplican pruebas estadísticas entre condiciones en esta configuración.
+La comparación más directa es con d'Ascoli et al.~\cite{dascoli2024words}, porque utilizan una formulación de evaluación equivalente: recuperación Top-10 balanceada sobre las 250 palabras más frecuentes y descarte de palabras fuera del vocabulario. En Broderick/OpenNeuro ds004408, d'Ascoli et al. reportan aproximadamente un 20\,\% de precisión Top-10 balanceada en la Figura 2C. Bajo la misma métrica, el mejor modelo de este trabajo alcanza un 22,32\,\% sobre test, lo que supone una mejora descriptiva de 2,32 puntos porcentuales respecto a esa referencia aproximada.
+
+También puede compararse con Jayalath et al.~\cite{jayalath2025unlocking}, aunque con más cautela porque emplean una partición diferente de Broderick y porque su trabajo combina clasificación de palabras con reconstrucción contextual de texto. Sus métricas de reconstrucción completa, como WER, CER, BLEU o ROUGE, no son directamente comparables con la recuperación cerrada de palabras usada en este capítulo. La comparación relevante está en sus experimentos de clasificación de palabras sobre Broderick: el entrenamiento solo con Broderick aparece alrededor del nivel de azar y la combinación con LibriBrain alcanza aproximadamente un 7\,\%. Frente a esos valores, el 22,32\,\% obtenido aquí sitúa la adaptación de MEG-XL a EEG claramente por encima del azar y en el mismo orden de magnitud que los mejores resultados publicados para este conjunto.
+
+Aun así, la comparación debe interpretarse con prudencia. Las particiones no son idénticas entre trabajos, las implementaciones difieren en el preprocesamiento y este experimento se ha ejecutado con una única semilla. Por tanto, el resultado no demuestra una superioridad definitiva, pero sí muestra que la transferencia de modelos MEG de contexto largo a EEG permite alcanzar resultados competitivos en recuperación contextual de palabras.
+
+\subsection{Resumen de los resultados}
+
+Los resultados obtenidos permiten extraer cuatro conclusiones principales. Primero, el ajuste supervisado desde una inicialización aleatoria no aprende una representación balanceada útil para recuperar palabras y se mantiene en el nivel de azar con 250 candidatos. Segundo, el preentrenamiento autosupervisado con EEG produce la mayor mejora, elevando la Top-10 balanceada sobre 250 palabras de 4,05\,\% a 19,95\,\%. Tercero, la inicialización desde MEG-XL mejora de nuevo el resultado, aunque con una ganancia menor que la aportada por el propio preentrenamiento EEG. Cuarto, en esta ejecución la reutilización del embedding de magnetómetro obtiene el mejor resultado final, con un 22,32\,\% de Top-10 balanceada sobre 250 palabras.
+
+En conjunto, estos experimentos muestran que la adaptación de una arquitectura de contexto largo inspirada en MEG-XL a EEG es viable para clasificación contextual de palabras. El resultado principal sitúa el sistema claramente por encima del azar y en el rango de los mejores resultados publicados sobre Broderick/OpenNeuro ds004408, aunque queda pendiente confirmar la tendencia con más semillas y con un protocolo exactamente alineado con los trabajos comparados.

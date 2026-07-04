@@ -505,6 +505,25 @@ def write_pivot_csv(
     write_csv(path, rows, ["epoch", *lines])
 
 
+def latest_rows_by_epoch(records: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    latest: dict[str, dict[str, Any]] = {}
+    latest_rank: dict[str, tuple[float, int]] = {}
+    for row in records:
+        epoch = str(row["epoch"])
+        global_step = to_float(row.get("global_step"))
+        if not math.isfinite(global_step):
+            global_step = -math.inf
+        try:
+            source_row = int(row.get("source_row", 0))
+        except (TypeError, ValueError):
+            source_row = 0
+        rank = (global_step, source_row)
+        if epoch not in latest_rank or rank >= latest_rank[epoch]:
+            latest[epoch] = row
+            latest_rank[epoch] = rank
+    return [latest[epoch] for epoch in sorted(latest, key=lambda item: to_float(item))]
+
+
 def maybe_import_matplotlib() -> Any | None:
     try:
         mpl_cache = Path(tempfile.gettempdir()) / "scrabrain-matplotlib"
@@ -634,21 +653,34 @@ def plot_pretraining_lines(
     line_field: str,
     title: str,
 ) -> list[str]:
-    fig, ax = plt.subplots(figsize=(7.2, 4.4))
+    fig, ax = plt.subplots(figsize=(6.8, 4.2))
     by_line: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in records:
         by_line[str(row[line_field])].append(row)
+    palette = plt.rcParams["axes.prop_cycle"].by_key().get("color", [])
+    linestyles = ["-", "--", "-.", ":"]
     for label, rows in sorted(by_line.items()):
-        rows = sorted(rows, key=lambda row: to_float(row["epoch"]))
+        rows = latest_rows_by_epoch(rows)
         xs = [to_float(row["epoch"]) for row in rows]
         ys = [to_float(row["value"]) for row in rows]
-        ax.plot(xs, ys, marker="o", linewidth=1.8, markersize=4, label=label)
+        index = len(ax.lines)
+        ax.plot(
+            xs,
+            ys,
+            marker="o",
+            markevery=max(1, len(xs) // 10),
+            linewidth=2.1,
+            markersize=3.4,
+            color=palette[index % len(palette)] if palette else None,
+            linestyle=linestyles[index % len(linestyles)],
+            label=label,
+        )
     first = records[0]
     ax.set_xlabel("Epoch")
     ax.set_ylabel(str(first["metric"]))
-    ax.set_title(title)
+    ax.set_title(title, pad=8)
     ax.grid(alpha=0.25)
-    ax.legend(frameon=False, fontsize=8)
+    ax.legend(frameon=False, fontsize=8, loc="best")
     outputs = save_figure(fig, path_stem)
     plt.close(fig)
     return outputs
