@@ -1,8 +1,0 @@
-- training.batch_size=4
-- training.num_workers=12
-- trainer.devices=1
-- trainer.strategy=auto
-- trainer.val_check_interval=1.0
-- logging.log_every_n_steps=50
-- model.use_gradient_checkpointing=false
-- logging.experiment_name=eeg-reading-listening-batch4-workers12

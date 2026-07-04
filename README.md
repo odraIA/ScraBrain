@@ -1,176 +1,122 @@
 # ScraBrain
 
-Final project of AI Master about decoding EEG and MEG for imagined speech
-recognition.
+Código asociado al Trabajo Final de Máster **“Transferencia de modelos MEG de contexto largo a EEG para clasificación de palabras en lectura natural”**.
 
-## Entorno Docker con uv
+El proyecto estudia la adaptación y evaluación de modelos de contexto largo usados originalmente con señales MEG para señales EEG. El objetivo experimental es comprobar su comportamiento en tareas de clasificación y recuperación de palabras en paradigmas de lectura natural y escucha, manteniendo una infraestructura reproducible para preprocesado, entrenamiento, evaluación y análisis.
 
-La imagen base es `pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime`, por lo que
-PyTorch, CUDA y `torchrun` vienen de la imagen. Las dependencias del proyecto se
-declaran en `pyproject.toml` y se fijan en `uv.lock`.
+## Estructura del repositorio
 
-Durante el build se crea la venv en `/workspace/.venv` con acceso a los
-`site-packages` de la imagen base. Esto permite que:
+- `brainstorm/`: código principal del paquete, modelos, datamodules, evaluación y entrenamiento.
+- `configs/`: configuraciones Hydra para entrenamiento, evaluación, sweeps y fine-tuning.
+- `scripts/`: scripts de descarga, preprocesado, entrenamiento, sweeps, evaluación y exportación de resultados.
+- `datasets_info/`: metadatos auxiliares y notas de organización de datasets.
+- `docs/`: documentación técnica adicional de experimentos concretos.
+- `memoria/`: fuentes LaTeX y figuras de la memoria.
+- `Dockerfile` y `docker-compose*.yml`: entorno reproducible y servicios de ejecución.
+- `pyproject.toml` y `uv.lock`: declaración y bloqueo de dependencias.
 
-```bash
-python
-torchrun
-timm
-pnpl
-sklearn
-h5py
-pywt
-```
+## Requisitos
 
-se resuelvan correctamente sin reinstalar `torch`, `torchvision` ni `torchaudio`
-desde PyPI.
+- Docker.
+- Docker Compose.
+- GPU NVIDIA compatible con CUDA.
+- NVIDIA Container Toolkit para exponer la GPU a los contenedores.
 
-## Token de Hugging Face
+## Instalación / build
 
-`docker-compose.yml` lee el token desde `HF_TOKEN=${HF_TOKEN}`. Define el token
-en un `.env` local no versionado:
-
-```bash
-HF_TOKEN=hf_xxx
-```
-
-`.env` ya esta incluido en `.gitignore`.
-
-## Build
+Desde la raíz del repositorio:
 
 ```bash
 docker compose build
 ```
 
-Si cambias `pyproject.toml` o `uv.lock`, reconstruye la imagen. Si ya existia el
-volumen de la venv y quieres forzar que se repueble desde la imagen nueva:
+El entorno usa `uv` y fija dependencias mediante `uv.lock`. Si se modifican `pyproject.toml` o `uv.lock`, reconstruye la imagen.
+
+## Configuración local
+
+Crea un `.env` local no versionado a partir de `.env.example`:
 
 ```bash
-docker compose down -v
-docker compose build
+cp .env.example .env
 ```
 
-## Sweep principal
+Completa únicamente las variables necesarias para tu entorno local, como rutas de datasets, checkpoints o tokens de servicios externos. No subas `.env` a Git.
 
-El flujo habitual sigue siendo:
+## Datos no incluidos
+
+No se incluyen datasets, checkpoints grandes, logs, cachés ni resultados completos por tamaño, licencias y reproducibilidad práctica. Las rutas esperadas por los servicios Docker son:
+
+- `datasets/`
+- `checkpoints/`
+- `results/`
+- `logs/`
+- `data/cache/`
+- `hf_cache/`
+- `embeddings_cache/`
+- `wandb/`
+
+El checkpoint MEG-XL de referencia se espera por defecto en:
+
+```text
+checkpoints/baseline/meg-xl-med.ckpt
+```
+
+## Ejecución básica
+
+Evaluación EEG de lectura:
 
 ```bash
-bash run_sweep.sh --detach
+docker compose run --rm eval_eeg_reading
 ```
 
-Para revisar lo que lanzaria sin ejecutar contenedores:
+Evaluación EEG de escucha:
 
 ```bash
-bash run_sweep.sh --dry-run
+docker compose run --rm eval_eeg_listening
 ```
 
-`run_sweep.sh` mantiene el uso de `docker compose run` detached sobre los
-servicios `precompute_stats` y `meg_training_job`.
-
-### Ajustar uso de GPU
-
-El entrenamiento DDP usa 2 GPUs por defecto. No es obligatorio usar ambas, pero
-con 2 GPUs el `batch_size` es por GPU y el batch global es
-`BATCH_SIZE × numero_de_GPUs`.
-
-Para aumentar uso sin ir directo al maximo, sube primero el batch por GPU:
+Evaluación conjunta lectura + escucha:
 
 ```bash
-bash run_sweep.sh --batch-size 160 --eval-batch-size 160 --detach
-bash run_sweep.sh --batch-size 192 --eval-batch-size 192 --detach
+docker compose run --rm eval_eeg_reading_listening
 ```
 
-Si aparece `CUDA out of memory`, baja `BATCH_SIZE` o reduce la resolucion CWT:
+Entrenamiento continuo lectura + escucha:
 
 ```bash
-bash run_sweep.sh --batch-size 160 --n-freqs 64 --detach
+bash scripts/run_eeg_reading_listening_training.sh
 ```
 
-El log de cada epoca muestra el pico de memoria CUDA para decidir el siguiente
-incremento. Para `docker compose up meg_training_job`, los equivalentes son
-`TRAIN_BATCH_SIZE`, `TRAIN_EVAL_BATCH_SIZE`, `TRAIN_N_FREQS`,
-`TRAIN_NUM_WORKERS` y `TRAIN_EVAL_NUM_WORKERS`.
-
-Para lanzar con una sola GPU:
+Entrenamiento lectura + escucha inicializado desde checkpoint MEG-XL:
 
 ```bash
-bash run_sweep.sh --train-gpus 1 --cuda-visible-devices 0 --batch-size 192 --detach
+bash scripts/run_eeg_reading_listening_megxl_joint.sh
 ```
 
-## Logs del sweep
-
-Ver el coordinador:
+Sweep EEG multi-dataset:
 
 ```bash
-tail -f logs/latest_classic_coordinator.log
+bash scripts/run_eeg_multi_training_sweep.sh
 ```
 
-Ver el log global del sweep:
+Fine-tuning de palabras en `ds004408` con comparación de tres condiciones:
 
 ```bash
-tail -f logs/latest_classic_sweep.log
+bash scripts/run_ds004408_three_way_finetuning.sh
 ```
 
-Ver un experimento concreto:
+Consulta `README_REPRODUCIBILIDAD.md`, `README_EEGXL.md`, `README_EEG_READING_LISTENING.md` y `README_EEG_MULTI_TRAINING.md` para la relación entre experimentos, configuraciones y salidas.
+
+## Reproducibilidad
+
+Las dependencias Python están fijadas en `uv.lock` y el entorno de ejecución se define con Docker. Los resultados exactos dependen de datasets, checkpoints externos, cachés generadas y configuración de GPU que no se versionan en este repositorio.
+
+Para validar la configuración Docker:
 
 ```bash
-tail -f logs/speech__resnet18__partial_ft.log
+docker compose config >/tmp/scrabrain_compose_config_check.txt
 ```
 
-## Parar el coordinador
+## Licencia / uso académico
 
-El modo `--detach` escribe el PID en `.sweep_coordinator_classic.pid`:
-
-```bash
-kill "$(cat .sweep_coordinator_classic.pid)"
-```
-
-Para el sweep speech-image, usa `.sweep_coordinator_speech_image.pid`.
-
-## Precompute y entrenamiento manual
-
-Precalcular stats:
-
-```bash
-docker compose run --rm precompute_stats
-```
-
-Comprobar el entrypoint de entrenamiento:
-
-```bash
-docker compose run --rm meg_training_job train_ddp.py --help
-```
-
-Probar las variantes de proyección sensor->RGB:
-
-```bash
-docker compose run --rm meg_training_job train_ddp.py --sensor_projection mean
-docker compose run --rm meg_training_job train_ddp.py --sensor_projection pca
-bash run_sweep.sh --sensor-projections conv,mean,pca
-```
-
-## Shell de depuracion
-
-Levantar una shell persistente:
-
-```bash
-docker compose up -d dev_shell
-docker compose exec dev_shell bash
-```
-
-Comprobar CUDA y paquetes dentro del contenedor:
-
-```bash
-python - <<'PY'
-import torch
-import timm
-import pnpl
-import sklearn
-import h5py
-import pywt
-
-print("python ok")
-print("torch", torch.__version__, "cuda", torch.cuda.is_available())
-print("cuda devices", torch.cuda.device_count())
-PY
-```
+Este repositorio se distribuye para uso académico y reproducibilidad del TFM. Revisa `LICENSE` y `LICENSE_MEGXL` antes de reutilizar código o artefactos derivados de MEG-XL.

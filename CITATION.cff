@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+title: "ScraBrain: adaptación de modelos MEG de contexto largo a EEG"
+message: "If you use this software, please cite it as below."
+type: software
+authors:
+  - family-names: "Díaz"
+    given-names: "Ricardo"
+year: 2026
+repository-code: "https://github.com/odraIA/ScraBrain"

@@ -1,7 +1,0 @@
-[2026-05-09 22:31:56,434][__main__][INFO] - Loading BioCodec tokenizer from: ./brainstorm/neuro_tokenizers/biocodec_ckpt.pt
-[2026-05-09 22:31:57,044][__main__][INFO] -   BioCodec tokenizer loaded successfully
-[2026-05-09 22:31:57,045][__main__][INFO] - Training mode: LINEAR PROBE (frozen backbone)
-[2026-05-09 22:31:57,045][__main__][INFO] - Loading CrissCross model from: ./checkpoints/baseline/meg-xl-med.ckpt
-[2026-05-09 22:31:57,278][__main__][INFO] -   Skipping 8 RoPE rotation buffers (deterministic, will be recomputed)
-[2026-05-09 22:31:57,292][__main__][INFO] -   Missing keys: 8 (RoPE buffers)
-[2026-05-09 22:31:57,292][__main__][INFO] -   Successfully loaded checkpoint (RoPE will auto-expand to 625 on first forward pass)

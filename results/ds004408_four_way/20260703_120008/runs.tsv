@@ -1,6 +1,0 @@
-order	label	embedding_id	gpu	container	status	exit_code	started_at	finished_at
-0	prepare_word_aligned	2	0	docker-compose-run-rm	COMPLETED	0	2026-07-03T12:00:08+02:00	2026-07-03T12:00:26+02:00
-1	random_init	2	0	ds004408_random_init_20260703_120008	COMPLETED	0	2026-07-03T12:00:26+02:00	2026-07-03T20:47:26+02:00
-2	eeg_from_scratch	2	1	ds004408_eeg_from_scratch_20260703_120008	COMPLETED	0	2026-07-03T12:00:27+02:00	2026-07-03T22:19:02+02:00
-3	megxl_eeg2	2	0	ds004408_megxl_eeg2_20260703_120008	COMPLETED	0	2026-07-03T12:00:28+02:00	2026-07-03T22:19:02+02:00
-4	megxl_eeg1	1	1	ds004408_megxl_eeg1_20260703_120008	COMPLETED	0	2026-07-03T12:00:28+02:00	2026-07-03T22:19:03+02:00

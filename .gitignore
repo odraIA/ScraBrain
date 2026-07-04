@@ -227,48 +227,50 @@ __pycache__/
 .DS_Store
 
 
-# MEG-XL
-datasets/
-checkpoints/
+# Runtime / experiment outputs
 logs/
-
-# Ignorar todos los resultados salvo los de Weissbart
-results/*
-!results/weissbart_three_way/
-!results/weissbart_three_way/**
-!results/alice_three_way/**
-!results/alice_three_way/
-!results/ds004408_three_way/**
-!results/ds004408_three_way/
-!results/training_top10_accuracy/
-!results/training_top10_accuracy/**
-!results/ds004408_four_way/
-!results/ds004408_four_way/**
-promotions/
+outputs/
+results/
 wandb/
 hf_cache/
 embeddings_cache/
 data/cache/
-.eeg_eval_sequence.json
-wandb/
-hf_cache/
-data/
-!brainstorm/data/
-!brainstorm/data/*.py
-embeddings_cache/
-local/
+promotions/
+nohup.out
+**/nohup.out
 
-# para no ignorar el cuaderno de pruebas
-datasets/*
-!datasets/eegdash/
-datasets/eegdash/*
-!datasets/eegdash/testing.ipynb
+# Local datasets and large files
+datasets/
+checkpoints/
+*.ckpt
+*.h5
+*.hdf5
+*.mat
+*.npy
+*.npz
+*.safetensors
 
+# Model artifacts only in local output locations. Do not ignore *.pt globally:
+# small tokenizer checkpoints inside brainstorm/neuro_tokenizers may be needed.
+checkpoints/**/*.pt
+promotions/**/*.pt
+results/**/*.pt
+
+# Optional external tokenizer checkpoints that are too large for Git.
 brainstorm/neuro_tokenizers/base/BrainOmni.pt
-brainstorm/neuro_tokenizers/biocodec_ckpt.pt
 brainstorm/neuro_tokenizers/braintokenizer/BrainTokenizer.pt
 brainstorm/neuro_tokenizers/tiny/BrainOmni.pt
-# Generated training files
-outputs/
+
+# Sweep/runtime state
 *.pid
+.sweep_*.pid
+next_job.txt
+runs.tsv
+.eeg_eval_sequence.json
 *.bak_exit_code
+
+# Local archives
+memoria.zip
+
+# Local scratch scripts and experiments
+local/

@@ -1,7 +1,0 @@
-model,model_display,run_dir,seed,train_pct,retrieval_size,top_k,balanced_top_k_accuracy,top_k_accuracy,chance_accuracy,balanced_accuracy_x_chance,accuracy_x_chance,n_samples,n_skipped
-random_init,Arquitectura aleatoria,logs/word_classification_weissbart_eeg/20260626_130140/random_init,42,1.0,50,10,0.1956521739130435,0.14329268038272858,0.2,0.9782608695652174,0.7164634019136429,4264,4836
-random_init,Arquitectura aleatoria,logs/word_classification_weissbart_eeg/20260626_130140/random_init,42,1.0,250,10,0.04487179487179487,0.023715414106845856,0.04,1.1217948717948718,0.5928853526711464,6578,2522
-eeg_from_scratch,Checkpoint EEG desde cero,logs/word_classification_weissbart_eeg/20260626_130140/eeg_from_scratch,42,1.0,50,10,0.4336527001882053,0.5049249529838562,0.2,2.1682635009410265,2.524624764919281,4264,4836
-eeg_from_scratch,Checkpoint EEG desde cero,logs/word_classification_weissbart_eeg/20260626_130140/eeg_from_scratch,42,1.0,250,10,0.17125264872820714,0.28367283940315247,0.04,4.281316218205179,7.091820985078812,6578,2522
-eeg_pretrained,Checkpoint EEG preentrenado,logs/word_classification_weissbart_eeg/20260626_130140/eeg_pretrained,42,1.0,50,10,0.47967267708609934,0.5316604375839233,0.2,2.3983633854304967,2.6583021879196167,4264,4836
-eeg_pretrained,Checkpoint EEG preentrenado,logs/word_classification_weissbart_eeg/20260626_130140/eeg_pretrained,42,1.0,250,10,0.19231858044767228,0.30799636244773865,0.04,4.807964511191807,7.699909061193466,6578,2522

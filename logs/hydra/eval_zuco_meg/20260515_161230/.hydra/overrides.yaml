@@ -1,6 +1,0 @@
-- model.criss_cross_checkpoint=./checkpoints/baseline/meg-xl-med.ckpt
-- data.root=./datasets/zuco2/data/zuco2
-- data.eeg_sensor_type=meg
-- logging.experiment_name=criss-cross-word-classification-zuco-nr-50Hz-meg
-- logging.save_dir=./logs/word_classification_zuco_meg
-- logging.checkpoint_dir=./checkpoints/word_classification_zuco_meg

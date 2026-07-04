@@ -1,3 +1,0 @@
-order	label	container	status	exit_code	started_at	finished_at
-1	random_init	alice_random_init_20260627_121416	COMPLETED	0	2026-06-27T12:14:16+02:00	2026-06-27T12:25:19+02:00
-2	eeg_from_scratch	alice_eeg_from_scratch_20260627_121416	FAILED	143	2026-06-27T12:25:20+02:00	2026-06-27T12:32:27+02:00

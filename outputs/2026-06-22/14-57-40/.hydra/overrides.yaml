@@ -1,3 +1,0 @@
-- training.batch_size=8
-- trainer.devices=1
-- trainer.strategy=auto

@@ -1,5 +1,0 @@
-- data.target_sfreq=50.0
-- model.sampling_rate=50
-- data.l_freq=0.1
-- data.h_freq=40.0
-- logging.experiment_name=eeg_megxl_continuous_50hz_seed42

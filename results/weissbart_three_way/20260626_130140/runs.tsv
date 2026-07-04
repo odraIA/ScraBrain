@@ -1,4 +1,0 @@
-order	label	container	status	exit_code	started_at	finished_at
-1	random_init	weissbart_random_init_20260626_130140	COMPLETED	0	2026-06-26T13:01:40+02:00	2026-06-26T14:12:33+02:00
-2	eeg_from_scratch	weissbart_eeg_from_scratch_20260626_130140	COMPLETED	0	2026-06-26T14:12:33+02:00	2026-06-26T16:25:55+02:00
-3	eeg_pretrained	weissbart_eeg_pretrained_20260626_130140	COMPLETED	0	2026-06-26T16:25:55+02:00	2026-06-26T17:55:58+02:00

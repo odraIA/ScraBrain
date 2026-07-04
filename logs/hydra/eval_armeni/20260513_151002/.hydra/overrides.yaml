@@ -1,2 +1,0 @@
-- model.criss_cross_checkpoint=./checkpoints/baseline/meg-xl-med.ckpt
-- data.root=./datasets/armeni
