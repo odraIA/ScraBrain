@@ -14,7 +14,7 @@ Esta adaptación se puede entender como un cambio de dominio. El modelo de parti
 
 El entrenamiento final lanzado en este trabajo corresponde a un preentrenamiento continuo en dos etapas. Primero se utilizan datasets de lectura y después datasets de escucha. La etapa de lectura sirve como una adaptación inicial a EEG lingüístico en condiciones más controladas. La etapa de escucha aproxima el modelo al dominio final, que es la clasificación de palabras durante percepción auditiva continua.
 
-Además, el experimento compara tres variantes preentrenadas y un control supervisado directo. Una variante aprende el currículo EEG desde una inicialización aleatoria. Las otras dos parten del checkpoint de MEG-XL y se diferencian únicamente en la forma de representar el tipo de sensor: una utiliza un embedding específico de EEG inicializado a partir del embedding de magnetómetro, y la otra reutiliza directamente el embedding de magnetómetro para los canales EEG. Las tres variantes preentrenadas siguen exactamente el mismo orden, lectura seguida de escucha, de modo que la comparación permite estudiar por separado el efecto del preentrenamiento EEG, de la transferencia desde MEG y de la elección del embedding de tipo de sensor.
+Además, el experimento compara tres variantes preentrenadas y un control supervisado directo. Una variante aprende el conjunto EEG desde una inicialización aleatoria. Las otras dos parten del checkpoint de MEG-XL y se diferencian únicamente en la forma de representar el tipo de sensor: una utiliza un embedding específico de EEG inicializado a partir del embedding de magnetómetro, y la otra reutiliza directamente el embedding de magnetómetro para los canales EEG. Las tres variantes preentrenadas siguen exactamente el mismo orden, lectura seguida de escucha, de modo que la comparación permite estudiar por separado el efecto del preentrenamiento EEG, de la transferencia desde MEG y de la elección del embedding de tipo de sensor.
 
 La propuesta final se puede resumir en una arquitectura que recoge cuatro decisiones de MEG-XL:
 
@@ -73,7 +73,7 @@ Sobre esos tokens se aplica el Transformer con una combinación de 2 tipos de at
 
 También se conserva el objetivo autosupervisado. El modelo oculta bloques temporales y debe predecir los códigos de BioCodec correspondientes a esas posiciones. La \textit{loss} es una entropía cruzada sobre los códigos discretos de los cuantizadores. En el entrenamiento se enmascaran subsegmentos de tres segundos, de forma que el modelo no puede resolver la tarea únicamente interpolando muestras vecinas inmediatas y fuerza al Transformer a aprender patrones más amplios de la señal.
 
-Por tanto, la contribución de la adaptación está en hacer que la misma arquitectura pueda recibir EEG heterogéneo y en definir un curriculum de entrenamiento adecuado para pasar de lectura a escucha. La arquitectura, el tokenizer y el objetivo autosupervisado se mantienen lo más cerca posible de MEG-XL, mientras que los cambios se concentran en la entrada EEG, las máscaras de sensores, la selección de datasets y el entrenamiento por etapas.
+Por tanto, la contribución de la adaptación está en hacer que la misma arquitectura pueda recibir EEG heterogéneo y en definir un conjunto de entrenamiento adecuado para pasar de lectura a escucha. La arquitectura, el tokenizer y el objetivo autosupervisado se mantienen lo más cerca posible de MEG-XL, mientras que los cambios se concentran en la entrada EEG, las máscaras de sensores, la selección de datasets y el entrenamiento por etapas.
 
 \subsection{Cambios para trabajar con canales EEG}
 
@@ -123,7 +123,7 @@ Otra diferencia con respecto a MEG-XL es el tamaño de nuestro modelo debido al 
 
 \begin{table}[htbp]
 \centering
-\caption{Resumen de la arquitectura y número de parámetros del modelo EEG.}
+\caption{Resumen de la arquitectura autosupervisada EEG-XL y número de parámetros del codificador.}
 \label{tab:arquitectura_modelo_eeg}
 \footnotesize
 \setlength{\tabcolsep}{5pt}
@@ -233,13 +233,13 @@ Cada entrenamiento ejecuta dos fases consecutivas:
 \item entrenamiento continuo con datasets de escucha, inicializado desde el mejor checkpoint de la fase de lectura correspondiente.
 \end{enumerate}
 
-La fase de lectura utiliza Nieuwland et al. y ZuCo 2.0 en lectura natural. La fase de escucha utiliza SparrKULEE y OpenNeuro ds007808 (JapanEEG). La validación respeta separaciones por sujeto o por sesión según el dataset, como se describió en el capítulo anterior.
+La fase de lectura utiliza Nieuwland et al. y ZuCo 2.0 en lectura natural. La fase de escucha utiliza SparrKULee y OpenNeuro ds007808 (JapanEEG). La validación respeta separaciones por sujeto o por sesión según el dataset, como se describió en el capítulo anterior.
 
 El orden de lectura $\rightarrow$ escucha se escogió para que los datasets de lectura proporcionen una primera adaptación a EEG lingüístico con estímulos visuales y condiciones relativamente controladas. Después, los datasets de escucha ajustan la representación al dominio auditivo continuo, que es el más próximo a la evaluación final con ds004408. El checkpoint producido por lectura se pasa explícitamente a la etapa de escucha, por lo que no se reutilizan checkpoints de experimentos anteriores de escucha aislada.
 
-De esta forma el entrenamiento del modelo tiene la siguiente configuración: BioCodec, frecuencia final de 50 Hz, banda 0,1--40 Hz, ventanas de 150 segundos, batch size 4 en lectura y batch size 1 en escucha, validación cada 500 pasos y guardado periódico de checkpoints. El entrenamiento se ejecuta con una GPU por variante preentrenada, de forma que las condiciones pueden lanzarse en paralelo pero no comparten pesos entre sí.
+De esta forma el entrenamiento del modelo tiene la siguiente configuración: BioCodec, frecuencia final de 50 Hz, banda 0,1--40 Hz, ventanas de 150 segundos, batch size 4 en lectura y batch size 1 en escucha, validación cada 500 pasos y guardado periódico de checkpoints. El entrenamiento se ejecuta con una GPU por variante preentrenada, de forma que las configuraciones pueden lanzarse en paralelo pero no comparten pesos entre sí.
 
-En MEG-XL se realizó el entrenamiento con un batch size de 1. En la fase de lectura, el menor número de canales de EEG permite aumentar el lote a 4 sin superar la memoria de una GPU A100 de 40 GB. En la fase de escucha se mantiene batch size 1, porque los registros auditivos y la configuración de canales hacen que el coste de memoria sea mayor. Por tanto, la comparación entre condiciones no se basa en cambiar el tamaño de lote entre inicializaciones: todas las variantes preentrenadas utilizan batch size 4 en lectura y batch size 1 en escucha.
+En MEG-XL se realizó el entrenamiento con un batch size de 1. En la fase de lectura, el menor número de canales de EEG permite aumentar el lote a 4 sin superar la memoria de una GPU A100 de 40 GB. En la fase de escucha se mantiene batch size 1, porque los registros auditivos y la configuración de canales hacen que el coste de memoria sea mayor. Por tanto, la comparación entre configuraciones no se basa en cambiar el tamaño de lote entre inicializaciones: todas las variantes preentrenadas utilizan batch size 4 en lectura y batch size 1 en escucha.
 
 \subsection{Clasificación contextual de palabras}
 
@@ -253,6 +253,6 @@ El modelo procesa conjuntamente las 50 ventanas y genera una representación par
 
 Durante la evaluación, cada embedding cerebral predicho se compara mediante similitud coseno con los embeddings lingüísticos de un conjunto de recuperación. Se consideran vocabularios formados por las 50 y las 250 palabras más frecuentes y se calcula la precisión \textit{Top-10}, junto con su variante balanceada por palabra. Esta evaluación sigue la formulación de recuperación semántica utilizada en los trabajos de clasificación contextual de palabras, aunque los resultados solo pueden compararse directamente cuando coinciden el conjunto de candidatos, la partición de los datos y el protocolo de evaluación.
 
-% El experimento final compara tres condiciones. La primera entrena la arquitectura de clasificación desde una inicialización aleatoria sobre ds004408. La segunda parte del checkpoint obtenido mediante el currículo autosupervisado de lectura y escucha cuya arquitectura EEG fue inicializada desde cero. La tercera utiliza el checkpoint del mismo currículo, pero iniciado a partir de MEG-XL. La comparación entre la primera y la segunda condición permite medir la contribución del preentrenamiento autosupervisado con EEG, mientras que la comparación entre la segunda y la tercera permite aislar la aportación adicional de la transferencia desde MEG. De esta manera, puede determinarse si las mejoras proceden del currículo EEG, de los pesos originales de MEG-XL o de la combinación de ambos factores.
+% El experimento final compara tres condiciones. La primera entrena la arquitectura de clasificación desde una inicialización aleatoria sobre ds004408. La segunda parte del checkpoint obtenido mediante el conjunto autosupervisado de lectura y escucha cuya arquitectura EEG fue inicializada desde cero. La tercera utiliza el checkpoint del mismo conjunto, pero iniciado a partir de MEG-XL. La comparación entre la primera y la segunda configuración permite medir la contribución del preentrenamiento autosupervisado con EEG, mientras que la comparación entre la segunda y la tercera permite aislar la aportación adicional de la transferencia desde MEG. De esta manera, puede determinarse si las mejoras proceden del conjunto EEG, de los pesos originales de MEG-XL o de la combinación de ambos factores.
 
 \input{figuras/fig_4_4_finetuning_palabras}

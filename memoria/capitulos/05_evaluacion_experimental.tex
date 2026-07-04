@@ -6,9 +6,11 @@
 
 \section{Diseño experimental}
 
+% La evaluación se ha diseñado para separar tres efectos distintos: el aprendizaje autosupervisado con EEG, la transferencia de los pesos aprendidos previamente con MEG y la forma de representar el tipo de sensor EEG dentro de la arquitectura. Para ello, primero se entrenan tres variantes del modelo mediante el mismo conjunto de lectura y escucha. A continuación, los checkpoints obtenidos se ajustan sobre OpenNeuro ds004408 para la tarea supervisada de clasificación contextual de palabras. Como referencia adicional se incluye una condición que realiza directamente el ajuste supervisado desde una inicialización aleatoria, sin preentrenamiento autosupervisado previo.
+
 La evaluación de la arquitectura se ha diseñado separando tres efectos distintos: el aprendizaje autosupervisado con EEG, la transferencia de los pesos aprendidos previamente con MEG y la mejor forma de representar el tipo de sensor EEG dentro de la propia arquitectura. Para ello, primero se entrenan tres variantes del modelo mediante el mismo conjunto de lectura y escucha. A continuación, los checkpoints obtenidos se ajustan sobre OpenNeuro ds004408 para la tarea supervisada de clasificación contextual de palabras. Como referencia adicional se incluye una condición que realiza directamente el ajuste supervisado desde una inicialización aleatoria, sin preentrenamiento autosupervisado previo.
 
-Los cuatro experimentos considerados en la evaluación final se resumen en la Tabla~\ref{tab:condiciones_experimentales}. Las tres variantes que siguen el currículo EEG utilizan exactamente los mismos datos, particiones, orden de las etapas e hiperparámetros. Las únicas diferencias entre ellas son la inicialización de los pesos y la fila de la tabla de embeddings utilizada para representar el tipo de sensor.
+Los cuatro experimentos considerados en la evaluación final se resumen en la Tabla~\ref{tab:condiciones_experimentales}. Las tres variantes que siguen el conjunto EEG utilizan exactamente los mismos datos, particiones, orden de las etapas e hiperparámetros. Las únicas diferencias entre ellas son la inicialización de los pesos y la fila de la tabla de embeddings utilizada para representar el tipo de sensor.
 
 \begin{table}[htbp]
 \centering
@@ -56,13 +58,13 @@ Sí \\
 
 \bottomrule
 \end{tabularx}
-\caption{Condiciones incluidas en la evaluación experimental.}
+\caption{Configuraciones incluidas en la evaluación experimental.}
 \label{tab:condiciones_experimentales}
 \end{table}
 
 En el último experimento, denominado transferencia MEG-XL con embedding MEG, la señal continúa tratándose físicamente como EEG. Se mantienen las posiciones de los electrodos, la máscara de canales y la anulación de la contribución asociada a la orientación de las bobinas MEG. La única modificación consiste en utilizar, para los canales EEG, la fila del embedding de tipo de sensor que MEG-XL había aprendido para los magnetómetros. Por tanto, esta condición permite estudiar de forma aislada si resulta beneficioso reutilizar directamente una representación de tipo de sensor ya entrenada.
 
-La comparación entre las condiciones tiene las diferentes finalidades:
+La comparación entre las configuraciones tiene las diferentes finalidades:
 \begin{itemize}
     \item La diferencia entre el modelo sin preentrenamiento y el conjunto EEG desde cero mide el efecto del preentrenamiento autosupervisado con los conjuntos de lectura y escucha.
     \item La comparación entre el conjunto EEG desde cero y la transferencia MEG-XL con embedding EEG permite estudiar la aportación de los pesos aprendidos originalmente con MEG.
@@ -178,7 +180,7 @@ z_{c,t,q}
 
 \subsection{Hiperparámetros}
 
-Cada etapa puede ejecutarse durante un máximo de 50 épocas. La etapa de escucha se inicializa siempre desde el mejor checkpoint de validación obtenido por la misma condición en la etapa de lectura. No se transfieren pesos entre condiciones distintas.
+Cada etapa puede ejecutarse durante un máximo de 50 épocas. La etapa de escucha se inicializa siempre desde el mejor checkpoint de validación obtenido por la misma condición en la etapa de lectura. No se transfieren pesos entre configuraciones distintas.
 
 \begin{table}[htbp]
 \centering
@@ -186,7 +188,7 @@ Cada etapa puede ejecutarse durante un máximo de 50 épocas. La etapa de escuch
 \setlength{\tabcolsep}{5pt}
 \renewcommand{\arraystretch}{1.18}
 \begin{tabularx}{\textwidth}{
-    >{\raggedright\arraybackslash}p{4.3cm}
+    >{\raggedright\arraybackslash}p{6cm}
     >{\centering\arraybackslash}X
 }
 \toprule
@@ -220,7 +222,7 @@ Semilla & 42 \\
 \label{tab:hiperparametros_preentrenamiento}
 \end{table}
 
-Cada condición se ejecuta en una única GPU. Las condiciones pueden entrenarse en paralelo cuando existen dispositivos disponibles, pero cada una mantiene su propio optimizador, sus propios checkpoints y su propia trayectoria de entrenamiento.
+Cada condición se ejecuta en una única GPU. Los modelos pueden entrenarse en paralelo cuando existen dispositivos disponibles, pero cada una mantiene su propio optimizador, sus propios checkpoints y su propia trayectoria de entrenamiento.
 
 \section{Configuración del ajuste supervisado}
 
@@ -265,6 +267,8 @@ El vector objetivo \(\mathbf{y}_i\) se obtiene de la capa 12 de
 
 El tokenizer neuronal (BioCodec) permanece congelado. Se actualizan los pesos del codificador \textit{criss-cross} y de la cabeza de proyección lingüística. La cabeza utilizada durante la predicción autosupervisada de códigos no interviene en esta etapa.
 
+Esta separación permite reportar el tamaño del codificador de forma comparable a MEG-XL, mientras que la MLP lingüística se trata como parte del protocolo de ajuste supervisado.
+
 \subsection{Pérdida contrastiva}
 
 El ajuste utiliza una pérdida contrastiva de tipo D-SigLIP. Sean
@@ -304,7 +308,7 @@ a_{ij}\log\sigma(s_{ij})
 
 \subsection{Hiperparámetros}
 
-Las condiciones preentrenadas utilizan una tasa de aprendizaje menor para el codificador y una tasa mayor para la nueva cabeza lingüística. La condición sin preentrenamiento utiliza la misma tasa para ambos componentes. El criterio principal de selección es la precisión Top-10 balanceada sobre el vocabulario de 250 palabras en validación.
+Los modelos preentrenadas utilizan una tasa de aprendizaje menor para el codificador y una tasa mayor para la nueva cabeza lingüística. La condición sin preentrenamiento utiliza la misma tasa para ambos componentes. El criterio principal de selección es la precisión Top-10 balanceada sobre el vocabulario de 250 palabras en validación.
 
 \begin{table}[htbp]
 \centering
@@ -312,7 +316,7 @@ Las condiciones preentrenadas utilizan una tasa de aprendizaje menor para el cod
 \setlength{\tabcolsep}{5pt}
 \renewcommand{\arraystretch}{1.18}
 \begin{tabularx}{\textwidth}{
-    >{\raggedright\arraybackslash}p{4.5cm}
+    >{\raggedright\arraybackslash}p{6cm}
     >{\centering\arraybackslash}X
 }
 \toprule
@@ -418,7 +422,7 @@ En esta sección se presentan los resultados obtenidos en el preentrenamiento au
 
 \subsection{Preentrenamiento de lectura y escucha}
 
-La Figura~\ref{fig:pretraining_val_accuracy} muestra la evolución de la precisión de predicción de códigos durante las dos etapas del currículo. En lectura, las dos condiciones inicializadas desde MEG-XL parten ya con una precisión de token superior a la del modelo EEG entrenado desde cero. Este último comienza más abajo y necesita varias épocas para aproximarse. Al final de la etapa la distancia se reduce, pero la inicialización desde MEG-XL sigue mostrando una pérdida de validación menor. En escucha, las tres condiciones continúan mejorando de forma gradual y las dos variantes transferidas desde MEG-XL se mantienen prácticamente solapadas.
+La Figura~\ref{fig:pretraining_val_accuracy} muestra la evolución de la precisión de predicción de códigos durante las dos etapas del conjunto. En lectura, los dos modelos inicializados desde MEG-XL parten ya con una precisión de token superior a la del modelo EEG entrenado desde cero. Este último comienza más abajo y necesita varias épocas para aproximarse. Al final de la etapa la distancia se reduce, pero la inicialización desde MEG-XL sigue mostrando una pérdida de validación menor. En escucha, los tres modelos continúan mejorando de forma gradual y las dos variantes transferidas desde MEG-XL se mantienen prácticamente solapadas.
 
 \input{figuras/fig_5_1_pretraining_val_accuracy}
 
@@ -464,11 +468,11 @@ Transferencia MEG-XL con embedding MEG &
 \label{tab:resultados_preentrenamiento}
 \end{table}
 
-Estos resultados indican que la inicialización desde MEG-XL ayuda sobre todo al comienzo del currículo EEG. La mejora final de pérdida frente al modelo desde cero es pequeña, pero consistente en las dos etapas. La elección entre embedding EEG y embedding de magnetómetro apenas modifica el comportamiento autosupervisado: ambas variantes alcanzan valores prácticamente idénticos en lectura y diferencias inferiores a una milésima en la pérdida de escucha.
+Estos resultados indican que la inicialización desde MEG-XL ayuda sobre todo al comienzo del conjunto EEG. La mejora final de pérdida frente al modelo desde cero es pequeña, pero consistente en las dos etapas. La elección entre embedding EEG y embedding de magnetómetro apenas modifica el comportamiento autosupervisado: ambas variantes alcanzan valores prácticamente idénticos en lectura y diferencias inferiores a una milésima en la pérdida de escucha.
 
 \subsection{Clasificación contextual de palabras}
 
-La Figura~\ref{fig:ds004408_val_balanced_top10_250} muestra la evolución de la métrica principal de validación durante el ajuste supervisado: Top-10 balanceada con vocabulario de 250 palabras. El control sin preentrenamiento se mantiene alrededor del azar, mientras que las tres condiciones preentrenadas superan ese nivel desde las primeras épocas. Además, la mejor validación aparece pronto, entre las épocas 3 y 5 según la condición. En particular, la mejor variante transferida desde MEG-XL selecciona el checkpoint de la época 3; a partir de ese punto la métrica de validación deja de mejorar e incluso tiende a descender aunque la pérdida de entrenamiento siga bajando. Por tanto, no parece que más épocas de ajuste añadan información útil para la tarea, sino que aumentan el riesgo de sobreajuste y de pérdida de generalización sobre ds004408.
+La Figura~\ref{fig:ds004408_val_balanced_top10_250} muestra la evolución de la métrica principal de validación durante el ajuste supervisado: Top-10 balanceada con vocabulario de 250 palabras. El control sin preentrenamiento se mantiene alrededor del azar, mientras que los tres modelos preentrenados superan ese nivel desde las primeras épocas. Además, la mejor validación aparece pronto, entre las épocas 3 y 5 según la condición. En particular, la mejor variante transferida desde MEG-XL selecciona el checkpoint de la época 3; a partir de ese punto la métrica de validación deja de mejorar e incluso tiende a descender aunque la pérdida de entrenamiento siga bajando. Por tanto, no parece que más épocas de ajuste añadan información útil para la tarea, sino que aumentan el riesgo de sobreajuste y de pérdida de generalización sobre ds004408.
 
 \input{figuras/fig_5_2_ds004408_val_balanced_top10_250}
 
@@ -518,7 +522,7 @@ Azar uniforme &
 \label{tab:resultados_finetuning_principales}
 \end{table}
 
-La diferencia entre las métricas no balanceadas y balanceadas muestra por qué la métrica principal debe ser la macro-media por palabra. En el vocabulario de 250 palabras, el control sin preentrenamiento obtiene un 14,66\,\% de Top-10 no balanceada, pero solo un 4,05\,\% balanceado, prácticamente el 4\,\% esperado al azar. Esta discrepancia indica que la métrica no balanceada puede verse favorecida por palabras frecuentes. En cambio, las tres condiciones preentrenadas se mantienen claramente por encima del azar también en la métrica balanceada.
+La diferencia entre las métricas no balanceadas y balanceadas muestra por qué la métrica principal debe ser la macro-media por palabra. En el vocabulario de 250 palabras, el control sin preentrenamiento obtiene un 14,66\,\% de Top-10 no balanceada, pero solo un 4,05\,\% balanceado, prácticamente el 4\,\% esperado al azar. Esta discrepancia indica que la métrica no balanceada puede verse favorecida por palabras frecuentes. En cambio, los tres modelos preentrenados se mantienen claramente por encima del azar también en la métrica balanceada.
 
 El modelo preentrenado con EEG desde cero alcanza un 19,95\,\% de Top-10 balanceada sobre 250 palabras. Por tanto, la mayor parte de la mejora procede de disponer de una fase de preentrenamiento autosupervisado antes del ajuste final. La transferencia desde MEG-XL añade una mejora adicional más moderada: la variante con embedding EEG alcanza un 20,56\,\%, mientras que la variante que reutiliza el embedding MEG obtiene el mejor resultado absoluto, con un 22,32\,\%.
 
@@ -551,9 +555,9 @@ La Tabla~\ref{tab:cobertura_evaluacion} muestra el número de ejemplos de test q
 \label{tab:cobertura_evaluacion}
 \end{table}
 
-\subsection{Diferencias entre condiciones}
+\subsection{Diferencias entre modelos}
 
-Para hacer explícitos los efectos definidos en el diseño experimental, la Tabla~\ref{tab:diferencias_condiciones} presenta las diferencias absolutas entre condiciones sobre la partición de test. Estos valores son descriptivos, ya que cada condición se ha ejecutado con una única semilla.
+Para hacer explícitos los efectos definidos en el diseño experimental, la Tabla~\ref{tab:diferencias_condiciones} presenta las diferencias absolutas entre modelos sobre la partición de test. Estos valores son descriptivos, ya que cada condición se ha ejecutado con una única semilla.
 
 \begin{table}[htbp]
 \centering
@@ -586,7 +590,7 @@ embedding MEG menos embedding EEG &
 +1,76 pp \\
 \bottomrule
 \end{tabularx}
-\caption{Diferencias descriptivas entre las condiciones experimentales, expresadas en puntos porcentuales sobre la partición de test.}
+\caption{Diferencias descriptivas entre los modelos experimentales, expresadas en puntos porcentuales (pp) sobre la partición de test.}
 \label{tab:diferencias_condiciones}
 \end{table}
 
@@ -594,24 +598,21 @@ La diferencia dominante procede del preentrenamiento autosupervisado. El salto e
 
 \subsection{Comparación con trabajos previos}
 
-La comparación más directa es con d'Ascoli et al.~\cite{dascoli2024words}, porque utilizan una formulación de evaluación equivalente: recuperación Top-10 balanceada sobre las 250 palabras más frecuentes y descarte de palabras fuera del vocabulario. En Broderick/OpenNeuro ds004408, d'Ascoli et al. reportan aproximadamente un 20\,\% de precisión Top-10 balanceada en la Figura 2C. Bajo la misma métrica, el mejor modelo de este trabajo alcanza un 22,32\,\% sobre test, lo que supone una mejora descriptiva de 2,32 puntos porcentuales respecto a esa referencia aproximada.
+La comparación más directa es con d'Ascoli et al.~\cite{dascoli2025words}, porque utilizan una formulación de evaluación equivalente: recuperación Top-10 balanceada sobre las 250 palabras más frecuentes y descarte de palabras fuera del vocabulario. En Broderick/OpenNeuro ds004408, d'Ascoli et al. reportan aproximadamente un 20\,\% de precisión Top-10 balanceada en la Figura 2C. Bajo la misma métrica, el mejor modelo de este trabajo alcanza un 22,32\,\% sobre test, lo que supone una mejora descriptiva de 2,32 puntos porcentuales respecto a esa referencia aproximada.
 
-Sin embargo, esta comparación no debe limitarse al valor final de precisión. d'Ascoli et al. entrenan un modelo supervisado de alta capacidad; MEG-XL lo utiliza como referencia de estado del arte supervisado y lo describe como un modelo de aproximadamente 200 millones de parámetros, frente a los 20 millones del codificador MEG-XL original~\cite{jayalath2026megxl}. En esta adaptación a EEG, la comparación de parámetros debe matizarse: la cabeza lingüística usada para ds004408 aplana los 128 canales codificados y proyecta el vector resultante mediante una capa oculta de 2048 unidades. Solo esa cabeza contiene
+Sin embargo, esta comparación no debe limitarse al valor final de precisión. d'Ascoli et al. entrenan un modelo supervisado de alta capacidad; MEG-XL lo utiliza como referencia de estado del arte supervisado y presenta su propuesta como un codificador preentrenado de aproximadamente 25 millones de parámetros frente a un modelo supervisado de mayor tamaño~\cite{jayalath2026megxl}. En este trabajo se sigue el mismo criterio de presentación: las comparaciones de tamaño se refieren al codificador preentrenado, mientras que la cabeza de proyección lingüística utilizada durante el ajuste supervisado se describe en la configuración experimental.
 
-\begin{equation}
-(128\cdot512)\cdot2048 + 2048 + 2\cdot2048 + 2048\cdot1024 + 1024 = 136\,322\,048
-\end{equation}
-
-\noindent parámetros entrenables, sin contar el codificador criss-cross ni el tokenizer congelado. Por tanto, el resultado no debe presentarse como una mejora obtenida con un modelo diminuto, sino como una adaptación competitiva que reutiliza un codificador preentrenado y concentra gran parte de la capacidad adicional en una cabeza supervisada específica para la tarea.
+Esta distinción es importante porque la tarea \textit{word-aligned} no evalúa únicamente una arquitectura autosupervisada, sino un procedimiento completo de adaptación supervisada. El codificador proporciona representaciones neurales contextualizadas y, posteriormente, una MLP de proyección las lleva al espacio de embeddings de T5 para realizar la recuperación de palabras. Por tanto, el resultado debe interpretarse como una adaptación competitiva del protocolo de MEG-XL a EEG, no como una comparación aislada del número total de parámetros de todos los módulos auxiliares del ajuste supervisado.
 
 La diferencia más relevante respecto a d'Ascoli et al. está en la eficiencia del ajuste. MEG-XL muestra que el preentrenamiento puede sustituir parcialmente a datos supervisados específicos del sujeto: supera a d'Ascoli et al. en regímenes de pocos datos y solo pierde ventaja cuando existen grabaciones profundas de un mismo sujeto~\cite{jayalath2026megxl}. En este trabajo no se ha realizado todavía un barrido reduciendo el porcentaje de entrenamiento de ds004408, por lo que no puede afirmarse de forma estricta que EEG-XL necesite menos horas de datos supervisados. Lo que sí muestran las curvas de validación es que el mejor checkpoint aparece muy pronto: la condición con mejor test selecciona la época 3, y continuar el ajuste no mejora la métrica principal. Esta dinámica es coherente con la idea de que el preentrenamiento proporciona una representación inicial útil y que, en EEG, el ajuste supervisado prolongado puede degradar la generalización antes que mejorarla.
 
-También puede compararse con Jayalath et al.~\cite{jayalath2025unlocking}, aunque con más cautela porque emplean una partición diferente de Broderick y porque su trabajo combina clasificación de palabras con reconstrucción contextual de texto. Sus métricas de reconstrucción completa, como WER, CER, BLEU o ROUGE, no son directamente comparables con la recuperación cerrada de palabras usada en este capítulo. La comparación relevante está en sus experimentos de clasificación de palabras sobre Broderick: el entrenamiento solo con Broderick aparece alrededor del nivel de azar y la combinación con LibriBrain alcanza aproximadamente un 7\,\%. Frente a esos valores, el 22,32\,\% obtenido aquí sitúa la adaptación de MEG-XL a EEG claramente por encima del azar y en el mismo orden de magnitud que los mejores resultados publicados para este conjunto.
+También puede compararse con Jayalath et al.~\cite{jayalath2025unlocking}, aunque con más cautela porque emplean una partición diferente de Broderick y porque su trabajo combina clasificación de palabras con reconstrucción contextual de texto. La comparación relevante está en sus experimentos de clasificación de palabras sobre Broderick: el entrenamiento solo con Broderick aparece alrededor del nivel de azar y la combinación con LibriBrain alcanza aproximadamente un 7\,\%. Frente a esos valores, el 22,32\,\% obtenido aquí sitúa la adaptación de MEG-XL a EEG claramente por encima del azar y en el mismo orden de magnitud que los mejores resultados publicados para este conjunto.
 
-Aun así, la comparación debe interpretarse con prudencia. Las particiones no son idénticas entre trabajos, las implementaciones difieren en el preprocesamiento y este experimento se ha ejecutado con una única semilla. Por tanto, el resultado no demuestra una superioridad definitiva sobre d'Ascoli et al., pero sí muestra un comportamiento relevante para este TFM: una arquitectura transferida desde MEG alcanza un resultado competitivo en EEG y lo hace con una ventana de ajuste muy corta, antes de que el entrenamiento supervisado empiece a deteriorar la validación.
+Aun así, la comparación debe interpretarse con prudencia. Las particiones no son idénticas entre trabajos, las implementaciones difieren en el preprocesamiento y este experimento se ha ejecutado con una única semilla. Por tanto, el resultado no demuestra una superioridad definitiva sobre d'Ascoli et al., pero sí muestra un comportamiento relevante para este trabajo: una arquitectura transferida desde MEG alcanza un resultado competitivo en EEG y lo hace con una ventana de ajuste muy corta, antes de que el entrenamiento supervisado empiece a deteriorar la validación.
 
 \subsection{Resumen de los resultados}
 
 Los resultados obtenidos permiten extraer cinco conclusiones principales. Primero, el ajuste supervisado desde una inicialización aleatoria no aprende una representación balanceada útil para recuperar palabras y se mantiene en el nivel de azar con 250 candidatos. Segundo, el preentrenamiento autosupervisado con EEG produce la mayor mejora, elevando la Top-10 balanceada sobre 250 palabras de 4,05\,\% a 19,95\,\%. Tercero, la inicialización desde MEG-XL mejora de nuevo el resultado, aunque con una ganancia menor que la aportada por el propio preentrenamiento EEG. Cuarto, en esta ejecución la reutilización del embedding de magnetómetro obtiene el mejor resultado final, con un 22,32\,\% de Top-10 balanceada sobre 250 palabras. Quinto, la comparación con d'Ascoli et al. debe interpretarse también desde la eficiencia de adaptación: el mejor resultado de EEG-XL aparece en la época 3 y continuar el ajuste supervisado no mejora la validación, lo que sugiere que el modelo aprovecha pronto las representaciones transferidas pero se sobreajusta con facilidad.
 
 En conjunto, estos experimentos muestran que la adaptación de una arquitectura de contexto largo inspirada en MEG-XL a EEG es viable para clasificación contextual de palabras. El resultado principal sitúa el sistema claramente por encima del azar y en el rango de los mejores resultados publicados sobre Broderick/OpenNeuro ds004408, aunque queda pendiente confirmar la tendencia con más semillas y con un protocolo exactamente alineado con los trabajos comparados.
+

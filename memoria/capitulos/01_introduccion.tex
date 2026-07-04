@@ -2,30 +2,54 @@
 
 \chapter{Introducción}
 
-????? ????????????? ????????????? ????????????? ????????????? ????????????? 
+La decodificación del lenguaje a partir de señales cerebrales es una de las líneas más ambiciosas dentro de las interfaces cerebro-computador. Su objetivo final es transformar patrones de actividad neuronal en información lingüística útil, desde la identificación de palabras aisladas hasta sistemas completos de \textit{brain-to-text}. Este tipo de tecnología resulta especialmente relevante para personas que conservan la capacidad cognitiva de comunicarse, pero han perdido la posibilidad de articular habla debido a una lesión, enfermedad neurodegenerativa o parálisis severa.
 
+Los avances recientes en interfaces neuronales han mostrado que la reconstrucción de texto o habla puede alcanzar resultados muy prometedores cuando se emplean registros invasivos, como electrocorticografía o microelectrodos intracorticales \cite{moses2021neuroprosthesis,willett2023highperformance}. Sin embargo, estos sistemas requieren intervención quirúrgica, con los riesgos clínicos y las limitaciones prácticas que esto implica. Por ello, una pregunta central es si es posible avanzar hacia sistemas de decodificación del lenguaje que reduzcan la dependencia de métodos invasivos y puedan apoyarse en sensores externos, más seguros y escalables.
+
+En este contexto, las modalidades no invasivas como la electroencefalografía (EEG) y la magnetoencefalografía (MEG) ofrecen una alternativa de gran interés. El EEG destaca por su menor coste, portabilidad y mayor proximidad a un posible uso cotidiano, pero presenta una relación señal-ruido baja, fuerte variabilidad entre sujetos y una resolución espacial limitada. La MEG, por su parte, proporciona señales de mayor calidad espacial y menor distorsión por los tejidos, aunque requiere equipamiento costoso y poco portable. Esta diferencia motiva la hipótesis principal de este trabajo: si la MEG permite disponer de señales y conjuntos de datos de mayor calidad, entonces puede utilizarse como modalidad de entrenamiento o preentrenamiento para aprender representaciones neuronales más robustas, que posteriormente puedan adaptarse a EEG no invasivo.
+
+El planteamiento de este trabajo no asume que MEG y EEG sean equivalentes. Ambas modalidades observan la actividad cerebral de forma distinta y presentan diferencias físicas, instrumentales y espaciales. La hipótesis es más limitada y experimental: estudiar si un modelo diseñado para explotar contexto largo en MEG, como MEG-XL \cite{jayalath2026megxl}, puede servir como punto de partida para construir una versión adaptada a EEG, capaz de realizar clasificación contextual de palabras durante escucha natural. Esta adaptación se entiende como un paso intermedio hacia sistemas futuros donde el entrenamiento pueda beneficiarse de datos MEG de alta calidad, mientras que el despliegue final se realice con sensores EEG no invasivos.
+
+Además, el trabajo se sitúa en una etapa previa a una aplicación clínica completa. En lugar de abordar directamente habla imaginada o producción libre de texto, se trabaja con escucha natural y palabras alineadas temporalmente, ya que esta configuración permite disponer de estímulos conocidos, anotaciones temporales y una evaluación más controlada. A partir de esta base, se estudia la viabilidad técnica de trasladar una arquitectura de contexto largo desde MEG hacia EEG y se analizan las barreras que aparecen en el proceso: diferencias entre sensores, ruido, normalización, segmentación temporal, codificación de canales y entrenamiento con conjuntos de datos heterogéneos.
 
 \section{Motivación}
 
-Origen video intracortical
-????? ????????????? ????????????? ????????????? ????????????? ????????????? 
+La motivación inicial de este trabajo surge al observar un video de demostraciones recientes de interfaces neuronales intracorticales capaces de recuperar información lingüística o motora a partir de actividad cerebral. Estos avances muestran el potencial de las BCIs para restaurar comunicación, pero también evidencian una limitación importante: muchos de los resultados más llamativos dependen de sensores implantados quirúrgicamente. Aunque estas aproximaciones son muy valiosas en contextos clínicos concretos, su invasividad dificulta que puedan convertirse en una solución general, accesible y asumible para un número amplio de usuarios.
+
+Frente a ello, el EEG representa una alternativa más realista para un sistema de uso cotidiano. Un casco o montaje de electrodos colocado sobre el cuero cabelludo evita la cirugía, reduce riesgos y facilita la repetición de registros. Sin embargo, esta ventaja práctica viene acompañada de un problema técnico considerable: la señal EEG es débil, ruidosa y muy sensible a artefactos producidos por parpadeos, movimientos oculares, tensión muscular, movimiento del cuerpo, mala impedancia de los electrodos o ruido eléctrico. Por tanto, no basta con trasladar directamente modelos entrenados en otras condiciones; es necesario adaptar tanto el procesamiento de la señal como la arquitectura del modelo.
+
+La MEG ocupa una posición intermedia interesante. También es no invasiva, pero ofrece señales de mayor calidad espacial que el EEG en muchos escenarios. Esta propiedad ha permitido crear modelos y conjuntos de datos de alta calidad para tareas de decodificación del lenguaje. La idea que guía este trabajo es aprovechar esa ventaja durante la fase de aprendizaje: utilizar modelos entrenados con MEG como fuente de representaciones neuronales de contexto largo y estudiar si dichas representaciones pueden ser reutilizadas o reajustadas para EEG.
+
+Desde una perspectiva aplicada, esta línea apunta hacia un sistema en el que el conocimiento aprendido a partir de grandes registros MEG pueda transferirse a dispositivos EEG no invasivos. En un escenario futuro, esto podría requerir cascos o sensores EEG diseñados específicamente para las áreas cerebrales más relevantes en el procesamiento del habla y el lenguaje, con mayor densidad en regiones temporales, frontales, auditivas y motoras. Este trabajo no desarrolla todavía ese dispositivo, pero sí explora una de las preguntas necesarias para llegar a él: si la transferencia MEG--EEG aporta información útil en una tarea de clasificación de palabras.
 
 \section{Objetivos}
 
-????? ????????????? ????????????? ????????????? ????????????? ?????????????
+El objetivo general de este trabajo es adaptar el modelo MEG-XL, originalmente diseñado para señales MEG de contexto largo, a un escenario de EEG durante escucha natural, con el fin de evaluar si las representaciones aprendidas en MEG pueden transferirse a EEG para tareas de clasificación contextual de palabras.
+
+De este objetivo general se derivan los siguientes objetivos específicos:
+
+\begin{itemize}
+    \item Estudiar el contexto teórico de las interfaces cerebro-computador aplicadas al lenguaje, prestando especial atención a la diferencia entre métodos invasivos y no invasivos, y a las propiedades de EEG y MEG.
+
+    \item Revisar los enfoques recientes de decodificación no invasiva del lenguaje, incluyendo modelos basados en aprendizaje profundo, aprendizaje autosupervisado, aprendizaje contrastivo y uso de contexto largo.
+
+    \item Construir un conjunto de datos que permita trabajar con distintos conjuntos EEG de lectura y escucha, incluyendo remuestreo, normalización, alineamiento temporal con palabras, extracción de ventanas y representación común de sensores.
+
+    \item Adaptar la arquitectura de MEG-XL a EEG, incorporando máscaras de sensores, codificación explícita del tipo de canal y una representación compatible con montajes EEG heterogéneos.
+
+    \item Diseñar una evaluación experimental que separe el efecto del preentrenamiento EEG, la transferencia desde MEG-XL y la forma de representar el tipo de sensor dentro del modelo.
+
+    \item Evaluar la adaptación propuesta sobre OpenNeuro ds004408 mediante una tarea de clasificación contextual de palabras y métricas de recuperación Top-$k$ balanceadas.
+
+    \item Documentar el código, las configuraciones y los modelos generados para favorecer la reproducibilidad del trabajo mediante un repositorio público del proyecto \cite{scrabrain_github}.
+\end{itemize}
 
 \section{Estructura de la memoria}
 
-????? ????????????? ????????????? ????????????? ????????????? ????????????? 
+La memoria se organiza en seis capítulos. El Capítulo 1 introduce la motivación, la hipótesis de trabajo y los objetivos principales. El Capítulo 2 presenta el marco teórico necesario para entender el problema: interfaces cerebro-computador, decodificación cerebral del lenguaje, diferencias entre métodos invasivos y no invasivos, fundamentos de EEG y MEG, procesamiento de señales cerebrales y modelos de aprendizaje profundo aplicados a este dominio.
 
-%\section{Notes bibliografiques} %%%%% Opcional
+El Capítulo 3 describe los conjuntos de datos utilizados. Se distinguen los datos empleados para el preentrenamiento autosupervisado y el conjunto reservado para el ajuste supervisado y la evaluación final. También se justifica la selección de datasets de lectura y escucha, así como la decisión de reservar OpenNeuro ds004408 para la fase de \textit{fine-tuning}.
 
-%????? ????????????? ????????????? ????????????? ????????????? ?????????????
+El Capítulo 4 explica la adaptación de MEG-XL a EEG. En él se describe el preprocesamiento de la señal, el alineamiento con palabras, la representación de sensores, los cambios introducidos en la arquitectura y las dos fases de entrenamiento: preentrenamiento autosupervisado y clasificación contextual de palabras.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%                         CAPITOLS (tants com calga)                          %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-% Fragmento preparado para integrarse directamente en la memoria principal.
-% Paquetes recomendados en el preámbulo: amsmath, amssymb, array.
-% Las claves bibliográficas utilizadas se incluyen en referencias_marco_teorico.bib.
+El Capítulo 5 recoge la evaluación experimental. Se detallan las configuraciones comparadas, las particiones de datos, los hiperparámetros, las métricas de evaluación y los resultados obtenidos. Finalmente, el Capítulo 6 resume las conclusiones del trabajo, analiza el cumplimiento de los objetivos y plantea las principales líneas de trabajo futuro.

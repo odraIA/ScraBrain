@@ -154,7 +154,8 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \RequirePackage[justification=centerlast,small,bf,labelsep=colon]{caption}
-\captionsetup[figure]{justification=raggedright,singlelinecheck=false}
+\captionsetup[figure]{justification=justified,singlelinecheck=false}
+\captionsetup[table]{justification=justified,singlelinecheck=false}
 
 \RequirePackage[within=chapter]{newfloat}
 

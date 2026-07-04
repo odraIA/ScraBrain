@@ -6,7 +6,7 @@
         arrow/.style={-{Latex[length=3mm]}, thick},
         init/.style={draw, rounded corners=2mm, minimum width=4.2cm,
                     minimum height=1.22cm, align=center, thick, fill=orange!10},
-        curriculum/.style={draw, rounded corners=2mm, minimum width=5.4cm,
+        conjunto/.style={draw, rounded corners=2mm, minimum width=5.4cm,
                           minimum height=1.95cm, align=center, thick, fill=blue!7},
         final/.style={draw, rounded corners=2mm, minimum width=4.9cm,
                      minimum height=1.35cm, align=center, thick, fill=green!10},
@@ -15,28 +15,28 @@
         note/.style={font=\footnotesize, align=center}
     ]
         \node[init] (scratchinit) at (0,5.4) {Inicialización aleatoria\\arquitectura EEG-XL};
-        \node[curriculum] (scratchcurr) at (6.2,5.4) {\textbf{Currículo EEG autosupervisado}\\
+        \node[conjunto] (scratchcurr) at (6.2,5.4) {\textbf{Conjunto EEG autosupervisado}\\
               lectura: Nieuwland + ZuCo 2.0\\
               $\downarrow$ mejor checkpoint\\
               escucha: SparrKULee + ds007808};
         \node[final] (scratchft) at (12.7,5.4) {Fine-tuning en ds004408\\conjunto EEG desde cero};
 
         \node[init] (megeeginit) at (0,2.2) {Inicialización desde MEG-XL\\pesos compatibles};
-        \node[curriculum] (megeegcurr) at (6.2,2.2) {\textbf{Currículo EEG autosupervisado}\\
+        \node[conjunto] (megeegcurr) at (6.2,2.2) {\textbf{Conjunto EEG autosupervisado}\\
               embedding EEG específico\\
               lectura $\rightarrow$ escucha\\
               mismo conjunto y particiones};
         \node[final] (megeegft) at (12.7,2.2) {Fine-tuning en ds004408\\transferencia MEG-XL\\con embedding EEG};
 
         \node[init] (megmeginit) at (0,-1.0) {Inicialización desde MEG-XL\\pesos compatibles};
-        \node[curriculum] (megmegcurr) at (6.2,-1.0) {\textbf{Currículo EEG autosupervisado}\\
+        \node[conjunto] (megmegcurr) at (6.2,-1.0) {\textbf{Conjunto EEG autosupervisado}\\
               embedding MEG reutilizado\\
               lectura $\rightarrow$ escucha\\
               mismo conjunto y particiones};
         \node[final] (megmegft) at (12.7,-1.0) {Fine-tuning en ds004408\\transferencia MEG-XL\\con embedding MEG};
 
         \node[control] (directinit) at (0,-4.0) {Inicialización aleatoria};
-        \node[control] (direct) at (6.2,-4.0) {Sin currículo autosupervisado};
+        \node[control] (direct) at (6.2,-4.0) {Sin conjunto autosupervisado};
         \node[control] (directft) at (12.7,-4.0) {Fine-tuning directo en ds004408\\control supervisado};
 
         \draw[arrow] (scratchinit) -- (scratchcurr);
@@ -48,8 +48,8 @@
         \draw[arrow] (directinit) -- (direct);
         \draw[arrow] (direct) -- (directft);
 
-        \node[note] at (6.2,-5.45) {Las cuatro condiciones comparten el mismo conjunto de fine-tuning y el mismo protocolo de evaluación.};
+        \node[note] at (6.2,-5.45) {Las cuatro configuraciones comparten el mismo conjunto de fine-tuning y el mismo protocolo de evaluación.};
     \end{tikzpicture}}
-    \caption{Diseño experimental de la adaptación de MEG-XL a EEG-XL. Las tres rutas autosupervisadas mantienen el mismo currículo de lectura--escucha y difieren en la inicialización y en el embedding de tipo de sensor; el control supervisado permite separar el efecto del preentrenamiento EEG de la evaluación directa sobre ds004408.}
+    \caption{Diseño experimental de la adaptación de MEG-XL a EEG-XL. Las tres rutas autosupervisadas mantienen el mismo conjunto de lectura--escucha y difieren en la inicialización y en el embedding de tipo de sensor; el control supervisado permite separar el efecto del preentrenamiento EEG de la evaluación directa sobre ds004408.}
     \label{fig:eegxl_design}
 \end{figure}

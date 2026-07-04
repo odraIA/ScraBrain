@@ -4,19 +4,65 @@
 
 \section{Conclusiones}
 
+Este trabajo ha estudiado la viabilidad de adaptar un modelo MEG de contexto largo a un escenario EEG para clasificación contextual de palabras durante escucha natural. La motivación principal ha sido explorar una vía no invasiva hacia sistemas de decodificación del lenguaje, evitando depender exclusivamente de registros intracorticales o quirúrgicos. Para ello, se ha tomado MEG-XL como punto de partida y se ha construido una adaptación orientada a EEG, denominada EEG-XL en esta memoria, junto con un proceso de preprocesamiento, entrenamiento y evaluación.
+
+La primera conclusión es que la adaptación técnica de MEG-XL a EEG es viable. Aunque EEG y MEG no son modalidades intercambiables, comparten estructura temporal y ambas contienen respuestas relacionadas con el procesamiento del lenguaje. El trabajo ha permitido integrar señales EEG de distintos conjuntos de datos, representar montajes con diferente número de canales, aplicar máscaras de sensores y entrenar un modelo de contexto largo sobre ventanas alineadas con palabras.
+
+En segundo lugar, el preentrenamiento autosupervisado sobre EEG aporta la mejora más importante. En la evaluación sobre OpenNeuro ds004408, el modelo sin preentrenamiento se mantiene prácticamente en el nivel de azar cuando se utiliza la métrica principal de Top-10 balanceada sobre 250 palabras. En cambio, el modelo preentrenado con EEG desde cero alcanza un resultado claramente superior, lo que indica que aprender una representación previa de la señal cerebral antes del ajuste supervisado es fundamental en este escenario.
+
+La tercera conclusión es que la transferencia desde MEG-XL produce una mejora adicional, aunque más moderada que la obtenida por el propio preentrenamiento EEG. La mejor condición experimental alcanza un 22,32 \% de Top-10 balanceada sobre 250 palabras, frente al 4 \% esperado por azar. Este resultado sitúa la adaptación en un rango competitivo respecto a trabajos previos sobre el mismo tipo de tarea, aunque debe interpretarse con prudencia porque los experimentos se han realizado con una única semilla y las particiones no siempre son idénticas a las de otros trabajos.
+
+Por último, el ajuste supervisado debe controlarse cuidadosamente. Los mejores checkpoints aparecen en pocas épocas y continuar entrenando no mejora la validación. Esto sugiere que el modelo aprovecha pronto las representaciones aprendidas previamente, pero también que el EEG presenta un riesgo elevado de sobreajuste. Esta observación es coherente con la naturaleza ruidosa y variable de la señal EEG.
+
+En conjunto, los resultados apoyan la hipótesis de partida de forma parcial. No demuestran que un modelo entrenado con MEG pueda trasladarse directamente a EEG ni que el problema de \textit{brain-to-text} no invasivo esté resuelto. Sin embargo, sí muestran que una arquitectura de contexto largo inspirada en MEG-XL puede adaptarse a EEG y obtener resultados por encima del estado del arte en clasificación contextual de palabras. Esto justifica seguir investigando la transferencia entre modalidades como una estrategia para acercar modelos entrenados con señales de alta calidad a futuros sistemas EEG no invasivos.
+
 \section{Cumplimiento de los objetivos}
+
+El primer objetivo, estudiar el contexto teórico de las BCIs y de la decodificación cerebral del lenguaje, se ha cumplido mediante la revisión de métodos invasivos y no invasivos, paradigmas de habla, lectura y escucha, y diferencias entre EEG y MEG. Esta revisión ha permitido situar el trabajo dentro de una línea concreta: utilizar señales no invasivas para avanzar hacia sistemas de decodificación lingüística más seguros y escalables.
+
+El segundo objetivo, revisar trabajos recientes de decodificación no invasiva, se ha abordado en el estado del arte. Se han analizado trabajos basados en EEG, MEG y modelos preentrenados, prestando especial atención a las limitaciones actuales: bajo nivel de señal útil, poca disponibilidad de datos etiquetados, dificultad para combinar datasets y problemas de generalización entre sujetos y modalidades.
+
+El tercer objetivo, construir un conjunto de datos EEG, se ha cumplido mediante la integración de distintos conjuntos de lectura y escucha, el remuestreo de las señales, la normalización, la extracción de ventanas temporales y el alineamiento con eventos lingüísticos. Este proceso ha sido necesario para convertir registros EEG heterogéneos en entradas compatibles con una arquitectura común.
+
+El cuarto objetivo, adaptar MEG-XL a EEG, se ha cumplido mediante la modificación de la representación de entrada, la incorporación de máscaras de sensores, la codificación explícita del tipo de canal y el ajuste de la arquitectura para trabajar con montajes EEG. Esta adaptación ha permitido reutilizar la idea de contexto largo y predicción de tokens enmascarados en una modalidad distinta a la original.
+
+El quinto objetivo, diseñar una evaluación experimental que separase distintos efectos, se ha cumplido mediante la comparación entre cuatro configuraciones: ajuste supervisado sin preentrenamiento, preentrenamiento EEG desde cero, transferencia MEG-XL con embedding específico de EEG y transferencia MEG-XL reutilizando el embedding de MEG. Esta comparación ha permitido distinguir el efecto principal del preentrenamiento EEG y la contribución adicional de la transferencia desde MEG.
+
+El sexto objetivo, evaluar el modelo sobre OpenNeuro ds004408, se ha cumplido mediante una tarea de recuperación de palabras con métricas Top-10 balanceadas. Los resultados muestran una mejora clara respecto al azar y permiten comparar descriptivamente el comportamiento del modelo con trabajos previos.
+
+Por último, el objetivo de reproducibilidad se ha abordado mediante la organización del código, los scripts de entrenamiento, las configuraciones y los modelos en un repositorio GitHub del proyecto \cite{scrabrain_github}. Esta decisión facilita que el trabajo pueda revisarse, ampliarse y repetirse en experimentos futuros.
 
 \section{Líneas de trabajo futuro}
 
-\begin{itemize}
-    \item Diferentes bandas de frecuencia comprobando frecuencia de Nyquist
-    \item Diferentes tokenizadores
-    \item Entrenar con Brain2Qwerty
-    \item Espacio de embeddings para cada zona del cerebro (temporal, frontal, parietal, occipital)
-    \item Crear dataset propio de EEG de escucha continua en español
-    \item Hacer pruebas con cascos reales de estos modelos
-    \item Añadir más conjuntos de datos al conjunto de preentrenamiento actual debido a la cantidad de ruido que tiene la señal de EEG
-\end{itemize}
+La primera línea de trabajo futuro consiste en repetir los experimentos con más semillas, más particiones y más tokenizadores. Los resultados actuales son prometedores, pero una única ejecución no permite extraer conclusiones estadísticas sólidas. También sería conveniente realizar barridos con menos datos supervisados de ds004408 para comprobar si la transferencia desde MEG-XL mejora realmente la eficiencia de adaptación en regímenes de pocos datos.
+
+Otra línea importante es estudiar con más detalle el efecto de las bandas de frecuencia y de la frecuencia de muestreo. En este trabajo se ha trabajado con una frecuencia final de 50 Hz, lo que limita la información representable por la frecuencia de Nyquist. En experimentos futuros sería útil comparar distintas bandas, frecuencias de muestreo y filtros, así como analizar si determinadas componentes espectrales son más relevantes para la clasificación de palabras en EEG.
+
+También queda pendiente comparar distintos tokenizadores de señales cerebrales. BioCodec permite discretizar la señal y reutilizar una formulación de predicción de tokens enmascarados, pero no está claro que sea la opción óptima para todos los montajes EEG ni para todas las tareas lingüísticas. Evaluar otros tokenizadores, o entrenar uno específico para EEG de lenguaje, podría mejorar la calidad de las representaciones aprendidas.
+
+Una dirección especialmente relevante es pasar de datasets públicos a señales propias adquiridas con cascos EEG no invasivos. Este paso es complejo porque la señal EEG registrada en condiciones reales contiene mucho ruido. Antes de entrenar modelos, sería necesario realizar un trabajo cuidadoso de adquisición y preprocesamiento: importar correctamente los datos, cargar la localización de los electrodos, revisar los eventos del experimento, re-referenciar la señal, remuestrear si es necesario, aplicar filtros, inspeccionar visualmente los registros, detectar canales defectuosos y excluir o corregir segmentos contaminados por parpadeos, movimientos o actividad muscular.
+
+En esa fase cobrarían importancia herramientas especializadas como EEGLAB \cite{delorme2004eeglab} o MNE-Python \cite{gramfort2013mne}. Estas herramientas permitirían visualizar la señal, revisar artefactos, aplicar ICA y separar componentes relacionados con parpadeos, movimientos oculares o actividad muscular. Sin embargo, ICA no debería aplicarse como una receta automática: antes es necesario comprender qué es un canal, una referencia, un filtro, un artefacto y qué criterio se utiliza para considerar una parte de la señal como fiable.
+
+Una vez obtenidos registros razonablemente limpios, se podrían realizar análisis exploratorios clásicos antes de entrenar modelos profundos. Por ejemplo, calcular potenciales relacionados con eventos, estudiar espectros de frecuencia, generar mapas topográficos o comparar la actividad entre condiciones. Estos análisis ayudarían a comprobar si el casco EEG está capturando información relacionada con el procesamiento del lenguaje y permitirían detectar problemas antes de pasar a arquitecturas de mayor complejidad.
+
+Otra línea futura es diseñar o seleccionar montajes EEG adaptados específicamente a la decodificación del habla y el lenguaje. En lugar de utilizar un casco genérico, podría ser útil aumentar la densidad de sensores en regiones temporales, frontales, auditivas y motoras, relacionadas con la percepción y planificación del habla. Esto permitiría estudiar si una disposición de electrodos optimizada mejora la transferencia desde modelos entrenados con MEG y reduce la cantidad de datos necesaria por usuario.
+
+Además, sería interesante ampliar el conjunto de preentrenamiento con más datasets EEG y M/EEG, incluyendo datos de escucha continua, lectura natural y, cuando sea posible, habla imaginada. En particular, crear un dataset propio de EEG de escucha continua en español permitiría evaluar el sistema en una lengua distinta al inglés y acercarlo a un escenario más útil para usuarios hispanohablantes.
+
+Finalmente, la línea de investigación podría extenderse hacia modelos multimodales y arquitecturas recientes de decodificación neuronal, incluyendo enfoques inspirados en trabajos como Brain2Qwerty o modelos de reconstrucción de texto más allá de vocabularios cerrados. El objetivo a largo plazo sería avanzar desde la clasificación contextual de palabras hacia sistemas \textit{brain-to-text} no invasivos capaces de operar con vocabularios más amplios, más robustos al ruido y más próximos a condiciones reales de uso.
+
+% \begin{itemize}
+%     \item Repetir experimentos con diferentes semillas
+%     \item Revisar arquitectura Brain2Qwerty al ser el nuevo estado del arte en EEG
+%     \item Diferentes bandas de frecuencia comprobando frecuencia de Nyquist
+%     \item Diferentes tokenizadores
+%     \item Probar fine-tuning de EEG-XL con el dataset EN ESPAÑOL de Brain2Qwerty
+%     \item Espacio de embeddings para cada zona del cerebro (temporal, frontal, parietal, occipital)
+%     \item Crear dataset propio de EEG de escucha continua en español
+%     \item Hacer pruebas con cascos reales de estos modelos
+%     \item Añadir más conjuntos de datos al conjunto de preentrenamiento actual debido a la cantidad de ruido que tiene la señal de EEG
+% \end{itemize}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %                                BIBLIOGRAFIA                                 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
