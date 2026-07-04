@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-Usage: bash run_libribrain_evals.sh [options]
+Usage: bash scripts/legacy/run_libribrain_evals.sh [options]
 
 Launches the two LibriBrain MEG-XL evaluation containers sequentially:
   - eval_libribrain on EVAL_GPU

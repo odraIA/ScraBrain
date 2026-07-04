@@ -94,13 +94,13 @@ docker compose run --rm eval_eeg_reading_listening
 Run all three evaluations in order and start the EEG monitor:
 
 ```bash
-bash run_eeg_evals_with_monitor.sh
+bash scripts/legacy/run_eeg_evals_with_monitor.sh
 ```
 
 Preview the same sequence without launching training containers:
 
 ```bash
-bash run_eeg_evals_with_monitor.sh --dry-run
+bash scripts/legacy/run_eeg_evals_with_monitor.sh --dry-run
 ```
 
 Common overrides:

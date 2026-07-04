@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-Usage: bash run_armeni_webdav_download.sh [options]
+Usage: bash scripts/legacy/run_armeni_webdav_download.sh [options]
 
 Launches the Armeni WebDAV downloader in a detached Docker container. The
 container keeps running if this terminal closes.
@@ -28,7 +28,7 @@ Environment overrides:
   WEBDAV_PASSWORD=
 
 Extra downloader arguments can be passed after --, for example:
-  bash run_armeni_webdav_download.sh -- --subjects sub-001 --sessions ses-001
+  bash scripts/legacy/run_armeni_webdav_download.sh -- --subjects sub-001 --sessions ses-001
 USAGE
 }
 
@@ -139,7 +139,7 @@ if [[ -n "$existing_container" ]]; then
   else
     echo "Container already exists: $DOWNLOAD_CONTAINER" >&2
     echo "Inspect it with: docker logs -f $DOWNLOAD_CONTAINER" >&2
-    echo "Remove/replace it with: bash run_armeni_webdav_download.sh --replace" >&2
+    echo "Remove/replace it with: bash scripts/legacy/run_armeni_webdav_download.sh --replace" >&2
     exit 1
   fi
 fi
@@ -193,7 +193,7 @@ echo "Stop it:"
 echo "  docker stop $DOWNLOAD_CONTAINER"
 echo
 echo "When it finishes, rerun the Armeni eval:"
-echo "  bash run_armeni_evals.sh"
+echo "  bash scripts/legacy/run_armeni_evals.sh"
 
 if [[ "$follow_logs" -eq 1 ]]; then
   docker logs -f "$DOWNLOAD_CONTAINER"

@@ -12,6 +12,7 @@ El proyecto estudia la adaptación y evaluación de modelos de contexto largo us
 - `datasets_info/`: metadatos auxiliares y notas de organización de datasets.
 - `docs/`: documentación técnica adicional de experimentos concretos.
 - `memoria/`: fuentes LaTeX y figuras de la memoria.
+- `scripts/legacy/`: launchers heredados mantenidos como referencia, fuera de la raíz.
 - `Dockerfile` y `docker-compose*.yml`: entorno reproducible y servicios de ejecución.
 - `pyproject.toml` y `uv.lock`: declaración y bloqueo de dependencias.
 
@@ -105,7 +106,7 @@ Fine-tuning de palabras en `ds004408` con comparación de tres condiciones:
 bash scripts/run_ds004408_three_way_finetuning.sh
 ```
 
-Consulta `README_REPRODUCIBILIDAD.md`, `README_EEGXL.md`, `README_EEG_READING_LISTENING.md` y `README_EEG_MULTI_TRAINING.md` para la relación entre experimentos, configuraciones y salidas.
+Consulta `README_REPRODUCIBILIDAD.md` y la documentación bajo `docs/` para la relación entre experimentos, configuraciones y salidas. Las guías históricas se conservan en `docs/legacy_guides/`.
 
 ## Reproducibilidad
 

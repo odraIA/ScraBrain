@@ -364,7 +364,7 @@ def main() -> int:
                             "The repository is listing metadata but requires credentials for file downloads.\n"
                             "Relaunch with credentials, for example:\n"
                             "  RDR_USERNAME='<user>' RDR_PASSWORD='<password>' "
-                            "bash run_armeni_webdav_download.sh --replace\n",
+                            "bash scripts/legacy/run_armeni_webdav_download.sh --replace\n",
                             file=sys.stderr,
                         )
                         return 1

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
 PYTHON_BIN="${PYTHON_BIN:-python3}"
@@ -21,7 +21,7 @@ SERVICES=(
 
 usage() {
   cat <<'EOF'
-Usage: bash run_eeg_evals_with_monitor.sh [options]
+Usage: bash scripts/legacy/run_eeg_evals_with_monitor.sh [options]
 
 Starts eeg_monitor, then runs the three EEG eval Docker services in order:
   1. eval_eeg_reading

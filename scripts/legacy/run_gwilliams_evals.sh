@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-Usage: bash run_gwilliams_evals.sh [options]
+Usage: bash scripts/legacy/run_gwilliams_evals.sh [options]
 
 Launches the Gwilliams MEG-XL evaluation container:
   - eval_gwilliams on GWILLIAMS_GPU

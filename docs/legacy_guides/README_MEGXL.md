@@ -32,7 +32,7 @@ If you find this work helpful in your research, please cite the paper:
 
 ## Requirements
 - python >= 3.12
-- For python packages, see `requirements.txt`
+- For the legacy pip package list, see `docs/legacy_requirements/requirements.txt`
 
 ## Setup
 
@@ -44,7 +44,7 @@ conda create -n megxlenv python=3.12.12
 conda activate megxlenv
 ```
 
-2. Install required pip packages: `pip install -r requirements.txt`
+2. Install required pip packages: `pip install -r docs/legacy_requirements/requirements.txt`
 3. Download pre-trained MEG-XL weights from [HuggingFace](https://huggingface.co/pnpl/MEG-XL)
 4. Follow the notes below depending on how you wish to use MEG-XL
 

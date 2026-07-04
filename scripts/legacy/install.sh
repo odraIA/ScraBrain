@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 REPO_DIR="${1:-$HOME/proyectos/meegxl/ScraBrain}"
 
 if [[ ! -d "$REPO_DIR/scripts" ]]; then
   echo "No encuentro el repositorio en: $REPO_DIR" >&2
-  echo "Uso: bash install.sh /ruta/a/ScraBrain" >&2
+  echo "Uso: bash scripts/legacy/install.sh /ruta/a/ScraBrain" >&2
   exit 2
 fi
 

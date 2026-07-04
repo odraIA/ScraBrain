@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-Usage: bash run_zuco_evals.sh [options]
+Usage: bash scripts/legacy/run_zuco_evals.sh [options]
 
 Launches the ZuCo 2.0 NR MEG-XL evaluation container:
   - eval_zuco on ZUCO_GPU for both EEG-as-MEG and EEG-type variants

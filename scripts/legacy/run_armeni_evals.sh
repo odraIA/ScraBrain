@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-Usage: bash run_armeni_evals.sh [options]
+Usage: bash scripts/legacy/run_armeni_evals.sh [options]
 
 Launches the Armeni MEG-XL evaluation container:
   - eval_armeni on ARMENI_GPU
