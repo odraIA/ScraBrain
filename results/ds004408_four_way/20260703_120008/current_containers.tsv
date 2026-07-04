@@ -1,0 +1,5 @@
+label	gpu	container
+random_init	0	ds004408_random_init_20260703_120008
+eeg_from_scratch	1	ds004408_eeg_from_scratch_20260703_120008
+megxl_eeg2	0	ds004408_megxl_eeg2_20260703_120008
+megxl_eeg1	1	ds004408_megxl_eeg1_20260703_120008

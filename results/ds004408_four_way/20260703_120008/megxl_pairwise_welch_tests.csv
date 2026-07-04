@@ -1,0 +1,13 @@
+train_pct,retrieval_size,top_k,model_a,model_a_display,n_a,mean_a,model_b,model_b_display,n_b,mean_b,welch_t,p_value,significant_p_lt_0_05,note
+1.0,50,10,eeg_from_scratch,Checkpoint EEG desde cero,1,0.6163291251659393,megxl_eeg1,Megxl Eeg1,1,0.6250419016182422,nan,nan,,Requires at least two seeds per model
+1.0,50,10,eeg_from_scratch,Checkpoint EEG desde cero,1,0.6163291251659393,megxl_eeg2,Megxl Eeg2,1,0.6419049745798111,nan,nan,,Requires at least two seeds per model
+1.0,50,10,eeg_from_scratch,Checkpoint EEG desde cero,1,0.6163291251659393,random_init,Arquitectura aleatoria,1,0.2,nan,nan,,Requires at least two seeds per model
+1.0,50,10,megxl_eeg1,Megxl Eeg1,1,0.6250419016182422,megxl_eeg2,Megxl Eeg2,1,0.6419049745798111,nan,nan,,Requires at least two seeds per model
+1.0,50,10,megxl_eeg1,Megxl Eeg1,1,0.6250419016182422,random_init,Arquitectura aleatoria,1,0.2,nan,nan,,Requires at least two seeds per model
+1.0,50,10,megxl_eeg2,Megxl Eeg2,1,0.6419049745798111,random_init,Arquitectura aleatoria,1,0.2,nan,nan,,Requires at least two seeds per model
+1.0,250,10,eeg_from_scratch,Checkpoint EEG desde cero,1,0.1995293301591012,megxl_eeg1,Megxl Eeg1,1,0.20560219519045875,nan,nan,,Requires at least two seeds per model
+1.0,250,10,eeg_from_scratch,Checkpoint EEG desde cero,1,0.1995293301591012,megxl_eeg2,Megxl Eeg2,1,0.22323999840866876,nan,nan,,Requires at least two seeds per model
+1.0,250,10,eeg_from_scratch,Checkpoint EEG desde cero,1,0.1995293301591012,random_init,Arquitectura aleatoria,1,0.04054054054054054,nan,nan,,Requires at least two seeds per model
+1.0,250,10,megxl_eeg1,Megxl Eeg1,1,0.20560219519045875,megxl_eeg2,Megxl Eeg2,1,0.22323999840866876,nan,nan,,Requires at least two seeds per model
+1.0,250,10,megxl_eeg1,Megxl Eeg1,1,0.20560219519045875,random_init,Arquitectura aleatoria,1,0.04054054054054054,nan,nan,,Requires at least two seeds per model
+1.0,250,10,megxl_eeg2,Megxl Eeg2,1,0.22323999840866876,random_init,Arquitectura aleatoria,1,0.04054054054054054,nan,nan,,Requires at least two seeds per model
