@@ -11,19 +11,18 @@
 \usepackage{pgfpages}
 \usepackage{xcolor}
 \usepackage{tikz}
-\usetikzlibrary{arrows.meta,positioning,fit,calc,shapes.geometric}
+\usetikzlibrary{arrows.meta,positioning,fit,calc,shapes.geometric,decorations.pathreplacing}
 \usepackage{hyperref}
 
 % Para imprimir las notas del presentador, cambiar a:
 % \setbeameroption{show notes on second screen=right}
 \setbeameroption{hide notes}
 
-\graphicspath{{../memoria/imagenes/}{../memoria/figuras/}{assets/}}
+\graphicspath{{../memoria/imagenes/}{../memoria/figuras/}{assets/}{imagenes/}}
 
 \usetheme{Madrid}
 \usecolortheme{default}
 \setbeamertemplate{navigation symbols}{}
-\setbeamertemplate{footline}[frame number]
 \setbeamertemplate{caption}[numbered]
 \setbeamerfont{title}{size=\Large,series=\bfseries}
 \setbeamerfont{frametitle}{size=\large,series=\bfseries}
@@ -35,6 +34,13 @@
 \definecolor{warning}{HTML}{F4A261}
 \definecolor{muted}{HTML}{6C757D}
 \definecolor{lightgray}{HTML}{F6F7F8}
+
+\definecolor{tfmgreen}{HTML}{0B4A36}
+\definecolor{softgreen}{HTML}{EAF5F0}
+\definecolor{softred}{HTML}{F9D6CA}
+\definecolor{softblue}{HTML}{DDEAF7}
+\definecolor{softyellow}{HTML}{FFF0C7}
+\definecolor{linegray}{HTML}{6E7D77}
 
 \setbeamercolor{structure}{fg=deepgreen}
 \setbeamercolor{palette primary}{fg=white,bg=deepgreen}
@@ -58,10 +64,27 @@
 \newcommand{\source}[1]{\vspace{1mm}{\tiny\color{muted}Fuente: #1}}
 \newcommand{\bigmetric}[2]{{\huge\bfseries\color{deepgreen}{#1}\par}\vspace{0.8mm}{\scriptsize #2\par}\vspace{3mm}}
 \newcommand{\smallmetric}[2]{{\Large\bfseries\color{deepgreen}{#1}\par}{\scriptsize #2\par}}
+\newcommand{\footerlogos}{%
+  \includegraphics[height=5mm,keepaspectratio]{logo_upv.png}%
+  \hspace{3mm}%
+  \includegraphics[height=5mm,keepaspectratio]{logo_miarfid.png}%
+  \hspace{3mm}%
+  \includegraphics[height=5mm,keepaspectratio]{logo_dsiic.png}%
+}
+
+\setbeamercolor{footer logos}{fg=muted,bg=white}
+\setbeamertemplate{footline}{%
+  \leavevmode%
+  \begin{beamercolorbox}[wd=\paperwidth,ht=7.2mm,dp=1.2mm,leftskip=3mm,rightskip=3mm]{footer logos}%
+    \raisebox{-0.3mm}{\footerlogos}%
+    \hfill{\scriptsize\insertframenumber/\inserttotalframenumber}%
+  \end{beamercolorbox}%
+}
 
 \title[EEG-XL]{Transferencia de modelos MEG de contexto largo a EEG}
 \subtitle{Clasificación contextual de palabras en lectura y escucha natural}
 \author{Ricardo Díaz Peris}
+\newcommand{\tutors}{Tutores: Vicent Juan Botti Navarro, Alfons Juan Císcar}
 \institute{Máster Universitario en Inteligencia Artificial, Reconocimiento de Formas e Imagen Digital\\Universitat Politècnica de València}
 \date{Defensa TFM · Curso 2025--2026}
 
@@ -70,8 +93,8 @@
 % 1 ---------------------------------------------------------------------------
 {
 \setbeamercolor{background canvas}{bg=deepgreen}
-\begin{frame}[plain]
-  \vspace{4mm}
+\begin{frame}
+  \vspace{2mm}
   \begin{center}
     {\Large\bfseries\color{white}\inserttitle\par}
     \vspace{2mm}
@@ -79,19 +102,15 @@
     \vspace{5mm}
     {\normalsize\color{white}\insertauthor\par}
     \vspace{1mm}
+    {\small\color{white}\tutors\par}
+    \vspace{1mm}
     {\small\color{white}\insertinstitute\par}
   \end{center}
 
-  \vspace{4mm}
+  \vspace{2mm}
 
   \begin{center}
-  \begin{tikzpicture}[node distance=7mm, every node/.style={font=\small}]
-    \node[draw=white, fill=white!12, text=white, rounded corners=3pt, minimum width=30mm, minimum height=8mm] (meg) {MEG-XL};
-    \node[draw=white, fill=white!12, text=white, rounded corners=3pt, right=of meg, minimum width=30mm, minimum height=8mm] (eeg) {EEG-XL};
-    \node[draw=white, fill=white!12, text=white, rounded corners=3pt, right=of eeg, minimum width=34mm, minimum height=8mm] (words) {palabras};
-    \draw[-{Latex[length=2mm]}, thick, white] (meg) -- (eeg);
-    \draw[-{Latex[length=2mm]}, thick, white] (eeg) -- (words);
-  \end{tikzpicture}
+    \includegraphics[height=0.38\textheight,keepaspectratio]{portada_limpia.png}
   \end{center}
 
   \note{Abrir con una frase simple: el trabajo estudia si una arquitectura aprendida con MEG puede servir como punto de partida para EEG, que es más ruidoso pero más realista para aplicaciones portables.}
@@ -99,7 +118,7 @@
 }
 
 % 2 ---------------------------------------------------------------------------
-\begin{frame}[c]{El problema: decodificar el cerebro no es ``leer la mente''}
+\begin{frame}[c]{¿Cómo de difícil es leer la mente? (Decodificación de lenguaje)}
   \begin{columns}[c,totalwidth=\linewidth]
     \begin{column}{0.58\linewidth}
       \begin{block}{Objetivo a largo plazo}
@@ -196,12 +215,85 @@
 \end{frame}
 
 % 5 ---------------------------------------------------------------------------
+\begin{frame}[c]{MEG vs EEG}
+  \centering
+  \resizebox{0.98\textwidth}{!}{%
+  \begin{tikzpicture}[
+      font=\small,
+      title/.style={font=\bfseries\large},
+      electrode/.style={draw=blue!55!black, fill=blue!15, minimum width=4mm, minimum height=1.8mm},
+      coil/.style={draw=purple!55!black, fill=purple!15, minimum width=4mm, minimum height=6mm},
+      potential/.style={red!70!black, thick, opacity=.55},
+      field/.style={purple!75!black, thick, -{Latex[length=2.3mm]}},
+      legendtext/.style={font=\footnotesize, anchor=west, align=left},
+      arrow/.style={-{Latex[length=2.5mm]}, thick}
+  ]
+    \begin{scope}[xshift=-1.3cm]
+      \node[title] at (-4.6,3.45) {EEG};
+      \draw[thick] (-4.6,0.8) circle (2.0cm);
+      \draw[fill=gray!12] (-4.6,0.8) circle (1.45cm);
+      \draw[fill=red!35, draw=red!60!black] (-4.9,0.55) circle (3mm);
+      \node[font=\footnotesize, align=center] at (-4.6,-2.35) {Potenciales eléctricos\\difusos en el cuero cabelludo};
+      \foreach \a in {20,55,90,125,160} {
+          \node[electrode, rotate=\a-90] at ($(-4.6,0.8)+(\a:2.08cm)$) {};
+      }
+      \foreach \a in {200,235,270,305,340} {
+          \node[electrode, rotate=\a-90] at ($(-4.6,0.8)+(\a:2.08cm)$) {};
+      }
+      \draw[potential] (-4.9,0.55) -- ($(-4.6,0.8)+(20:2.0cm)$);
+      \draw[potential] (-4.9,0.55) -- ($(-4.6,0.8)+(55:2.0cm)$);
+      \draw[potential] (-4.9,0.55) -- ($(-4.6,0.8)+(125:2.0cm)$);
+      \draw[potential] (-4.9,0.55) -- ($(-4.6,0.8)+(200:2.0cm)$);
+      \draw[potential] (-4.9,0.55) -- ($(-4.6,0.8)+(305:2.0cm)$);
+
+      \node[title] at (3.1,3.45) {MEG};
+      \draw[thick] (3.1,0.8) circle (2.0cm);
+      \draw[fill=gray!12] (3.1,0.8) circle (1.45cm);
+      \draw[purple!35, thick] (3.1,0.8) circle (2.38cm);
+      \draw[fill=red!35, draw=red!60!black] (2.8,0.55) circle (3mm);
+      \node[font=\footnotesize, align=center] at (3.1,-2.35) {Campos magnéticos\\medidos por sensores externos};
+      \foreach \a in {25,60,130,165,205,245,325} {
+          \node[coil, rotate=\a-90] at ($(3.1,0.8)+(\a:2.5cm)$) {};
+      }
+      \draw[field] (2.8,0.55) .. controls (1.85,1.35) and (2.05,2.35) .. (3.15,2.78);
+      \draw[field] (2.8,0.55) .. controls (3.95,1.25) and (4.35,2.15) .. (3.75,2.72);
+      \draw[field] (2.8,0.55) .. controls (4.05,0.15) and (4.25,-0.75) .. (3.45,-1.05);
+      \draw[field] (2.8,0.55) .. controls (1.75,0.0) and (1.95,-0.95) .. (2.75,-1.16);
+
+      \draw[dashed, thick, gray] (-0.9,-1.4) -- (-0.9,3.25);
+      \node[align=center, font=\small] at (-0.9,1) {Misma actividad\\neuronal subyacente};
+    \end{scope}
+
+      \node[legendtext, font=\footnotesize\bfseries] at (5.85,2.78) {Leyenda};
+      \draw[thick] (6.10,2.18) circle (1.8mm);
+      \node[legendtext] at (6.45,2.18) {cabeza/cuero\\cabelludo};
+      \draw[fill=gray!12] (6.10,1.68) circle (1.8mm);
+      \node[legendtext] at (6.45,1.68) {cerebro};
+      \draw[fill=red!35, draw=red!60!black] (6.10,1.18) circle (1.8mm);
+      \node[legendtext] at (6.45,1.18) {fuente neuronal};
+      \draw[potential] (5.85,0.68) -- (6.35,0.68);
+      \node[legendtext] at (6.45,0.68) {proyección eléctrica};
+
+      \node[electrode, minimum width=4.8mm, minimum height=2.2mm] at (6.10,0.08) {};
+      \node[legendtext] at (6.45,0.08) {electrodos EEG};
+      \node[coil, minimum width=5.4mm, minimum height=3.8mm] at (6.10,-0.48) {};
+      \node[legendtext] at (6.45,-0.48) {sensores MEG};
+      \draw[purple!35, thick] (6.10,-1.05) circle (1.8mm);
+      \node[legendtext] at (6.45,-1.05) {casco/sensores\\externos};
+      \draw[field] (5.80,-1.60) -- (6.40,-1.60);
+      \node[legendtext] at (6.45,-1.60) {campo magnético};
+  \end{tikzpicture}}
+
+  \note{Usar esta diapositiva como puente: MEG y EEG observan actividad relacionada, pero la ven a través de sensores y magnitudes diferentes. Por eso la transferencia requiere adaptación y no solo reusar el checkpoint.}
+\end{frame}
+
+% 6 ---------------------------------------------------------------------------
 \begin{frame}[c]{Qué capta realmente un casco de EEG}
   \begin{columns}[c,totalwidth=\linewidth]
     \begin{column}{0.37\linewidth}
       \centering
-      \IfFileExists{../memoria/imagenes/eeg.png}{%
-        \includegraphics[height=0.55\textheight,keepaspectratio]{../memoria/imagenes/eeg.png}%
+      \IfFileExists{imagenes/eeg.png}{%
+        \includegraphics[height=0.55\textheight,keepaspectratio]{imagenes/eeg.png}%
       }{%
         \begin{tikzpicture}[scale=0.92]
           \draw[fill=soft, draw=deepgreen, line width=1pt] (0,0) ellipse (1.55 and 2.0);
@@ -229,6 +321,42 @@
   \note{Aquí tiene sentido enseñar físicamente el casco. Mantenerlo breve: señalar electrodos, explicar microvoltios y ruido, y volver al modelo. No hacer demo en directo si no está muy controlada.}
 \end{frame}
 
+% 16 --------------------------------------------------------------------------
+% \begin{frame}[c]{Dónde encaja el casco EEG en la defensa}
+%   \begin{columns}[c,totalwidth=\linewidth]
+%     \begin{column}{0.45\linewidth}
+%       \begin{block}{Sí lo llevaría}
+%         \begin{itemize}
+%           \item Aterriza físicamente el problema.
+%           \item Ayuda a explicar ruido, electrodos y montaje.
+%           \item Da un punto divulgativo sin perder tono académico.
+%         \end{itemize}
+%       \end{block}
+
+%       \begin{alertblock}{Pero no haría una demo en directo}
+%         Mejor usarlo como objeto explicativo breve y, si quieres mostrar señal, llevar una captura ya preparada.
+%       \end{alertblock}
+%     \end{column}
+
+%     \begin{column}{0.50\linewidth}
+%       \begin{block}{Uso recomendado: 45--60 s}
+%         \begin{enumerate}
+%           \item Enseñar electrodos y posición sobre cuero cabelludo.
+%           \item Explicar microvoltios y artefactos.
+%           \item Conectar con preprocesamiento y preentrenamiento.
+%           \item Volver al pipeline experimental.
+%         \end{enumerate}
+%       \end{block}
+%     \end{column}
+%   \end{columns}
+
+%   \note{El casco puede mejorar mucho la defensa si no se convierte en una distracción. La frase clave: no lee pensamientos, mide una señal débil y ruidosa.}
+% \end{frame}
+
+\begin{frame}[c]{Momento casco}
+
+\end{frame}
+
 % 6 ---------------------------------------------------------------------------
 \begin{frame}[c]{Pregunta de investigación}
   \begin{center}
@@ -249,7 +377,7 @@
 
   \vspace{3mm}
 
-  \begin{columns}[c,totalwidth=\linewidth]
+  \begin{columns}[T,totalwidth=\linewidth]
     \begin{column}{0.31\linewidth}
       \begin{block}{Punto de partida}
         MEG-XL: modelo autosupervisado de contexto largo para señales MEG.
@@ -272,7 +400,8 @@
 
 % 7 ---------------------------------------------------------------------------
 \begin{frame}[c]{Propuesta: de MEG-XL a EEG-XL}
-  \begin{columns}[c,totalwidth=\linewidth]
+  \begin{columns}[T,totalwidth=\linewidth]
+    \hspace*{0.05\linewidth}
     \begin{column}{0.36\linewidth}
       \begin{block}{Idea central}
         Mantener el sesgo de MEG-XL: contexto largo, tokenización neuronal y aprendizaje autosupervisado.
@@ -283,11 +412,11 @@
       \end{block}
     \end{column}
 
-    \begin{column}{0.60\linewidth}
+    \begin{column}{0.55\linewidth}
       \centering
       \begin{tikzpicture}[node distance=4mm, every node/.style={font=\scriptsize}]
         \node[draw=deepgreen, fill=deepgreen!8, rounded corners, text width=46mm, align=center] (a) {\textbf{1. Señal EEG continua}\\ventanas de 150 s};
-        \node[draw=greenish, fill=greenish!12, rounded corners, text width=46mm, align=center, below=of a] (b) {\textbf{2. BioCodec}\\tokens discretos por canal};
+        \node[draw=greenish, fill=greenish!12, rounded corners, text width=46mm, align=center, below=of a] (b) {\textbf{2. BioCodec (EEG)}\\tokens discretos por canal};
         \node[draw=warning, fill=warning!18, rounded corners, text width=46mm, align=center, below=of b] (c) {\textbf{3. Embedding de sensor}\\posición 3D + tipo + máscara};
         \node[draw=accent, fill=accent!12, rounded corners, text width=46mm, align=center, below=of c] (d) {\textbf{4. Transformer criss-cross}\\atención temporal + espacial};
         \node[draw=deepgreen, fill=deepgreen!8, rounded corners, text width=46mm, align=center, below=of d] (e) {\textbf{5. Fine-tuning}\\ranking de palabras con embeddings T5};
@@ -301,35 +430,41 @@
 
 % 8 ---------------------------------------------------------------------------
 \begin{frame}[c]{Datasets: lectura para adaptar, escucha para acercarse a la tarea final}
-  \scriptsize
+  \small
   \begin{columns}[c,totalwidth=\linewidth]
     \begin{column}{0.31\linewidth}
       \begin{block}{Lectura}
+        \begin{minipage}[t][29mm][t]{\linewidth}
         \begin{itemize}
           \item ZuCo 2.0: lectura natural.
           \item Nieuwland et al.: lectura palabra a palabra.
           \item Adaptación inicial a EEG lingüístico.
         \end{itemize}
+        \end{minipage}
       \end{block}
     \end{column}
 
     \begin{column}{0.31\linewidth}
       \begin{block}{Escucha}
+        \begin{minipage}[t][29mm][t]{\linewidth}
         \begin{itemize}
           \item SparrKULee: habla natural.
           \item OpenNeuro ds007808: escucha y contexto longitudinal.
           \item Aproxima el dominio de evaluación.
         \end{itemize}
+        \end{minipage}
       \end{block}
     \end{column}
 
     \begin{column}{0.31\linewidth}
       \begin{alertblock}{Evaluación final}
+        \begin{minipage}[t][29mm][t]{\linewidth}
         \begin{itemize}
           \item OpenNeuro ds004408.
           \item Reservado para fine-tuning y test.
           \item No participa en el preentrenamiento.
         \end{itemize}
+        \end{minipage}
       \end{alertblock}
     \end{column}
   \end{columns}
@@ -380,29 +515,20 @@
 
 % 10 --------------------------------------------------------------------------
 \begin{frame}[c]{Preentrenamiento autosupervisado}
-  \begin{columns}[c,totalwidth=\linewidth]
-    \begin{column}{0.48\linewidth}
-      \begin{block}{Qué aprende el modelo}
-        Regularidades temporales y espaciales de la señal EEG sin usar palabras como etiquetas.
-      \end{block}
+  \centering
+  \includegraphics[width=0.98\linewidth,height=0.62\textheight,keepaspectratio]{imagenes/tlsmethod.pdf}\par
+  \vspace{-1mm}
+  \makebox[0.98\linewidth][r]{\tiny\color{muted}Fuente: MEG-XL}
 
-      \begin{block}{Objetivo de entrenamiento}
-        \begin{itemize}
-          \item BioCodec discretiza cada canal.
-          \item Se ocultan bloques temporales.
-          \item El modelo predice los tokens ocultos.
-        \end{itemize}
-      \end{block}
-    \end{column}
+  \vspace{2mm}
 
-    \begin{column}{0.48\linewidth}
-      \begin{center}
-        \bigmetric{150 s}{contexto por ejemplo}
-        \bigmetric{50}{bloques de 3 s}
-        \bigmetric{20/50}{bloques enmascarados}
-      \end{center}
-    \end{column}
-  \end{columns}
+  \makebox[0.72\linewidth][c]{%
+    \parbox[t]{0.20\linewidth}{\centering\smallmetric{150 s}{contexto}}%
+    \hfill
+    \parbox[t]{0.20\linewidth}{\centering\smallmetric{50}{bloques}}%
+    \hfill
+    \parbox[t]{0.20\linewidth}{\centering\smallmetric{20/50}{máscara}}%
+  }
 
   \note{El mensaje clave: durante el preentrenamiento no se entrena a reconocer palabras. Se aprende una representación previa que después se ajusta a la tarea supervisada.}
 \end{frame}
@@ -410,12 +536,13 @@
 % 11 --------------------------------------------------------------------------
 \begin{frame}[c]{Fine-tuning: recuperación contextual de palabras}
   \begin{columns}[c,totalwidth=\linewidth]
+    \hspace*{0.05\linewidth}
     \begin{column}{0.40\linewidth}
       \begin{block}{Construcción del ejemplo}
         \begin{itemize}
           \item Cada palabra tiene un tiempo de inicio.
           \item Se extrae una ventana EEG de 3 s.
-          \item 50 palabras forman una entrada de 150 s.
+          \item 50 palabras forman una entrada de 150 s.s
         \end{itemize}
       \end{block}
 
@@ -424,7 +551,7 @@
       \end{block}
     \end{column}
 
-    \begin{column}{0.56\linewidth}
+    \begin{column}{0.51\linewidth}
       \centering
       \begin{tikzpicture}[node distance=4mm, every node/.style={font=\scriptsize}]
         \node[draw=deepgreen, fill=deepgreen!8, rounded corners, text width=42mm, align=center] (textgrid) {TextGrid: inicio de palabra};
@@ -550,34 +677,43 @@
 
 % 15 --------------------------------------------------------------------------
 \begin{frame}[c]{Interpretación de los resultados}
-  \begin{columns}[c,totalwidth=\linewidth]
-    \begin{column}{0.32\linewidth}
+  \small
+  \begin{columns}[T,totalwidth=\linewidth]
+    \begin{column}{0.30\linewidth}
       \begin{block}{Viabilidad}
+        \begin{minipage}[t][30mm][t]{\linewidth}
         \begin{itemize}
           \item La arquitectura puede adaptarse a EEG.
           \item El sistema queda claramente por encima del azar.
           \item El contexto largo es compatible con la tarea.
         \end{itemize}
+        \end{minipage}
       \end{block}
     \end{column}
+    \hfill
 
-    \begin{column}{0.32\linewidth}
+    \begin{column}{0.30\linewidth}
       \begin{block}{Qué aporta más}
+        \begin{minipage}[t][30mm][t]{\linewidth}
         \begin{itemize}
           \item El mayor salto viene del preentrenamiento EEG.
           \item MEG-XL aporta una mejora adicional moderada.
           \item El embedding MEG reutilizado fue el mejor en esta ejecución.
         \end{itemize}
+        \end{minipage}
       \end{block}
     \end{column}
+    \hfill
 
-    \begin{column}{0.32\linewidth}
+    \begin{column}{0.30\linewidth}
       \begin{alertblock}{Prudencia}
+        \begin{minipage}[t][30mm][t]{\linewidth}
         \begin{itemize}
           \item Una única semilla.
           \item Protocolos no idénticos a todos los trabajos previos.
           \item No es generación libre de texto.
         \end{itemize}
+        \end{minipage}
       \end{alertblock}
     \end{column}
   \end{columns}
@@ -595,69 +731,45 @@
   \note{Esta diapositiva debe sonar madura: buen resultado, pero sin venderlo como una superioridad definitiva.}
 \end{frame}
 
-% 16 --------------------------------------------------------------------------
-\begin{frame}[c]{Dónde encaja el casco EEG en la defensa}
-  \begin{columns}[c,totalwidth=\linewidth]
-    \begin{column}{0.45\linewidth}
-      \begin{block}{Sí lo llevaría}
-        \begin{itemize}
-          \item Aterriza físicamente el problema.
-          \item Ayuda a explicar ruido, electrodos y montaje.
-          \item Da un punto divulgativo sin perder tono académico.
-        \end{itemize}
-      \end{block}
-
-      \begin{alertblock}{Pero no haría una demo en directo}
-        Mejor usarlo como objeto explicativo breve y, si quieres mostrar señal, llevar una captura ya preparada.
-      \end{alertblock}
-    \end{column}
-
-    \begin{column}{0.50\linewidth}
-      \begin{block}{Uso recomendado: 45--60 s}
-        \begin{enumerate}
-          \item Enseñar electrodos y posición sobre cuero cabelludo.
-          \item Explicar microvoltios y artefactos.
-          \item Conectar con preprocesamiento y preentrenamiento.
-          \item Volver al pipeline experimental.
-        \end{enumerate}
-      \end{block}
-    \end{column}
-  \end{columns}
-
-  \note{El casco puede mejorar mucho la defensa si no se convierte en una distracción. La frase clave: no lee pensamientos, mide una señal débil y ruidosa.}
-\end{frame}
-
 % 17 --------------------------------------------------------------------------
 \begin{frame}[c]{Conclusiones}
   \small
-  \begin{columns}[c,totalwidth=\linewidth]
-    \begin{column}{0.32\linewidth}
+  \begin{columns}[T,totalwidth=\linewidth]
+    \begin{column}{0.30\linewidth}
       \begin{block}{Qué se ha conseguido}
+        \begin{minipage}[t][30mm][t]{\linewidth}
         \begin{itemize}
           \item Adaptar MEG-XL a EEG heterogéneo.
           \item Entrenar con lectura y escucha.
           \item Evaluar recuperación de palabras en ds004408.
         \end{itemize}
+        \end{minipage}
       \end{block}
     \end{column}
+    \hfill
 
-    \begin{column}{0.32\linewidth}
+    \begin{column}{0.30\linewidth}
       \begin{block}{Resultado central}
+        \begin{minipage}[t][30mm][t]{\linewidth}
         \begin{itemize}
           \item 22,32\% Top-10 balanceada.
           \item 5,58 veces el azar.
           \item El preentrenamiento EEG es decisivo.
         \end{itemize}
+        \end{minipage}
       \end{block}
     \end{column}
+    \hfill
 
-    \begin{column}{0.32\linewidth}
+    \begin{column}{0.30\linewidth}
       \begin{block}{Trabajo futuro}
+        \begin{minipage}[t][30mm][t]{\linewidth}
         \begin{itemize}
           \item Más semillas y particiones.
           \item Más bandas, tokenizadores y datasets.
           \item Registros propios con casco EEG.
         \end{itemize}
+        \end{minipage}
       \end{block}
     \end{column}
   \end{columns}
@@ -676,23 +788,23 @@
 \end{frame}
 
 % 18 --------------------------------------------------------------------------
+
 {
 \setbeamercolor{background canvas}{bg=deepgreen}
-\begin{frame}[plain]
-  \begin{center}
-    \vspace{20mm}
-    {\Huge\bfseries\color{white}Gracias\par}
-    \vspace{7mm}
-    {\Large\color{white}Preguntas\par}
-    \vspace{10mm}
-    \begin{tikzpicture}[node distance=7mm, every node/.style={font=\small}]
-      \node[draw=white, fill=white!12, text=white, rounded corners=3pt, minimum width=28mm, minimum height=8mm] (meg) {MEG};
-      \node[draw=white, fill=white!12, text=white, rounded corners=3pt, right=of meg, minimum width=28mm, minimum height=8mm] (eeg) {EEG};
-      \node[draw=white, fill=white!12, text=white, rounded corners=3pt, right=of eeg, minimum width=34mm, minimum height=8mm] (word) {palabras};
-      \draw[-{Latex[length=2mm]}, thick, white] (meg) -- (eeg);
-      \draw[-{Latex[length=2mm]}, thick, white] (eeg) -- (word);
-    \end{tikzpicture}
-  \end{center}
+\begin{frame}
+  \begin{columns}[c,totalwidth=\linewidth]
+    \begin{column}{0.43\linewidth}
+      \centering
+      {\Huge\bfseries\color{white}Gracias\par}
+      \vspace{7mm}
+      {\Large\color{white}Preguntas\par}
+    \end{column}
+
+    \begin{column}{0.52\linewidth}
+      \centering
+      \includegraphics[width=\linewidth,height=0.78\textheight,keepaspectratio]{imagenes/luffy_transparent_2.png}
+    \end{column}
+  \end{columns}
 \end{frame}
 }
 

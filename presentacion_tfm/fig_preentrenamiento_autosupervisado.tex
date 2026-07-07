@@ -1,0 +1,249 @@
+\centering
+\resizebox{0.99\textwidth}{!}{%
+\begin{tikzpicture}[
+    font=\scriptsize\sffamily,
+    >=Latex,
+    panel/.style={
+        draw,
+        line width=1.1pt,
+        rounded corners=18pt,
+        minimum height=6.35cm,
+        inner sep=6pt
+    },
+    block/.style={
+        draw,
+        rounded corners=4pt,
+        line width=.75pt,
+        fill=white,
+        align=center,
+        inner sep=4pt
+    },
+    tinyblock/.style={
+        draw,
+        rounded corners=3pt,
+        line width=.6pt,
+        fill=white,
+        align=center,
+        inner sep=2pt
+    },
+    arr/.style={->, line width=.8pt},
+    thickarr/.style={->, line width=1.1pt},
+    cell/.style={draw, line width=.25pt, minimum width=.20cm, minimum height=.18cm, inner sep=0pt},
+    masked/.style={draw=red!70!black, fill=red!22, line width=.65pt},
+    muted/.style={font=\scriptsize, align=center}
+]
+
+% Panels
+\node[panel, minimum width=5.70cm] (P1) at (0,0) {};
+\node[panel, minimum width=6.20cm] (P2) at (6.25,0) {};
+\node[panel, minimum width=5.70cm] (P3) at (12.65,0) {};
+
+\node[font=\bfseries\normalsize] at (0,2.78) {Tokenization};
+\node[font=\bfseries\normalsize] at (6.25,2.78) {Input Embedding Construction};
+\node[font=\bfseries\normalsize] at (12.65,2.78) {Temporal Block Masking};
+
+% ------------------------------------------------------------
+% Left panel: tokenization
+% ------------------------------------------------------------
+\begin{scope}[shift={(-2.18,1.45)}, scale=.68]
+  \draw[fill=gray!15, draw=gray!60] (-.55,-.70) rectangle (.20,.90);
+  \draw[fill=gray!20, draw=gray!60, line width=.6pt]
+      (-.30,.20) arc[start angle=215,end angle=-35,radius=.70];
+  \draw[fill=white, draw=gray!60]
+      (-.08,.50) arc[start angle=210,end angle=-30,radius=.48];
+  \draw[fill=black!10, draw=black!50] (.10,-.35) circle (.14);
+  \draw[draw=black!45] (.10,-.50) -- (.28,-.85) -- (-.08,-.85);
+\end{scope}
+
+\draw[thickarr] (-1.70,1.45) -- (-1.18,1.45);
+
+\begin{scope}[shift={(-.78,1.08)}]
+  \foreach \x in {0,...,8}{
+    \foreach \y in {0,...,3}{
+      \pgfmathtruncatemacro{\m}{mod(\x+2*\y,5)}
+      \ifnum\m=0 \def\col{blue!18}\fi
+      \ifnum\m=1 \def\col{red!20}\fi
+      \ifnum\m=2 \def\col{yellow!25}\fi
+      \ifnum\m=3 \def\col{green!20}\fi
+      \ifnum\m=4 \def\col{white}\fi
+      \draw[cell, fill=\col] (\x*.22,\y*.20) rectangle ++(.22,.20);
+    }
+  }
+\end{scope}
+
+\node at (.15,2.03) {Time};
+\node[rotate=90] at (-1.12,1.50) {Channels};
+
+\foreach \x in {-.55,-.25,.05,.35}{
+  \draw[arr] (\x,1.08) -- (\x,.56) -- (\x,.26);
+}
+
+\foreach \s in {3,2,1}{
+  \node[block, minimum width=1.58cm, minimum height=.94cm]
+      at ($(0,-.12)+(-.10*\s,.09*\s)$) {};
+}
+\node[block, minimum width=1.58cm, minimum height=.94cm] (tok) at (0,-.12)
+    {BioCodec\\Tokenizer};
+\node at (-.55,.10) {$\ast$};
+
+\node[muted] at (-2.03,-.22) {Each channel is\\tokenized\\independently};
+\node[muted] at (2.03,-.22) {12x\\compression\\in time};
+
+\draw[thickarr] (tok.south) -- (0,-1.10);
+
+\begin{scope}[shift={(-.70,-2.02)}]
+  \foreach \k in {0,...,4}{
+    \begin{scope}[shift={(.08*\k,.06*\k)}]
+      \foreach \x in {0,...,4}{
+        \foreach \y in {0,...,3}{
+          \pgfmathtruncatemacro{\m}{mod(\x+\y+\k,5)}
+          \ifnum\m=0 \def\col{blue!18}\fi
+          \ifnum\m=1 \def\col{red!20}\fi
+          \ifnum\m=2 \def\col{yellow!25}\fi
+          \ifnum\m=3 \def\col{green!20}\fi
+          \ifnum\m=4 \def\col{white}\fi
+          \draw[cell, fill=\col] (\x*.18,\y*.18) rectangle ++(.18,.18);
+        }
+      }
+    \end{scope}
+  }
+\end{scope}
+
+\node at (0,-1.45) {Time$'$};
+\node[rotate=90] at (-1.02,-1.78) {Channels};
+\node at (.90,-1.56) {$Q$};
+\node[font=\Large] at (1.75,1.35) {$\mathbb{R}$};
+\node[font=\Large] at (1.75,-2.25) {$\mathbb{N}$};
+\node[muted] at (-1.70,-2.58)
+    {Tokens in time,\\channels, and\\across $Q$ residual\\VQ levels};
+
+% ------------------------------------------------------------
+% Middle panel: embedding construction
+% ------------------------------------------------------------
+\node[muted] at (4.30,1.86) {Residual\\Tokens};
+\foreach \i/\c in {0/blue!25,1/purple!25,2/green!25}{
+  \draw[fill=\c, draw=gray!60]
+      ($(4.58,1.48)+(.05*\i,.05*\i)$) rectangle ++(.20,.20);
+}
+
+\node[block, minimum width=1.35cm, minimum height=.58cm] (lookup) at (5.35,1.60)
+    {Look up\\embeddings};
+\node[tinyblock, font=\tiny, minimum width=.60cm, minimum height=.76cm] (zvec) at (6.42,1.60)
+    {$\mathbf{z}_{c,q_1,t}$\\[-1pt]
+     $\mathbf{z}_{c,q_2,t}$\\[-1pt]
+     $\vdots$\\[-1pt]
+     $\mathbf{z}_{c,q_n,t}$};
+\node[block, minimum width=1.05cm, minimum height=.58cm] (cat) at (7.36,1.60)
+    {Cat +\\Project};
+
+\draw[thickarr] (4.86,1.58) -- (lookup.west);
+\draw[arr] (lookup.east) -- (zvec.west);
+\draw[arr] (zvec.east) -- (cat.west);
+
+\begin{scope}[shift={(4.50,.40)}, scale=.44]
+  \draw[fill=yellow!45!brown!25, draw=black!40] (.20,-.35) circle (.55);
+  \draw[fill=purple!75!black, draw=black!50]
+      (-.25,.04) arc[start angle=190,end angle=-5,radius=.70]
+      -- (.08,.50) -- (-.62,.55) -- cycle;
+  \foreach \x/\y in {-.46/.30,-.22/.42,.02/.44,.25/.35,.42/.15,-.35/.08,-.10/.15,.14/.08}{
+    \draw[fill=yellow!20, draw=yellow!70!white, line width=.35pt] (\x,\y) circle (.05);
+  }
+\end{scope}
+
+\node[muted] at (4.72,-.34) {Sensor position $\mathbf{p}$\\and orientation $\mathbf{o}$};
+\node[block, minimum width=1.35cm, minimum height=.78cm] (fourier) at (5.82,.35)
+    {Extract\\Fourier\\Features};
+\node[block, minimum width=.90cm, minimum height=.45cm] (proj) at (7.10,.35)
+    {Project};
+\node[circle, draw, line width=.8pt, minimum size=.32cm] (plus) at (8.02,.35) {$+$};
+
+\draw[thickarr] (4.95,.35) -- (fourier.west);
+\draw[thickarr] (fourier.east) -- (proj.west);
+\draw[thickarr] (proj.east) -- (plus.west);
+\draw[thickarr] (cat.east) -- ++(.34,0) |- (plus.north);
+
+\node[muted] at (6.38,-.75) {Sensor type\\(EEG/MEG)};
+\draw[arr] (6.50,-.55) |- (proj.south);
+\node[muted] at (8.06,-.31) {Input Embed\\$\mathbf{z}'_{c,t}$};
+\draw[thickarr] (plus.south) -- ++(0,-.34);
+
+\node[font=\bfseries\normalsize] at (5.55,-1.22) {Architecture};
+\node[tinyblock, font=\tiny, minimum width=.78cm, minimum height=1.10cm] (embeds) at (4.60,-2.05)
+    {$\mathbf{z}'_{c_1,t_1}$\\[-1pt]
+     $\vdots$\\[-1pt]
+     $\mathbf{z}'_{c_n,t_n}$};
+\node[block, minimum width=1.50cm, minimum height=.70cm] (cct) at (6.05,-2.05)
+    {Criss-Cross\\Transformer};
+\node[block, minimum width=.60cm, minimum height=.45cm] (wq) at (7.35,-2.05)
+    {$\mathbf{W}_{q}$};
+
+\draw[thickarr] (embeds.east) -- (cct.west);
+\draw[thickarr] (cct.east) -- (wq.west);
+\node[muted] at (4.60,-2.82) {Input Embeds};
+\node[muted] at (7.82,-1.08) {Residual Token\\Predictions};
+
+\foreach \j/\yy in {0/-1.62,1/-2.05,2/-2.48}{
+  \draw[thickarr] (wq.east) -- (8.28,\yy);
+  \foreach \i/\c in {0/blue!25,1/purple!25,2/green!25}{
+    \draw[fill=\c, draw=gray!60]
+        ($(8.30,\yy)+(.05*\i,.05*\i)$) rectangle ++(.20,.20);
+  }
+}
+
+% ------------------------------------------------------------
+% Right panel: temporal block masking
+% ------------------------------------------------------------
+\node at (12.55,2.08) {Time (150 s of contiguous EEG)};
+\node[rotate=90] at (10.25,1.40) {Channels};
+
+\begin{scope}[shift={(10.45,1.18)}]
+  \foreach \i in {0,...,4}{
+    \draw[draw=black, line width=.65pt] (\i*.70,0) rectangle ++(.70,.62);
+  }
+  \node at (3.90,.31) {$\cdots$};
+  \draw[draw=black, line width=.65pt] (4.30,0) rectangle ++(.70,.62);
+\end{scope}
+
+\draw[<->, line width=.8pt] (11.15,.96) -- (11.85,.96);
+\node at (12.13,.96) {3s segment};
+\node at (12.65,.46) {Randomly mask 40\% of 3s segments};
+
+\begin{scope}[shift={(10.45,-.38)}]
+  \foreach \i in {0,...,4}{
+    \ifnum\i<2
+      \draw[masked] (\i*.70,0) rectangle ++(.70,.62);
+    \else
+      \draw[draw=black, line width=.65pt, fill=white] (\i*.70,0) rectangle ++(.70,.62);
+    \fi
+  }
+  \node at (3.90,.31) {$\cdots$};
+  \draw[masked] (4.30,0) rectangle ++(.70,.62);
+\end{scope}
+
+\draw[decorate, decoration={brace, mirror, amplitude=4pt}, gray, line width=1.1pt]
+    (10.55,-.57) -- (15.25,-.57);
+
+\node[block, minimum width=4.00cm, minimum height=.48cm] (tr) at (12.65,-1.20)
+    {Criss-Cross Transformer};
+
+\draw[decorate, decoration={brace, amplitude=4pt}, gray, line width=1.1pt]
+    (10.55,-1.68) -- (15.25,-1.68);
+
+\begin{scope}[shift={(10.45,-2.62)}]
+  \draw[masked] (0,0) rectangle ++(.70,.62);
+  \draw[masked] (.70,0) rectangle ++(.70,.62);
+  \draw[masked] (4.30,0) rectangle ++(.70,.62);
+\end{scope}
+
+\node[font=\Large] at (13.40,-2.25) {$\mathcal{L}$};
+\draw[thickarr] (13.70,-2.25) -- (14.78,-2.25);
+\draw[thickarr] (13.10,-2.23)
+    .. controls (12.72,-2.21) and (12.63,-2.00) .. (11.95,-2.09);
+\draw[thickarr] (12.95,-2.42)
+    .. controls (12.55,-2.42) and (12.45,-2.29) .. (11.15,-2.29);
+
+\node[muted] at (12.65,-2.96)
+    {Compute loss over all tokens predicted\\for the masked segments};
+
+\end{tikzpicture}%
+}
