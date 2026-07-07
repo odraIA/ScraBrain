@@ -1,0 +1,542 @@
+\documentclass[aspectratio=169,10pt]{beamer}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-tabla]{babel}
+\usepackage{lmodern}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,shapes.geometric}
+
+\graphicspath{{../memoria/imagenes/}{../memoria/figuras/}{assets/}}
+
+% -----------------------------------------------------------------------------
+% Estilo visual: académico, limpio y divulgativo.
+% -----------------------------------------------------------------------------
+\definecolor{tfmBlue}{HTML}{17324D}
+\definecolor{tfmCyan}{HTML}{1B8CA8}
+\definecolor{tfmOrange}{HTML}{E77C2F}
+\definecolor{tfmGreen}{HTML}{2E9D63}
+\definecolor{tfmRed}{HTML}{C84C4C}
+\definecolor{tfmGray}{HTML}{F2F4F7}
+\definecolor{tfmDarkGray}{HTML}{4A5568}
+
+\setbeamercolor{normal text}{fg=tfmBlue,bg=white}
+\setbeamercolor{frametitle}{fg=tfmBlue,bg=white}
+\setbeamercolor{title}{fg=tfmBlue}
+\setbeamercolor{subtitle}{fg=tfmDarkGray}
+\setbeamercolor{author}{fg=tfmDarkGray}
+\setbeamercolor{date}{fg=tfmDarkGray}
+\setbeamercolor{structure}{fg=tfmCyan}
+\setbeamercolor{progress bar}{fg=tfmCyan,bg=tfmGray}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}{%
+  \leavevmode%
+  \hbox{%
+    \begin{beamercolorbox}[wd=.78\paperwidth,ht=2.4ex,dp=1.2ex,leftskip=2ex]{author in head/foot}%
+      \scriptsize Ricardo Díaz Peris · EEG-XL
+    \end{beamercolorbox}%
+    \begin{beamercolorbox}[wd=.22\paperwidth,ht=2.4ex,dp=1.2ex,rightskip=2ex plus1fil]{date in head/foot}%
+      \hfill\scriptsize \insertframenumber/\inserttotalframenumber
+    \end{beamercolorbox}}%
+  \vskip0pt%
+}
+\setbeamertemplate{itemize item}{\raisebox{0.15ex}{\small$\blacktriangleright$}}
+\setbeamertemplate{itemize subitem}{\tiny$\bullet$}
+
+\newcommand{\slidetag}[1]{%
+  \begin{tikzpicture}[remember picture,overlay]
+    \node[anchor=north east, rounded corners=2mm, fill=tfmGray, text=tfmDarkGray,
+          inner xsep=1.2ex, inner ysep=.5ex, font=\scriptsize]
+          at ($(current page.north east)+(-0.45,-0.35)$) {#1};
+  \end{tikzpicture}%
+}
+
+\newcommand{\bigclaim}[1]{%
+  \begin{center}
+  \vspace{0.2cm}
+  {\Large\bfseries\color{tfmBlue} #1}
+  \end{center}
+}
+
+\newcommand{\card}[3]{%
+  \begin{tikzpicture}
+    \node[draw=#1, fill=#1!8, rounded corners=3mm, line width=.8pt,
+          minimum width=#2, minimum height=1.05cm, align=center, text=tfmBlue]
+          {#3};
+  \end{tikzpicture}%
+}
+
+\newcommand{\metric}[3]{%
+  \begin{tikzpicture}
+    \node[draw=#1, fill=#1!8, rounded corners=3mm, line width=.9pt,
+          minimum width=3.1cm, minimum height=1.65cm, align=center]
+          {\large\bfseries\color{#1} #2\\[-1mm]{\scriptsize\color{tfmDarkGray} #3}};
+  \end{tikzpicture}%
+}
+
+\title{Transferencia de modelos MEG de contexto largo a EEG}
+\subtitle{Clasificación contextual de palabras en lectura y escucha natural}
+\author{Ricardo Díaz Peris}
+\institute{Máster Universitario en Inteligencia Artificial, Reconocimiento de Formas e Imagen Digital\\Universitat Politècnica de València}
+\date{Defensa TFM · Curso 2025--2026}
+
+\begin{document}
+
+% 0 ---------------------------------------------------------------------------
+\begin{frame}[plain]
+  \vspace{0.4cm}
+  \titlepage
+  \vspace{-0.2cm}
+  \begin{center}
+  \begin{tikzpicture}[node distance=6mm]
+    \node[draw=tfmCyan, fill=tfmCyan!10, rounded corners=3mm, minimum width=2.4cm, minimum height=0.8cm] (meg) {MEG-XL};
+    \node[draw=tfmOrange, fill=tfmOrange!10, rounded corners=3mm, right=of meg, minimum width=2.4cm, minimum height=0.8cm] (eeg) {EEG-XL};
+    \node[draw=tfmGreen, fill=tfmGreen!10, rounded corners=3mm, right=of eeg, minimum width=3.2cm, minimum height=0.8cm] (words) {palabras};
+    \draw[-{Latex[length=2mm]}, thick] (meg) -- (eeg);
+    \draw[-{Latex[length=2mm]}, thick] (eeg) -- (words);
+  \end{tikzpicture}
+  \end{center}
+\end{frame}
+
+% 1 ---------------------------------------------------------------------------
+\begin{frame}{La pregunta del trabajo}
+\slidetag{motivación}
+\bigclaim{¿Puede un modelo aprendido con MEG ayudar a decodificar palabras desde EEG?}
+
+\vspace{0.35cm}
+\begin{center}
+\begin{tikzpicture}[node distance=1.2cm]
+  \node[draw=tfmCyan, fill=tfmCyan!8, rounded corners=4mm, minimum width=4.1cm, minimum height=1.4cm, align=center] (quality) {MEG\\\small más calidad, menos portable};
+  \node[draw=tfmBlue, fill=tfmGray, rounded corners=4mm, minimum width=3.0cm, minimum height=1.0cm, align=center, right=of quality] (model) {contexto largo\\\small MEG-XL};
+  \node[draw=tfmOrange, fill=tfmOrange!10, rounded corners=4mm, minimum width=4.1cm, minimum height=1.4cm, align=center, right=of model] (deploy) {EEG\\\small más portable, más ruidoso};
+  \draw[-{Latex[length=3mm]}, line width=1.2pt] (quality) -- (model);
+  \draw[-{Latex[length=3mm]}, line width=1.2pt] (model) -- (deploy);
+\end{tikzpicture}
+\end{center}
+
+\vspace{0.35cm}
+\begin{center}
+  \metric{tfmGreen}{22,32\%}{Top-10 balanceada · 250 palabras}\hspace{0.35cm}
+  \metric{tfmRed}{4\%}{azar uniforme}
+\end{center}
+\end{frame}
+
+% 2 ---------------------------------------------------------------------------
+\begin{frame}{Por qué importa: comunicación sin cirugía}
+\slidetag{BCI}
+\begin{columns}[T,onlytextwidth]
+\column{0.56\textwidth}
+\begin{tikzpicture}[node distance=8mm, every node/.style={align=center}]
+  \node[draw=tfmBlue, fill=tfmGray, rounded corners=3mm, minimum width=2.8cm, minimum height=0.9cm] (brain) {actividad\\cerebral};
+  \node[draw=tfmCyan, fill=tfmCyan!8, rounded corners=3mm, right=of brain, minimum width=2.7cm, minimum height=0.9cm] (signal) {señal\\M/EEG};
+  \node[draw=tfmOrange, fill=tfmOrange!10, rounded corners=3mm, below=of signal, minimum width=2.8cm, minimum height=0.9cm] (model) {modelo\\neuronal};
+  \node[draw=tfmGreen, fill=tfmGreen!10, rounded corners=3mm, left=of model, minimum width=2.8cm, minimum height=0.9cm] (text) {texto\\palabras};
+  \draw[-{Latex[length=2.5mm]}, thick] (brain) -- (signal);
+  \draw[-{Latex[length=2.5mm]}, thick] (signal) -- (model);
+  \draw[-{Latex[length=2.5mm]}, thick] (model) -- (text);
+  \draw[-{Latex[length=2.5mm]}, thick, dashed] (text) -- (brain);
+  \node[font=\scriptsize, text=tfmDarkGray, below=2mm of text] {interfaz cerebro-computador};
+\end{tikzpicture}
+
+\column{0.40\textwidth}
+\vspace{0.35cm}
+\card{tfmCyan}{\linewidth}{\textbf{Objetivo a largo plazo}\\restaurar comunicación}\vspace{0.28cm}
+\card{tfmOrange}{\linewidth}{\textbf{Restricción}\\evitar implantes cuando sea posible}\vspace{0.28cm}
+\card{tfmGreen}{\linewidth}{\textbf{Paso intermedio}\\clasificar palabras alineadas}
+\end{columns}
+\end{frame}
+
+% 3 ---------------------------------------------------------------------------
+\begin{frame}{Qué capta realmente un casco de EEG}
+\slidetag{demo casco}
+\begin{columns}[T,onlytextwidth]
+\column{0.42\textwidth}
+\centering
+\IfFileExists{../memoria/imagenes/eeg.png}{%
+  \includegraphics[height=4.9cm]{../memoria/imagenes/eeg.png}%
+}{%
+  \begin{tikzpicture}[scale=0.95]
+    \draw[fill=tfmGray, draw=tfmBlue, line width=1pt] (0,0) ellipse (1.65 and 2.05);
+    \foreach \x/\y in {-0.9/1.2,0/1.45,0.9/1.2,-1.1/0.25,0/0.4,1.1/0.25,-0.8/-0.8,0/-1.05,0.8/-0.8}{
+      \fill[tfmCyan] (\x,\y) circle (0.11);
+    }
+    \node[below] at (0,-2.25) {casco EEG};
+  \end{tikzpicture}%
+}
+
+\column{0.55\textwidth}
+\vspace{0.15cm}
+\begin{tikzpicture}[node distance=7mm]
+  \node[draw=tfmBlue, fill=tfmGray, rounded corners=3mm, minimum width=5.6cm, minimum height=0.85cm] (neurons) {corrientes neuronales sincronizadas};
+  \node[draw=tfmCyan, fill=tfmCyan!8, rounded corners=3mm, below=of neurons, minimum width=5.6cm, minimum height=0.85cm] (scalp) {potenciales en cuero cabelludo};
+  \node[draw=tfmOrange, fill=tfmOrange!10, rounded corners=3mm, below=of scalp, minimum width=5.6cm, minimum height=0.85cm] (artifacts) {parpadeos, músculo, impedancia, red eléctrica};
+  \node[draw=tfmGreen, fill=tfmGreen!10, rounded corners=3mm, below=of artifacts, minimum width=5.6cm, minimum height=0.85cm] (model) {patrones débiles que el modelo intenta explotar};
+  \draw[-{Latex[length=2mm]}, thick] (neurons) -- (scalp);
+  \draw[-{Latex[length=2mm]}, thick] (scalp) -- (artifacts);
+  \draw[-{Latex[length=2mm]}, thick] (artifacts) -- (model);
+\end{tikzpicture}
+
+\vspace{0.25cm}
+\begin{center}
+\small \textbf{Mensaje divulgativo:} no lee pensamientos; mide señales de $\mu$V mezcladas con mucho ruido.
+\end{center}
+\end{columns}
+\end{frame}
+
+% 4 ---------------------------------------------------------------------------
+\begin{frame}{EEG y MEG no ven el cerebro igual}
+\slidetag{modalidades}
+\begin{center}
+\begin{tikzpicture}[node distance=1.0cm]
+  \node[draw=tfmOrange, fill=tfmOrange!10, rounded corners=4mm, minimum width=5.1cm, minimum height=3.0cm, align=center] (eeg) {\Large EEG\\[1mm]\small electrodos sobre el cuero cabelludo\\portable y barato\\\vspace{1mm}\textbf{pero} más ruido y menos resolución espacial};
+  \node[draw=tfmCyan, fill=tfmCyan!8, rounded corners=4mm, right=of eeg, minimum width=5.1cm, minimum height=3.0cm, align=center] (meg) {\Large MEG\\[1mm]\small sensores magnéticos alrededor de la cabeza\\mayor calidad espacial\\\vspace{1mm}\textbf{pero} caro y poco portable};
+  \node[draw=tfmBlue, fill=tfmGray, rounded corners=3mm, below=0.8cm of $(eeg)!0.5!(meg)$, minimum width=7.0cm, minimum height=0.9cm, align=center] (bridge) {La tesis explora una transferencia, no una equivalencia física};
+  \draw[-{Latex[length=2.5mm]}, thick] (meg.south) -- (bridge.north east);
+  \draw[-{Latex[length=2.5mm]}, thick] (bridge.north west) -- (eeg.south);
+\end{tikzpicture}
+\end{center}
+\end{frame}
+
+% 5 ---------------------------------------------------------------------------
+\begin{frame}{La hipótesis: aprender con contexto largo}
+\slidetag{hipótesis}
+\begin{columns}[T,onlytextwidth]
+\column{0.52\textwidth}
+\bigclaim{El lenguaje no ocurre en ventanas aisladas.}
+\vspace{0.25cm}
+\begin{center}
+\begin{tikzpicture}
+  \draw[->, thick] (0,0) -- (7.0,0) node[right] {tiempo};
+  \foreach \x/\w in {0.4/La,1.2/señal,2.1/cerebral,3.3/tiene,4.1/contexto,5.25/largo,6.2/...}{
+    \draw[tfmCyan, line width=1.5pt] (\x,0.12) -- (\x,0.75);
+    \node[font=\scriptsize, rotate=45, anchor=west] at (\x,0.85) {\w};
+  }
+  \draw[tfmOrange, line width=2pt, rounded corners=2mm] (0.15,-0.35) rectangle (6.55,1.65);
+  \node[font=\small, text=tfmOrange] at (3.35,-0.65) {150 segundos};
+\end{tikzpicture}
+\end{center}
+
+\column{0.43\textwidth}
+\vspace{0.35cm}
+\card{tfmCyan}{\linewidth}{MEG-XL usa contexto largo}\vspace{0.25cm}
+\card{tfmOrange}{\linewidth}{EEG necesita robustez ante ruido}\vspace{0.25cm}
+\card{tfmGreen}{\linewidth}{Preentrenar antes de clasificar}
+\end{columns}
+\end{frame}
+
+% 6 ---------------------------------------------------------------------------
+\begin{frame}{De MEG-XL a EEG-XL}
+\slidetag{propuesta}
+\begin{center}
+\begin{tikzpicture}[node distance=8mm, every node/.style={align=center}]
+  \node[draw=tfmCyan, fill=tfmCyan!8, rounded corners=3mm, minimum width=2.9cm, minimum height=1cm] (megxl) {MEG-XL\\\scriptsize checkpoint};
+  \node[draw=tfmBlue, fill=tfmGray, rounded corners=3mm, right=of megxl, minimum width=3.2cm, minimum height=1cm] (adapter) {adaptador EEG\\\scriptsize posiciones + máscaras};
+  \node[draw=tfmOrange, fill=tfmOrange!10, rounded corners=3mm, right=of adapter, minimum width=3.0cm, minimum height=1cm] (pretrain) {conjunto EEG\\\scriptsize lectura $\rightarrow$ escucha};
+  \node[draw=tfmGreen, fill=tfmGreen!10, rounded corners=3mm, right=of pretrain, minimum width=3.1cm, minimum height=1cm] (finetune) {ds004408\\\scriptsize palabras};
+  \draw[-{Latex[length=2.5mm]}, thick] (megxl) -- (adapter);
+  \draw[-{Latex[length=2.5mm]}, thick] (adapter) -- (pretrain);
+  \draw[-{Latex[length=2.5mm]}, thick] (pretrain) -- (finetune);
+\end{tikzpicture}
+\end{center}
+
+\vspace{0.45cm}
+\begin{center}
+\card{tfmBlue}{3.5cm}{señal continua}\hspace{0.3cm}
+\card{tfmOrange}{3.5cm}{tokens cerebrales}\hspace{0.3cm}
+\card{tfmGreen}{3.5cm}{ranking de palabras}
+\end{center}
+\end{frame}
+
+% 7 ---------------------------------------------------------------------------
+\begin{frame}{Datos: empezar por lectura, acabar en escucha}
+\slidetag{datasets}
+\begin{center}
+\begin{tikzpicture}[node distance=8mm]
+  \node[draw=tfmOrange, fill=tfmOrange!10, rounded corners=3mm, minimum width=3.2cm, minimum height=1.0cm, align=center] (zuco) {ZuCo 2.0\\\scriptsize lectura natural};
+  \node[draw=tfmOrange, fill=tfmOrange!10, rounded corners=3mm, below=of zuco, minimum width=3.2cm, minimum height=1.0cm, align=center] (nieuw) {Nieuwland\\\scriptsize lectura};
+  \node[draw=tfmBlue, fill=tfmGray, rounded corners=3mm, right=1.4cm of $(zuco)!0.5!(nieuw)$, minimum width=2.7cm, minimum height=1.1cm, align=center] (common) {interfaz común\\\scriptsize 50 Hz · 150 s};
+  \node[draw=tfmCyan, fill=tfmCyan!8, rounded corners=3mm, right=1.4cm of common, minimum width=3.2cm, minimum height=1.0cm, align=center] (sparr) {SparrKULee\\\scriptsize escucha};
+  \node[draw=tfmCyan, fill=tfmCyan!8, rounded corners=3mm, below=of sparr, minimum width=3.2cm, minimum height=1.0cm, align=center] (japan) {ds007808\\\scriptsize escucha/contexto};
+  \node[draw=tfmGreen, fill=tfmGreen!10, rounded corners=3mm, right=1.4cm of $(sparr)!0.5!(japan)$, minimum width=3.2cm, minimum height=1.1cm, align=center] (brod) {ds004408\\\scriptsize fine-tuning y test};
+  \draw[-{Latex[length=2.5mm]}, thick] (zuco.east) -- (common.west);
+  \draw[-{Latex[length=2.5mm]}, thick] (nieuw.east) -- (common.west);
+  \draw[-{Latex[length=2.5mm]}, thick] (common.east) -- (sparr.west);
+  \draw[-{Latex[length=2.5mm]}, thick] (common.east) -- (japan.west);
+  \draw[-{Latex[length=2.5mm]}, thick] (sparr.east) -- (brod.west);
+  \draw[-{Latex[length=2.5mm]}, thick] (japan.east) -- (brod.west);
+\end{tikzpicture}
+\end{center}
+\vspace{0.25cm}
+\begin{center}
+\small ds004408 se reserva para que la evaluación no contamine el preentrenamiento.
+\end{center}
+\end{frame}
+
+% 8 ---------------------------------------------------------------------------
+\begin{frame}{Preprocesamiento: convertir datasets distintos en una entrada común}
+\slidetag{pipeline}
+\begin{center}
+\begin{tikzpicture}[node distance=6mm, every node/.style={align=center}]
+  \node[draw=tfmBlue, fill=tfmGray, rounded corners=2mm, minimum width=2.0cm, minimum height=0.85cm] (raw) {EEG\\heterogéneo};
+  \node[draw=tfmCyan, fill=tfmCyan!8, rounded corners=2mm, right=of raw, minimum width=2.0cm, minimum height=0.85cm] (filter) {filtro\\0,1--40 Hz};
+  \node[draw=tfmCyan, fill=tfmCyan!8, rounded corners=2mm, right=of filter, minimum width=2.0cm, minimum height=0.85cm] (resample) {50 Hz\\antialias};
+  \node[draw=tfmOrange, fill=tfmOrange!10, rounded corners=2mm, right=of resample, minimum width=2.1cm, minimum height=0.85cm] (win) {150 s\\7500 muestras};
+  \node[draw=tfmOrange, fill=tfmOrange!10, rounded corners=2mm, right=of win, minimum width=2.0cm, minimum height=0.85cm] (mask) {máscaras\\sensores};
+  \node[draw=tfmGreen, fill=tfmGreen!10, rounded corners=2mm, right=of mask, minimum width=2.1cm, minimum height=0.85cm] (input) {$X,P,m$\\entrada};
+  \foreach \a/\b in {raw/filter,filter/resample,resample/win,win/mask,mask/input}{\draw[-{Latex[length=2mm]}, thick] (\a) -- (\b);}
+\end{tikzpicture}
+\end{center}
+
+\vspace{0.55cm}
+\begin{center}
+\metric{tfmOrange}{150 s}{contexto por ejemplo}\hspace{0.35cm}
+\metric{tfmCyan}{50 Hz}{banda efectiva $\approx$ 0,1--25 Hz}\hspace{0.35cm}
+\metric{tfmGreen}{3 s}{bloques temporales}
+\end{center}
+\end{frame}
+
+% 9 ---------------------------------------------------------------------------
+\begin{frame}{Arquitectura: conservar lo útil, adaptar la entrada}
+\slidetag{EEG-XL}
+\begin{center}
+\begin{tikzpicture}[node distance=7mm, every node/.style={align=center}]
+  \node[draw=tfmBlue, fill=tfmGray, rounded corners=3mm, minimum width=2.4cm, minimum height=0.95cm] (x) {EEG\\$C\times7500$};
+  \node[draw=tfmCyan, fill=tfmCyan!8, rounded corners=3mm, right=of x, minimum width=2.4cm, minimum height=0.95cm] (codec) {BioCodec\\RVQ};
+  \node[draw=tfmCyan, fill=tfmCyan!8, rounded corners=3mm, right=of codec, minimum width=2.4cm, minimum height=0.95cm] (tok) {tokens\\$Q=6$};
+  \node[draw=tfmOrange, fill=tfmOrange!10, rounded corners=3mm, below=0.75cm of tok, minimum width=5.2cm, minimum height=0.9cm] (emb) {posición 3D + tipo de sensor + máscara};
+  \node[draw=tfmBlue, fill=tfmGray, rounded corners=3mm, right=1.0cm of tok, minimum width=3.4cm, minimum height=1.45cm] (tr) {Transformer\\criss-cross\\\scriptsize tiempo + sensores};
+  \node[draw=tfmGreen, fill=tfmGreen!10, rounded corners=3mm, right=of tr, minimum width=2.7cm, minimum height=0.95cm] (out) {tokens\\ocultos};
+  \draw[-{Latex[length=2mm]}, thick] (x) -- (codec);
+  \draw[-{Latex[length=2mm]}, thick] (codec) -- (tok);
+  \draw[-{Latex[length=2mm]}, thick] (tok) -- (tr);
+  \draw[-{Latex[length=2mm]}, thick] (emb) -| (tr.south);
+  \draw[-{Latex[length=2mm]}, thick] (tr) -- (out);
+\end{tikzpicture}
+\end{center}
+
+\vspace{0.25cm}
+\begin{center}
+\small Azul: idea heredada de MEG-XL. Naranja: cambios necesarios para EEG.
+\end{center}
+\end{frame}
+
+% 10 --------------------------------------------------------------------------
+\begin{frame}{Preentrenamiento: aprender a reconstruir señal cerebral}
+\slidetag{autosupervisado}
+\begin{columns}[T,onlytextwidth]
+\column{0.52\textwidth}
+\begin{center}
+\begin{tikzpicture}[x=0.42cm,y=0.32cm]
+  \foreach \c in {0,...,7}{
+    \foreach \t in {0,...,15}{
+      \pgfmathtruncatemacro{\mask}{mod(\t+\c,7)}
+      \ifnum\mask=0
+        \fill[tfmOrange!65] (\t,-\c) rectangle ++(0.82,-0.72);
+      \else
+        \fill[tfmCyan!25] (\t,-\c) rectangle ++(0.82,-0.72);
+      \fi
+    }
+  }
+  \draw[step=0.42cm, color=white, line width=0.25pt] (0,0) grid (6.72,-2.56);
+  \node[anchor=west, font=\scriptsize] at (16.7,-1.0) {visible};
+  \fill[tfmCyan!25] (15.8,-0.7) rectangle ++(0.55,-0.4);
+  \node[anchor=west, font=\scriptsize] at (16.7,-2.0) {oculto};
+  \fill[tfmOrange!65] (15.8,-1.7) rectangle ++(0.55,-0.4);
+  \node[font=\scriptsize, rotate=90] at (-1.1,-1.3) {canales};
+  \node[font=\scriptsize] at (7.9,-3.25) {tiempo};
+\end{tikzpicture}
+\end{center}
+
+\column{0.44\textwidth}
+\vspace{0.4cm}
+\card{tfmOrange}{\linewidth}{20 bloques ocultos de 50}\vspace{0.25cm}
+\card{tfmCyan}{\linewidth}{BioCodec discretiza la señal}\vspace{0.25cm}
+\card{tfmGreen}{\linewidth}{El modelo predice códigos, no palabras}
+\end{columns}
+\end{frame}
+
+% 11 --------------------------------------------------------------------------
+\begin{frame}{Ajuste supervisado: de EEG a embeddings de palabras}
+\slidetag{fine-tuning}
+\begin{center}
+\begin{tikzpicture}[node distance=7mm, every node/.style={align=center}]
+  \node[draw=tfmBlue, fill=tfmGray, rounded corners=3mm, minimum width=2.4cm, minimum height=0.9cm] (tg) {TextGrid\\$t_i$};
+  \node[draw=tfmCyan, fill=tfmCyan!8, rounded corners=3mm, right=of tg, minimum width=2.7cm, minimum height=0.9cm] (w) {ventana EEG\\3 s};
+  \node[draw=tfmCyan, fill=tfmCyan!8, rounded corners=3mm, right=of w, minimum width=2.7cm, minimum height=0.9cm] (seq) {50 palabras\\150 s};
+  \node[draw=tfmOrange, fill=tfmOrange!10, rounded corners=3mm, right=of seq, minimum width=2.7cm, minimum height=0.9cm] (proj) {proyección\\1024};
+  \node[draw=tfmGreen, fill=tfmGreen!10, rounded corners=3mm, right=of proj, minimum width=2.6cm, minimum height=0.9cm] (rank) {ranking\\Top-10};
+  \foreach \a/\b in {tg/w,w/seq,seq/proj,proj/rank}{\draw[-{Latex[length=2mm]}, thick] (\a) -- (\b);}
+  \node[draw=tfmOrange, fill=tfmOrange!10, rounded corners=3mm, below=1cm of proj, minimum width=2.8cm, minimum height=0.85cm] (t5) {T5-large\\embeddings};
+  \draw[-{Latex[length=2mm]}, thick] (t5) -- (proj);
+\end{tikzpicture}
+\end{center}
+
+\vspace{0.35cm}
+\begin{center}
+\small La evaluación pregunta: \textbf{¿la palabra correcta aparece entre las 10 más cercanas?}
+\end{center}
+\end{frame}
+
+% 12 --------------------------------------------------------------------------
+\begin{frame}{Diseño experimental: separar efectos}
+\slidetag{experimentos}
+\begin{center}
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \tikzstyle{start}=[draw=tfmBlue, fill=tfmGray, rounded corners=2mm, minimum width=3.0cm, minimum height=.75cm, align=center, font=\scriptsize]
+  \tikzstyle{train}=[draw=tfmOrange, fill=tfmOrange!10, rounded corners=2mm, minimum width=3.7cm, minimum height=.75cm, align=center, font=\scriptsize]
+  \tikzstyle{end}=[draw=tfmGreen, fill=tfmGreen!10, rounded corners=2mm, minimum width=3.1cm, minimum height=.75cm, align=center, font=\scriptsize]
+  \foreach \y/\a/\b/\c in {3/{aleatorio}/{sin preentrenamiento}/{ds004408},2/{aleatorio}/{EEG lectura $\to$ escucha}/{ds004408},1/{MEG-XL}/{EEG emb. $\to$ lectura/escucha}/{ds004408},0/{MEG-XL}/{MEG emb. reutilizado}/{ds004408}}{
+    \node[start] (a\y) at (0,\y) {\a};
+    \node[train] (b\y) at (4.0,\y) {\b};
+    \node[end] (c\y) at (8.2,\y) {\c};
+    \draw[-{Latex[length=2mm]}, thick] (a\y) -- (b\y);
+    \draw[-{Latex[length=2mm]}, thick] (b\y) -- (c\y);
+  }
+  \node[anchor=east, font=\scriptsize] at (-1.8,3) {control};
+  \node[anchor=east, font=\scriptsize] at (-1.8,2) {preent. EEG};
+  \node[anchor=east, font=\scriptsize] at (-1.8,1) {transferencia};
+  \node[anchor=east, font=\scriptsize] at (-1.8,0) {embedding};
+\end{tikzpicture}
+\end{center}
+\end{frame}
+
+% 13 --------------------------------------------------------------------------
+\begin{frame}{Resultado principal}
+\slidetag{resultados}
+\begin{center}
+\begin{tikzpicture}[x=1cm,y=0.18cm]
+  \draw[->, thick] (-0.2,0) -- (10.5,0);
+  \draw[->, thick] (0,0) -- (0,27);
+  \node[rotate=90, font=\scriptsize] at (-0.7,13) {Top-10 balanceada, 250 palabras (\%)};
+  \foreach \v in {4,10,20}{\draw[tfmGray, line width=0.8pt] (0,\v) -- (10.0,\v); \node[font=\scriptsize, anchor=east] at (-0.1,\v) {\v};}
+  \draw[tfmRed, dashed, line width=1.2pt] (0,4) -- (10.0,4);
+  \node[tfmRed, font=\scriptsize, anchor=west] at (10.05,4) {azar};
+
+  \fill[tfmDarkGray!55] (0.8,0) rectangle (1.8,4.05);
+  \node[font=\scriptsize] at (1.3,-2.2) {sin};
+  \node[font=\scriptsize] at (1.3,5.25) {4,05};
+
+  \fill[tfmOrange!75] (3.0,0) rectangle (4.0,19.95);
+  \node[font=\scriptsize] at (3.5,-2.2) {EEG};
+  \node[font=\scriptsize] at (3.5,21.15) {19,95};
+
+  \fill[tfmCyan!75] (5.2,0) rectangle (6.2,20.56);
+  \node[font=\scriptsize] at (5.7,-2.2) {MEG$\to$EEG};
+  \node[font=\scriptsize] at (5.7,21.76) {20,56};
+
+  \fill[tfmGreen!75] (7.4,0) rectangle (8.4,22.32);
+  \node[font=\scriptsize] at (7.9,-2.2) {MEG emb.};
+  \node[font=\scriptsize, font=\bfseries] at (7.9,23.52) {22,32};
+\end{tikzpicture}
+\end{center}
+
+\vspace{0.15cm}
+\begin{center}
+\small El salto dominante viene del \textbf{preentrenamiento autosupervisado}.
+\end{center}
+\end{frame}
+
+% 14 --------------------------------------------------------------------------
+\begin{frame}{Qué nos dicen las curvas}
+\slidetag{validación}
+\begin{columns}[T,onlytextwidth]
+\column{0.58\textwidth}
+\centering
+\IfFileExists{../memoria/figuras/fig_5_2_ds004408_val_balanced_top10_250.pdf}{%
+  \includegraphics[width=\linewidth]{../memoria/figuras/fig_5_2_ds004408_val_balanced_top10_250.pdf}%
+}{%
+  \begin{tikzpicture}[x=.75cm,y=.55cm]
+    \draw[->, thick] (0,0) -- (6.8,0) node[right]{épocas};
+    \draw[->, thick] (0,0) -- (0,4.5) node[above]{validación};
+    \draw[tfmRed, thick] plot[smooth] coordinates {(0,0.8)(1,0.9)(2,0.8)(3,0.85)(4,0.82)(5,0.78)};
+    \draw[tfmOrange, thick] plot[smooth] coordinates {(0,2.0)(1,2.6)(2,3.0)(3,3.2)(4,3.1)(5,2.8)};
+    \draw[tfmGreen, thick] plot[smooth] coordinates {(0,2.3)(1,3.0)(2,3.6)(3,3.9)(4,3.5)(5,3.1)};
+    \node[font=\scriptsize] at (3.3,-0.7) {máximo temprano};
+  \end{tikzpicture}%
+}
+\column{0.38\textwidth}
+\vspace{0.4cm}
+\card{tfmGreen}{\linewidth}{los mejores checkpoints aparecen pronto}\vspace{0.25cm}
+\card{tfmOrange}{\linewidth}{más épocas no garantizan mejorar}\vspace{0.25cm}
+\card{tfmRed}{\linewidth}{EEG se sobreajusta con facilidad}
+\end{columns}
+\end{frame}
+
+% 15 --------------------------------------------------------------------------
+\begin{frame}{Lectura final de los resultados}
+\slidetag{discusión}
+\begin{center}
+\begin{tikzpicture}[node distance=8mm]
+  \node[draw=tfmGreen, fill=tfmGreen!10, rounded corners=4mm, minimum width=4.2cm, minimum height=2.2cm, align=center] (a) {\Large 1\\\textbf{Viable}\\\small adaptar MEG-XL a EEG};
+  \node[draw=tfmOrange, fill=tfmOrange!10, rounded corners=4mm, right=of a, minimum width=4.2cm, minimum height=2.2cm, align=center] (b) {\Large 2\\\textbf{Clave}\\\small preentrenar EEG antes};
+  \node[draw=tfmCyan, fill=tfmCyan!8, rounded corners=4mm, right=of b, minimum width=4.2cm, minimum height=2.2cm, align=center] (c) {\Large 3\\\textbf{Pendiente}\\\small más semillas y datos propios};
+\end{tikzpicture}
+\end{center}
+
+\vspace{0.4cm}
+\begin{center}
+\small No es brain-to-text abierto; es un paso controlado hacia modelos no invasivos más robustos.
+\end{center}
+\end{frame}
+
+% 16 --------------------------------------------------------------------------
+\begin{frame}{Dónde encaja el casco EEG en la defensa}
+\slidetag{recurso divulgativo}
+\begin{columns}[T,onlytextwidth]
+\column{0.48\textwidth}
+\bigclaim{Sí lo llevaría.}
+\vspace{0.2cm}
+\begin{center}
+\card{tfmCyan}{\linewidth}{sirve para aterrizar el problema}\vspace{0.25cm}
+\card{tfmOrange}{\linewidth}{muestra por qué el EEG es ruidoso}\vspace{0.25cm}
+\card{tfmGreen}{\linewidth}{conecta la investigación con uso real}
+\end{center}
+
+\column{0.48\textwidth}
+\vspace{0.2cm}
+\begin{tikzpicture}[node distance=7mm]
+  \node[draw=tfmBlue, fill=tfmGray, rounded corners=3mm, minimum width=5.4cm, minimum height=.8cm, align=center] (show) {30 s: enseñar electrodos y regiones};
+  \node[draw=tfmCyan, fill=tfmCyan!8, rounded corners=3mm, below=of show, minimum width=5.4cm, minimum height=.8cm, align=center] (signal) {30 s: explicar señal + artefactos};
+  \node[draw=tfmOrange, fill=tfmOrange!10, rounded corners=3mm, below=of signal, minimum width=5.4cm, minimum height=.8cm, align=center] (warning) {10 s: no prometer lectura mental};
+  \node[draw=tfmGreen, fill=tfmGreen!10, rounded corners=3mm, below=of warning, minimum width=5.4cm, minimum height=.8cm, align=center] (back) {volver al pipeline del modelo};
+  \foreach \a/\b in {show/signal,signal/warning,warning/back}{\draw[-{Latex[length=2mm]}, thick] (\a) -- (\b);}
+\end{tikzpicture}
+\end{columns}
+\end{frame}
+
+% 17 --------------------------------------------------------------------------
+\begin{frame}{Conclusión}
+\slidetag{cierre}
+\bigclaim{La transferencia MEG--EEG no resuelve el problema, pero abre una vía útil.}
+
+\vspace{0.45cm}
+\begin{center}
+\metric{tfmGreen}{5,58$\times$}{sobre azar en la métrica principal}\hspace{0.35cm}
+\metric{tfmOrange}{+15,90 pp}{efecto del preentrenamiento EEG}\hspace{0.35cm}
+\metric{tfmCyan}{+1,76 pp}{mejor embedding de sensor}
+\end{center}
+
+\vspace{0.45cm}
+\begin{center}
+\small Trabajo futuro: más semillas, tokenizadores, bandas, datasets EEG y registros propios con casco.
+\end{center}
+\end{frame}
+
+\begin{frame}[plain]
+\begin{center}
+\vspace{1.6cm}
+{\Huge\bfseries\color{tfmBlue} Gracias}\[0.5cm]
+{\large Preguntas}\[0.8cm]
+\begin{tikzpicture}[node distance=6mm]
+  \node[draw=tfmCyan, fill=tfmCyan!8, rounded corners=3mm, minimum width=2.4cm, minimum height=0.8cm] (meg) {MEG};
+  \node[draw=tfmOrange, fill=tfmOrange!10, rounded corners=3mm, right=of meg, minimum width=2.4cm, minimum height=0.8cm] (eeg) {EEG};
+  \node[draw=tfmGreen, fill=tfmGreen!10, rounded corners=3mm, right=of eeg, minimum width=2.8cm, minimum height=0.8cm] (word) {palabras};
+  \draw[-{Latex[length=2mm]}, thick] (meg) -- (eeg);
+  \draw[-{Latex[length=2mm]}, thick] (eeg) -- (word);
+\end{tikzpicture}
+\end{center}
+\end{frame}
+
+\end{document}
