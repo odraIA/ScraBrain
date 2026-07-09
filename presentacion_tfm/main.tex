@@ -85,7 +85,7 @@
 \subtitle{Clasificación contextual de palabras en lectura y escucha natural}
 \author{Ricardo Díaz Peris}
 \newcommand{\tutors}{Tutores: Vicent Juan Botti Navarro, Alfons Juan Císcar}
-\institute{Máster Universitario en Inteligencia Artificial, Reconocimiento de Formas e Imagen Digital\\Universitat Politècnica de València}
+\institute{MIARFID - UPV}
 \date{Defensa TFM · Curso 2025--2026}
 
 \begin{document}
@@ -149,46 +149,83 @@
   \note{Dejar claro desde el principio que el trabajo no promete lectura mental. Se estudia una asociación estadística entre señal cerebral y palabras en una tarea controlada.}
 \end{frame}
 
-% 3 ---------------------------------------------------------------------------
-\begin{frame}[c]{Intrusivo vs. no intrusivo}
+% % 3 ---------------------------------------------------------------------------
+% \begin{frame}[c]{Intrusivo vs. no intrusivo}
+%   \begin{columns}[c,totalwidth=\linewidth]
+%     \begin{column}{0.48\linewidth}
+%       \begin{block}{Intrusivo: ECoG / microelectrodos}
+%         \begin{itemize}
+%           \item Mejor relación señal--ruido.
+%           \item Mayor precisión en aplicaciones clínicas concretas.
+%           \item Requiere cirugía: riesgo, coste y baja escalabilidad.
+%         \end{itemize}
+%       \end{block}
+%     \end{column}
+
+%     \begin{column}{0.48\linewidth}
+%       \begin{block}{No intrusivo: EEG / MEG / fMRI}
+%         \begin{itemize}
+%           \item Más seguro y reutilizable.
+%           \item Más cercano a escenarios portables, especialmente EEG.
+%           \item Señal más débil y más difícil de interpretar.
+%         \end{itemize}
+%       \end{block}
+%     \end{column}
+%   \end{columns}
+
+%   \vspace{5mm}
+
+%   \begin{center}
+%   \begin{tikzpicture}[node distance=7mm, every node/.style={font=\scriptsize}]
+%     \node[draw=accent, fill=accent!12, rounded corners, text width=29mm, align=center] (inv) {más señal\\más invasivo};
+%     \node[draw=warning, fill=warning!16, rounded corners, text width=30mm, align=center, right=of inv] (meg) {MEG\\no invasivo\\costoso};
+%     \node[draw=greenish, fill=greenish!12, rounded corners, text width=30mm, align=center, right=of meg] (eeg) {EEG\\no invasivo\\portable};
+%     \draw[-{Latex[length=2mm]}, thick] (inv) -- (meg);
+%     \draw[-{Latex[length=2mm]}, thick] (meg) -- (eeg);
+%   \end{tikzpicture}
+%   \end{center}
+
+%   \note{El mensaje no es que EEG sea mejor que MEG o que lo invasivo no sirva. El mensaje es que si queremos algo escalable, el EEG es una modalidad clave, aunque técnicamente sea más difícil.}
+% \end{frame}
+
+% 4 ---------------------------------------------------------------------------
+\begin{frame}[c]{Invasivo vs. no invasivo}
+  \small
   \begin{columns}[c,totalwidth=\linewidth]
-    \begin{column}{0.48\linewidth}
-      \begin{block}{Intrusivo: ECoG / microelectrodos}
-        \begin{itemize}
-          \item Mejor relación señal--ruido.
-          \item Mayor precisión en aplicaciones clínicas concretas.
-          \item Requiere cirugía: riesgo, coste y baja escalabilidad.
-        \end{itemize}
-      \end{block}
+    \begin{column}{0.34\linewidth}
+      \centering
+      \includegraphics[width=\linewidth,height=0.29\textheight,keepaspectratio]{ecog.jpg}\par
+      \vspace{0.5mm}
+      {\bfseries ECoG}\par
+      \vspace{3mm}
+      \includegraphics[width=\linewidth,height=0.31\textheight,keepaspectratio]{imagenes/eeg.png}\par
+      \vspace{0.5mm}
+      {\bfseries EEG}
     \end{column}
 
-    \begin{column}{0.48\linewidth}
-      \begin{block}{No intrusivo: EEG / MEG / fMRI}
-        \begin{itemize}
-          \item Más seguro y reutilizable.
-          \item Más cercano a escenarios portables, especialmente EEG.
-          \item Señal más débil y más difícil de interpretar.
-        \end{itemize}
-      \end{block}
+    \begin{column}{0.31\linewidth}
+      \centering
+      \includegraphics[width=\linewidth,height=0.70\textheight,keepaspectratio]{MEG.jpg}\par
+      \vspace{1mm}
+      {\bfseries MEG}
+    \end{column}
+
+    \begin{column}{0.29\linewidth}
+      \centering
+      \includegraphics[width=\linewidth,height=0.29\textheight,keepaspectratio]{fmri.jpg}\par
+      \vspace{0.5mm}
+      {\bfseries fMRI}\par
+      \vspace{3mm}
+      \includegraphics[width=\linewidth,height=0.29\textheight,keepaspectratio]{imagenes/perrikaryal.png}\par
+      \vspace{0.5mm}
+      {\bfseries BCI con EEG en videojuegos}
     \end{column}
   \end{columns}
 
-  \vspace{5mm}
-
-  \begin{center}
-  \begin{tikzpicture}[node distance=7mm, every node/.style={font=\scriptsize}]
-    \node[draw=accent, fill=accent!12, rounded corners, text width=29mm, align=center] (inv) {más señal\\más invasivo};
-    \node[draw=warning, fill=warning!16, rounded corners, text width=30mm, align=center, right=of inv] (meg) {MEG\\no invasivo\\costoso};
-    \node[draw=greenish, fill=greenish!12, rounded corners, text width=30mm, align=center, right=of meg] (eeg) {EEG\\no invasivo\\portable};
-    \draw[-{Latex[length=2mm]}, thick] (inv) -- (meg);
-    \draw[-{Latex[length=2mm]}, thick] (meg) -- (eeg);
-  \end{tikzpicture}
-  \end{center}
-
-  \note{El mensaje no es que EEG sea mejor que MEG o que lo invasivo no sirva. El mensaje es que si queremos algo escalable, el EEG es una modalidad clave, aunque técnicamente sea más difícil.}
+  \note{Usar esta diapositiva para aterrizar visualmente las siglas. ECoG queda en el lado invasivo; EEG, MEG y fMRI son no invasivos; el ejemplo de Perrikaryal ayuda a conectar EEG con BCI real o divulgativa antes de pasar a la comparación técnica.}
 \end{frame}
 
-% 4 ---------------------------------------------------------------------------
+% 5 ---------------------------------------------------------------------------
 \begin{frame}[c]{Comparativa de métodos no intrusivos}
   \small
   \setlength{\tabcolsep}{4pt}
@@ -302,7 +339,7 @@
         \end{tikzpicture}%
       }
     \end{column}
-
+ 
     \begin{column}{0.59\linewidth}
       \begin{block}{Lo que mide}
         Diferencias de potencial en el cuero cabelludo, generadas por actividad neuronal sincronizada y observadas a través de electrodos.
@@ -312,8 +349,8 @@
         Parpadeos, movimiento ocular, tensión muscular, mala impedancia, movimiento del casco y ruido eléctrico.
       \end{alertblock}
 
-      \begin{exampleblock}{Mensaje para la defensa}
-        El casco no lee pensamientos: registra señales de microvoltios mezcladas con ruido. Precisamente por eso hacen falta preprocesamiento, contexto largo y preentrenamiento.
+      \begin{exampleblock}{Resumen}
+        Registra señales de microvoltios mezcladas con  mucho ruido. Precisamente por eso hacen falta preprocesamiento, contexto largo y preentrenamiento.
       \end{exampleblock}
     \end{column}
   \end{columns}
@@ -358,24 +395,7 @@
 \end{frame}
 
 % 6 ---------------------------------------------------------------------------
-\begin{frame}[c]{Pregunta de investigación}
-  \begin{center}
-    \begin{tikzpicture}
-      \node[
-        draw=warning!80!black,
-        fill=warning!20,
-        rounded corners=3pt,
-        inner xsep=8pt,
-        inner ysep=5pt,
-        text width=0.86\linewidth,
-        align=center
-      ] {
-        {\bfseries\color{deepgreen}¿Puede un modelo MEG de contexto largo adaptarse a EEG para clasificación contextual de palabras?}
-      };
-    \end{tikzpicture}
-  \end{center}
-
-  \vspace{3mm}
+\begin{frame}[c]{Hipótesis}
 
   \begin{columns}[T,totalwidth=\linewidth]
     \begin{column}{0.31\linewidth}
@@ -395,6 +415,24 @@
     \end{column}
   \end{columns}
 
+  \vspace{3mm}
+
+  \begin{center}
+    \begin{tikzpicture}
+      \node[
+        draw=warning!80!black,
+        fill=warning!20,
+        rounded corners=3pt,
+        inner xsep=8pt,
+        inner ysep=5pt,
+        text width=0.86\linewidth,
+        align=center
+      ] {
+        {\bfseries\color{deepgreen}¿Puede un modelo MEG de contexto largo adaptarse a EEG para clasificación contextual de palabras?}
+      };
+    \end{tikzpicture}
+  \end{center}
+
   \note{Esta es la formulación compacta del TFM. Conviene decir que no se evalúa generación libre de texto, sino recuperación de palabras en una tarea controlada.}
 \end{frame}
 
@@ -404,7 +442,7 @@
     \hspace*{0.05\linewidth}
     \begin{column}{0.36\linewidth}
       \begin{block}{Idea central}
-        Mantener el sesgo de MEG-XL: contexto largo, tokenización neuronal y aprendizaje autosupervisado.
+        Modelo de pocos parámetros que sea capaz de entender MEG y especializar con pocos datos.
       \end{block}
 
       \begin{block}{Cambio necesario}
@@ -436,8 +474,8 @@
       \begin{block}{Lectura}
         \begin{minipage}[t][29mm][t]{\linewidth}
         \begin{itemize}
-          \item ZuCo 2.0: lectura natural.
-          \item Nieuwland et al.: lectura palabra a palabra.
+          \item ZuCo 2.0: 11,1 h NR; lectura natural.
+          \item Nieuwland et al.: $\sim$170 h; lectura palabra a palabra.
           \item Adaptación inicial a EEG lingüístico.
         \end{itemize}
         \end{minipage}
@@ -448,8 +486,8 @@
       \begin{block}{Escucha}
         \begin{minipage}[t][29mm][t]{\linewidth}
         \begin{itemize}
-          \item SparrKULee: habla natural.
-          \item OpenNeuro ds007808: escucha y contexto longitudinal.
+          \item SparrKULee: 168 h; habla natural.
+          \item OpenNeuro ds007808: 33,8 h escucha + 167 h contexto.
           \item Aproxima el dominio de evaluación.
         \end{itemize}
         \end{minipage}
@@ -460,7 +498,7 @@
       \begin{alertblock}{Evaluación final}
         \begin{minipage}[t][29mm][t]{\linewidth}
         \begin{itemize}
-          \item OpenNeuro ds004408.
+          \item OpenNeuro ds004408: 20,6 h.
           \item Reservado para fine-tuning y test.
           \item No participa en el preentrenamiento.
         \end{itemize}
@@ -488,29 +526,81 @@
 \begin{frame}[c]{Preprocesamiento común}
   \begin{columns}[c,totalwidth=\linewidth]
     \begin{column}{0.37\linewidth}
+      \hspace*{4mm}%
+      \begin{minipage}{0.91\linewidth}
       \begin{block}{Objetivo}
         Convertir datasets EEG heterogéneos en entradas compatibles con una arquitectura común.
       \end{block}
 
-      \begin{alertblock}{Punto importante}
-        Aunque el filtro inicial llega a 40 Hz, al remuestrear a 50 Hz la banda efectiva queda limitada por Nyquist: aproximadamente 0,1--25 Hz.
+      \begin{alertblock}{Importante}
+        \small
+        Nyquist fija la frecuencia máxima tras el remuestreo:
+        \[
+          f_N = f_s/2 = 50/2 = 25\,\text{Hz}
+        \]
+        Aunque el filtro llegue a 40 Hz, el modelo usa aprox. 0,1--25 Hz.
       \end{alertblock}
+      \end{minipage}
     \end{column}
 
     \begin{column}{0.59\linewidth}
       \centering
-      \begin{tikzpicture}[node distance=3.5mm, every node/.style={font=\scriptsize}]
-        \node[draw=deepgreen, fill=deepgreen!8, rounded corners, text width=42mm, align=center] (raw) {EEG heterogéneo};
-        \node[draw=greenish, fill=greenish!12, rounded corners, text width=42mm, align=center, below=of raw] (filter) {filtro 0,1--40 Hz};
-        \node[draw=warning, fill=warning!18, rounded corners, text width=42mm, align=center, below=of filter] (resample) {remuestreo a 50 Hz};
-        \node[draw=accent, fill=accent!12, rounded corners, text width=42mm, align=center, below=of resample] (win) {ventanas completas de 150 s};
-        \node[draw=deepgreen, fill=deepgreen!8, rounded corners, text width=42mm, align=center, below=of win] (mask) {posiciones 3D + máscaras de sensores};
+      \begin{tikzpicture}[node distance=3mm, every node/.style={font=\tiny}]
+        \node[draw=greenish, fill=greenish!10, rounded corners, text width=26mm, align=center] (sigfreq)
+          {\textbf{frecuencia EEG}\\oscilaciones de la señal\\0,1--40 Hz};
+        \node[draw=warning, fill=warning!16, rounded corners, text width=26mm, align=center, right=of sigfreq] (samplefreq)
+          {\textbf{frecuencia de muestreo}\\muestras por segundo\\50 Hz};
+      \end{tikzpicture}
+
+      \vspace{2mm}
+
+      \begin{tikzpicture}[node distance=3.4mm, every node/.style={font=\scriptsize}]
+        \node[draw=deepgreen, fill=deepgreen!8, rounded corners, text width=40mm, align=center] (raw) {EEG heterogéneo};
+        \node[draw=greenish, fill=greenish!12, rounded corners, text width=40mm, align=center, below=of raw] (filter) {filtro 0,1--40 Hz};
+        \node[draw=warning, fill=warning!18, rounded corners, text width=40mm, align=center, below=of filter] (resample) {remuestreo a 50 Hz};
+        \node[draw=accent, fill=accent!12, rounded corners, text width=40mm, align=center, below=of resample] (win) {ventanas completas de 150 s};
+        \node[draw=deepgreen, fill=deepgreen!8, rounded corners, text width=40mm, align=center, below=of win] (mask) {posiciones 3D + máscaras};
         \foreach \x/\y in {raw/filter,filter/resample,resample/win,win/mask}{\draw[-{Latex[length=2mm]}, thick, deepgreen] (\x) -- (\y);}
+      \end{tikzpicture}
+
+      \vspace{2mm}
+
+      \begin{tikzpicture}[
+        x=0.72cm,y=0.55cm,
+        every node/.style={font=\tiny},
+        fullwin/.style={draw=deepgreen, fill=deepgreen!8, rounded corners=1pt},
+        dropwin/.style={draw=accent, fill=accent!10, rounded corners=1pt},
+        signal/.style={greenish, line width=0.75pt},
+        cut/.style={linegray, densely dashed, line width=0.45pt}
+      ]
+        \foreach \x in {0,1.55,3.10,4.65,5.75} {
+          \draw[cut] (\x,0.42) -- (\x,1.42);
+        }
+        \draw[signal]
+          plot[smooth] coordinates {
+            (0.00,1.03) (0.18,1.24) (0.36,0.91) (0.55,1.13)
+            (0.75,0.83) (0.94,1.28) (1.12,0.99) (1.34,1.17)
+            (1.55,1.01) (1.74,1.23) (1.95,0.89) (2.15,1.11)
+            (2.36,0.82) (2.56,1.29) (2.78,0.97) (2.96,1.16)
+            (3.10,1.02) (3.29,1.22) (3.50,0.90) (3.70,1.14)
+            (3.91,0.85) (4.12,1.26) (4.32,0.96) (4.50,1.15)
+            (4.65,1.01) (4.84,1.23) (5.05,0.91) (5.24,1.13)
+            (5.44,0.88) (5.62,1.08) (5.75,0.98)
+          };
+        \foreach \x in {0,1.55,3.10} {
+          \draw[fullwin] (\x,0.00) rectangle ++(1.55,0.42);
+          \node[text=deepgreen] at (\x+0.775,0.21) {150 s};
+        }
+        \draw[dropwin] (4.65,0.00) rectangle ++(1.10,0.42);
+        \node[text=accent!85!black] at (5.20,0.21) {$<150$ s};
+        \draw[accent, line width=0.9pt] (4.74,0.07) -- (5.66,0.35);
+        \draw[accent, line width=0.9pt] (4.74,0.35) -- (5.66,0.07);
+        \draw[-{Latex[length=1.8mm]}, thick, linegray] (-0.05,0.55) -- (5.95,0.55);
       \end{tikzpicture}
     \end{column}
   \end{columns}
 
-  \note{Explicar que esta parte no es secundaria: si el modelo va a combinar datasets, hay que homogeneizar frecuencia, escala, ventanas y sensores ausentes.}
+  \note{Explicar que esta parte no es secundaria: si el modelo va a combinar datasets, hay que homogeneizar frecuencia, escala, ventanas y sensores ausentes. Remarcar que solo se conservan ventanas completas de 150 segundos; el tramo final se descarta si no llega a esa duración.}
 \end{frame}
 
 % 10 --------------------------------------------------------------------------
@@ -575,7 +665,7 @@
   \begin{center}
   \begin{tabular}{>{\bfseries}p{0.25\linewidth}p{0.22\linewidth}p{0.26\linewidth}p{0.18\linewidth}}
     \toprule
-    Condición & Inicialización & Preentrenamiento EEG & Fine-tuning \\
+    Modelo & Inicialización & Preentrenamiento EEG & Fine-tuning \\
     \midrule
     Sin preentrenamiento & Aleatoria & No & ds004408 \\
     EEG desde cero & Aleatoria & Lectura $\rightarrow$ escucha & ds004408 \\
@@ -706,7 +796,7 @@
     \hfill
 
     \begin{column}{0.30\linewidth}
-      \begin{alertblock}{Prudencia}
+      \begin{alertblock}{Cuidado}
         \begin{minipage}[t][30mm][t]{\linewidth}
         \begin{itemize}
           \item Una única semilla.
@@ -723,7 +813,7 @@
   \begin{center}
     \begin{tikzpicture}
       \node[draw=deepgreen, fill=soft, rounded corners=3pt, inner xsep=8pt, inner ysep=4pt, text width=0.86\linewidth, align=center]{
-        \textbf{Lectura honesta:} la transferencia MEG--EEG no resuelve el brain-to-text no invasivo, pero muestra una vía viable y medible para avanzar.
+        \textbf{Lectura:} la transferencia MEG--EEG no resuelve el brain-to-text no invasivo, pero muestra una vía viable y medible para avanzar.
       };
     \end{tikzpicture}
   \end{center}
@@ -766,7 +856,7 @@
         \begin{minipage}[t][30mm][t]{\linewidth}
         \begin{itemize}
           \item Más semillas y particiones.
-          \item Más bandas, tokenizadores y datasets.
+          \item Más bandas, remuestreos, tokenizadores y datasets.
           \item Registros propios con casco EEG.
         \end{itemize}
         \end{minipage}
@@ -797,7 +887,7 @@
       \centering
       {\Huge\bfseries\color{white}Gracias\par}
       \vspace{7mm}
-      {\Large\color{white}Preguntas\par}
+      {\Large\color{white}Preguntas, recomendaciones, incordios\par}
     \end{column}
 
     \begin{column}{0.52\linewidth}
